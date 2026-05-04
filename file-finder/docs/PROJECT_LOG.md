@@ -41,6 +41,6 @@ Migration of `file_finder.py.txt` to a high-performance Rust/Svelte desktop app.
 - Added `!important` CSS overrides to ensure theme persistence across all browser defaults.
 
 ## Evolution
-- Migrated `file_finder.py.txt` logic to Rust/Svelte.
+- Migrated `file_finder.py` logic to Rust/Svelte.
 - Replaced Python `tqdm` with reactive Svelte state.
 - Enhanced JSON output with deterministic alphanumeric sorting for better diffing and readability.
