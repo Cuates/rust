@@ -1,16 +1,16 @@
 # File Finder Rust - Project Log
 
 ## Context
-Migration of `file_finder.py.txt` to a high-performance Rust/Svelte desktop app[cite: 1].
+Migration of `file_finder.py.txt` to a high-performance Rust/Svelte desktop app.
 
 ## Project Goals
-- Replicate the recursive file search and JSON metadata generation of `file_finder.py.txt`[cite: 1].
+- Replicate the recursive file search and JSON metadata generation of `file_finder.py.txt`.
 - Provide a modern GUI using Tauri 2.0 and Svelte 5.
 
 ## Technical Parity
-- **Search Logic**: Implemented recursive `WalkDir` with `glob` pattern matching to mirror Python's `fnmatch` behavior[cite: 1].
-- **Data Structure**: Matches the `DirectoryResult` and `Metadata` JSON format precisely[cite: 1].
-- **Configuration**: Supports custom extensions and exclusion patterns originally handled via CLI arguments[cite: 1].
+- **Search Logic**: Implemented recursive `WalkDir` with `glob` pattern matching to mirror Python's `fnmatch` behavior.
+- **Data Structure**: Matches the `DirectoryResult` and `Metadata` JSON format precisely.
+- **Configuration**: Supports custom extensions and exclusion patterns originally handled via CLI arguments.
 
 ## Architectural Decisions
 - **Backend**: Rust (Tauri 2.0). Modular plugins enabled for `dialog` and `opener`.
@@ -19,31 +19,28 @@ Migration of `file_finder.py.txt` to a high-performance Rust/Svelte desktop app[
 - **Package Manager**: pnpm. Strict dependency resolution and approved builds for `@parcel/watcher`.
 
 ## Current Status
-- **Backend**: Rust (Tauri 2.0) with `walkdir` and `glob` for file operations[cite: 1].
-- **Frontend**: Svelte 5 with external SCSS and native Dialog plugin.
-- **Parity**: Successfully replicated `DirectoryResult` and `Metadata` structures from `file_finder.py.txt`[cite: 1].
+- **Backend**: Rust (Tauri 2.0) using `walkdir` and `BTreeMap` for ordered results.
+- **Frontend**: Svelte 5 with integrated dark mode toggle and event-driven UI resets.
+- **Parity**: Successfully replicated and improved upon `DirectoryResult` and `Metadata` structures.
 
 ## Build Instructions
 1. `pnpm install`
-2. `pnpm approve-builds` (for @parcel/watcher)
+2. `pnpm approve-builds`
 3. `pnpm tauri dev`
 
 ## Completed Features
-- **Recursive Search**: Implemented via Rust's `walkdir` crate, building a nested `HashMap` tree[cite: 1].
-- **Exclusion Logic**: Supports wildcard glob patterns (e.g., `*temp*`) for directory and file exclusion[cite: 1].
-- **Metadata**: Captures execution time, counts, and configuration settings in the final output[cite: 1].
-- **Svelte 5 UI**: Modernized state management using `$state` runes.
-- **SCSS**: Modularized styling in an external `app.scss` file.
+- **Recursive Search**: Implemented via Rust's `walkdir` crate.
+- **Ordered JSON**: Migrated from `HashMap` to `BTreeMap` for alphanumeric subdirectory sorting; implemented recursive case-insensitive file sorting.
+- **Exclusion Logic**: Supports wildcard glob patterns for directory and file exclusion.
+- **Dark Mode UI**: High-contrast theme (#2D2D2D background) for all input fields and dynamic text coloring for results.
+- **UI State Management**: Event-driven `oninput` handlers to clear search results only when criteria change, preventing UI flickering.
 
 ## Technical Maintenance
-- Approved `@parcel/watcher` build for improved dev-mode stability.
-- Registered `tauri-plugin-dialog` in `Cargo.toml` and `main.rs` for native file picking.
+- Replaced `HashMap` with `BTreeMap` in `main.rs` to guarantee alphanumeric JSON keys.
+- Implemented `sort_all_files` post-processing to ensure alphanumeric file order.
+- Added `!important` CSS overrides to ensure theme persistence across all browser defaults.
 
 ## Evolution
-- Migrated `file_finder.py.txt` logic to Rust/Svelte[cite: 1].
-- Replaced Python `tqdm` with reactive Svelte state[cite: 1].
-- Implemented `walkdir` for high-speed recursive traversal[cite: 1].
-
-## Build Note
-- Overwrote Tauri boilerplate to implement custom File Finder UI.
-- Use `pnpm tauri dev` to view changes.
+- Migrated `file_finder.py.txt` logic to Rust/Svelte.
+- Replaced Python `tqdm` with reactive Svelte state.
+- Enhanced JSON output with deterministic alphanumeric sorting for better diffing and readability.
