@@ -1,1 +1,145 @@
+:root {
+  --bg: #ffffff;
+  --text: #222222;
+  --input-bg: #ffffff;
+  --border: #cccccc;
+  --accent: #0078d7;
+}
 
+:global(body.dark) {
+  --bg: #121212;
+  --text: #e0e0e0;
+  --input-bg: #1e1e1e;
+  --border: #4A4A4A;
+  --accent: #38bdf8;
+}
+
+:global(html), :global(body) {
+  background-color: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  overflow: hidden;
+}
+
+.container {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+h1 {
+  color: var(--accent);
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  label {
+    font-size: 0.7rem;
+    font-weight: bold;
+    color: #888;
+    letter-spacing: 0.05em;
+  }
+  input {
+    padding: 10px;
+    background-color: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    &:focus {
+      outline: 2px solid var(--accent);
+      border-color: transparent;
+    }
+  }
+}
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  input { flex: 1; }
+}
+
+.btn {
+  padding: 10px 18px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+  color: var(--text);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s;
+  &:hover { filter: brightness(1.1); }
+  &.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    width: 100%;
+    &:disabled { opacity: 0.5; cursor: not-allowed; }
+  }
+}
+
+.results-display {
+  margin-top: 15px;
+  font-size: 0.95rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+  // color: var(--text); // This turns the black text to light gray/white
+
+  /* Class for Light Theme (Standard Black/Dark Gray) */
+  .light-theme-text {
+    color: #222222;
+    font-weight: 500;
+  }
+
+  /* Class for Dark Theme (Requested Light Font Color) */
+  .dark-theme-text {
+    color: #e0e0e0; // A soft off-white that's easy on the eyes
+    font-weight: 400;
+  }
+
+  /* Specific Warning Colors */
+  .warning-text-light {
+    color: #854d0e; // Darker gold for white background
+    font-weight: 600;
+  }
+
+  .warning-text-dark {
+    color: #fbbf24; // Bright gold for dark background
+    font-weight: 600;
+  }
+
+  p {
+    margin: 0.6rem 0;
+    line-height: 1.4;
+
+    strong {
+      color: var(--accent); // Highlighting the values in Blue/Cyan
+      font-weight: 700;
+    }
+  }
+
+  .success-text {
+    color: #22c55e;
+    font-weight: 600;
+    margin-top: 1rem;
+    word-break: break-all;
+    display: block;
+    background: rgba(34, 197, 94, 0.1); // Subtle green glow for better contrast
+    padding: 8px;
+    border-radius: 4px;
+  }
+}
