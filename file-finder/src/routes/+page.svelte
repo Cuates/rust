@@ -11,12 +11,13 @@
   let result = $state<any>(null);
   let savedTo = $state("");
   let isSearching = $state(false);
+  let isCancelled = $state(false);
 
-  // Simple function to clear the UI
   function clearResults() {
-    if (!isSearching) { // Don't clear if we're currently searching
+    if (!isSearching) {
       result = null;
       savedTo = "";
+      isCancelled = false;
     }
   }
 
@@ -36,21 +37,26 @@
     const selected = await open({ directory: true, multiple: false });
     if (selected) {
       rootPath = selected as string;
-      clearResults(); // Ensure UI resets when a new folder is picked
+      clearResults();
     }
+  }
+
+  async function stopSearch() {
+    await invoke("cancel_search");
   }
 
   async function runSearch() {
     if (!rootPath) return;
     isSearching = true;
+    isCancelled = false;
     savedTo = "";
-    result = null; // Clear previous results
+    result = null;
+    let pathWasSelected = "";
 
     const types = fileTypes.split(",").map(s => s.trim());
     const excludeList = excludes.split(",").map(s => s.trim()).filter(s => s !== "");
 
     try {
-      // 1. Initial Scan
       const data = await invoke<any>("search_files", {
         rootDir: rootPath,
         fileTypes: types,
@@ -60,10 +66,19 @@
 
       result = data;
 
-      // 2. ONLY proceed to save if files were actually found
-      if (result.metadata.total_matching_files > 0) {
-        const rootName = rootPath.split(/[/\\]/).filter(Boolean).pop() || "export";
-        const ts = result.metadata.start_time
+      if (result.metadata.totalMatchingFiles > 0) {
+        // IMPROVED NAMING LOGIC:
+        // 1. Get components by splitting slashes
+        const components = rootPath.split(/[/\\]/).filter(Boolean);
+
+        // 2. Try to get the last folder, or fallback to the drive/root component
+        let rootName = components.pop() || components[0] || "export";
+
+        // 3. Clean rootName of characters that might be in a drive letter (like 'C:')
+        // or network path that aren't valid in a filename
+        rootName = rootName.replace(/[:\\/]/g, "");
+
+        const ts = result.metadata.startTime
           .split('.')[0]
           .replace(/:/g, "-")
           .replace("T", "_");
@@ -77,22 +92,27 @@
         });
 
         if (path) {
+          pathWasSelected = path;
           await invoke("search_files", {
             rootDir: rootPath,
             fileTypes: types,
             excludePatterns: excludeList,
             savePath: path
           });
-          savedTo = path;
         }
       }
-      // If total_matching_files is 0, the code simply finishes here,
-      // and the UI will handle the "No files found" message.
-
     } catch (e) {
-      console.error(e);
+      if (e === "Operation cancelled by user") {
+        isCancelled = true;
+        result = null;
+      } else {
+        console.error("Search Error:", e);
+      }
     } finally {
       isSearching = false;
+      if (pathWasSelected) {
+        savedTo = pathWasSelected;
+      }
     }
   }
 </script>
@@ -100,63 +120,72 @@
 <main class="container">
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h1>FILE FINDER</h1>
-    <button class="btn" onclick={toggleTheme} style="font-size: 2rem; border: none; background: none;">
+    <button class="btn" onclick={toggleTheme} disabled={isSearching} style="font-size: 2rem; border: none; background: none;">
       {isDarkMode ? "🌙" : "☀️"}
     </button>
   </div>
 
-  <!-- Folder Picker -->
   <div class="field">
     <label>ROOT SEARCH DIRECTORY</label>
     <div class="input-row">
-      <!-- Input will now have the #2D2D2D / #FFFFFF theme -->
-      <input readonly value={rootPath} placeholder="Select folder..." />
-      <button class="btn" onclick={pickFolder}>
-        Browse
-      </button>
+      <input readonly value={rootPath} disabled={isSearching} placeholder="Select folder..." />
+      <button class="btn" onclick={pickFolder} disabled={isSearching}>Browse</button>
     </div>
   </div>
 
-  <!-- Extensions Field -->
   <div class="field">
     <label>EXTENSIONS</label>
-    <input
-      bind:value={fileTypes}
-      oninput={clearResults}
-      placeholder=".txt, .json"
-    />
+    <input bind:value={fileTypes} oninput={clearResults} disabled={isSearching} placeholder=".txt, .json" />
   </div>
 
-  <!-- Exclusions Field -->
   <div class="field">
     <label>EXCLUSION PATTERNS</label>
-    <input
-      bind:value={excludes}
-      oninput={clearResults}
-      placeholder="*temp*, *backup*"
-    />
+    <input bind:value={excludes} oninput={clearResults} disabled={isSearching} placeholder="*temp*, *backup*" />
   </div>
 
-  <button class="btn primary" onclick={runSearch} disabled={!rootPath || isSearching}>
-    {isSearching ? "SEARCHING..." : "GENERATE JSON"}
-  </button>
+  <div style="display: flex; gap: 10px; width: 100%;">
+    <button class="btn primary" onclick={runSearch} disabled={!rootPath || isSearching}>
+      {#if isSearching}<span class="spinner"></span>{/if}
+      {isSearching ? "PROCESSING..." : "GENERATE JSON"}
+    </button>
 
-{#if result}
+    {#if isSearching}
+      <button class="btn" onclick={stopSearch} style="border-color: #ef4444; color: #ef4444; width: auto;">
+        STOP
+      </button>
+    {/if}
+  </div>
+
+  {#if isCancelled || result}
     <div class="results-display">
-      {#if result.metadata.total_matching_files > 0}
-        <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>Files Found: <strong>{result.metadata.total_matching_files}</strong></p>
-        <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>Time Taken: <strong>{result.metadata.execution_time_formatted}</strong></p>
+      {#if isCancelled}
+        <div style="padding: 12px; background: rgba(251, 191, 36, 0.15); border: 1px solid #fbbf24; border-radius: 6px;">
+          <p class={isDarkMode ? "warning-text-dark" : "warning-text-light"} style="margin: 0;">
+            🛑 <strong>Generation Stopped:</strong> The process was cancelled by the user.
+          </p>
+        </div>
+      {:else if result}
+        {#if result.metadata.totalMatchingFiles > 0}
+          <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
+            Files Found: <strong>{result.metadata.totalMatchingFiles}</strong>
+          </p>
+          <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
+            Time Taken: <strong>{result.metadata.executionTimeFormatted}</strong>
+          </p>
 
-        {#if savedTo}
-          <p class="success-text">✓ Saved to: {savedTo}</p>
-        {:else if !isSearching}
-          <p class={isDarkMode ? "warning-text-dark" : "warning-text-light"}>⚠ Results found, but not saved.</p>
+          {#if savedTo}
+            <p class="success-text">✓ Saved to: {savedTo}</p>
+          {:else if !isSearching}
+            <p class={isDarkMode ? "warning-text-dark" : "warning-text-light"}>⚠ Results found, but not saved.</p>
+          {/if}
+        {:else}
+          <p style="color: #ef4444; font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 4px;">
+            No files with the extension(s) "{fileTypes}" were found in the selected directory.
+          </p>
+          <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
+            Search took: <strong>{result.metadata.executionTimeFormatted}</strong>
+          </p>
         {/if}
-      {:else}
-        <p style="color: #ef4444; font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 4px;">
-          No files with the extension(s) "{fileTypes}" were found in the selected directory.
-        </p>
-        <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>Search took: <strong>{result.metadata.execution_time_formatted}</strong></p>
       {/if}
     </div>
   {/if}
