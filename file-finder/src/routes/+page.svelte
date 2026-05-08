@@ -9,7 +9,7 @@
   let fileTypes = $state(".xml");
   let excludes = $state("*temp*, *backup*");
   let isDarkMode = $state(true);
-  let result = $state<any>(null); // Now stores only Metadata
+  let result = $state<any>(null);
   let savedTo = $state("");
   let isSearching = $state(false);
   let isCancelled = $state(false);
@@ -63,7 +63,6 @@
   async function runSearch() {
     if (!rootPath) return;
 
-    // Build default filename logic
     const components = rootPath.split(/[/\\]/).filter(Boolean);
     let rootName = components.pop() || components[0] || "export";
     rootName = rootName.replace(/[:\\/]/g, "");
@@ -71,14 +70,13 @@
     const ts = now.toISOString().split('.')[0].replace(/:/g, "-").replace("T", "_");
     const defaultFilename = `${rootName}_${ts}.json`;
 
-    // NEW: Ask for the save path BEFORE scanning to enable streaming
     const path = await save({
       title: "Select Save Destination",
       filters: [{ name: 'JSON', extensions: ['json'] }],
       defaultPath: defaultFilename
     });
 
-    if (!path) return; // User opted out
+    if (!path) return;
 
     isSearching = true;
     isCancelled = false;
@@ -92,7 +90,6 @@
     const excludeList = excludes.split(",").map(s => s.trim()).filter(s => s !== "");
 
     try {
-      // PHASE 1 & 2 combined: Scan and stream directly to disk in Rust
       const metadata = await invoke<any>("search_files", {
         rootDir: rootPath.trim(),
         fileTypes: types,
@@ -176,8 +173,12 @@
                 <div class="indeterminate-thumb"></div>
             </div>
             <div class="monitor-stats">
-                <span>📁 Scanned: <strong>{liveDirsScanned}</strong></span>
-                <span>🔍 Found: <strong>{liveFilesFound}</strong></span>
+                <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
+                  📁 Scanned: <strong>{liveDirsScanned}</strong>
+                </span>
+                <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
+                  🔍 Found: <strong>{liveFilesFound}</strong>
+                </span>
             </div>
         </div>
     {/if}
