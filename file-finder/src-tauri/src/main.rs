@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use walkdir::WalkDir;
 use chrono::Local;
-use tauri::State;
+use tauri::{State, Window, Emitter}; // Added Emitter
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +23,12 @@ struct DirectoryResult {
 }
 
 struct CancelState(Arc<AtomicBool>);
+
+#[derive(Clone, Serialize)]
+struct ProgressPayload {
+    pub files_found: usize,
+    pub dirs_scanned: usize,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -75,6 +81,7 @@ fn cancel_search(state: State<'_, CancelState>) {
 
 #[tauri::command]
 async fn search_files(
+    window: Window,
     state: State<'_, CancelState>,
     root_dir: String,
     file_types: Vec<String>,
@@ -87,7 +94,6 @@ async fn search_files(
 
     let root_path = PathBuf::from(&root_dir);
 
-    // Validate path exists and is a directory before starting
     if !root_path.exists() {
         return Err(format!("Path does not exist: {}", root_dir));
     }
@@ -97,6 +103,7 @@ async fn search_files(
 
     let mut total_files = 0;
     let mut total_dirs = 0;
+    let mut processed_count = 0;
     let mut root_result = DirectoryResult::default();
 
     let compiled_excludes: Vec<Pattern> = exclude_patterns
@@ -126,6 +133,15 @@ async fn search_files(
                     insert_into_tree(&mut root_result, rel_path, entry.file_name().to_string_lossy().into());
                 }
             }
+        }
+
+        // Emit progress every 100 items to keep UI responsive without flooding
+        processed_count += 1;
+        if processed_count % 100 == 0 {
+            let _ = window.emit("search-progress", ProgressPayload {
+                files_found: total_files,
+                dirs_scanned: total_dirs,
+            });
         }
     }
 
