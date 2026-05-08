@@ -2,41 +2,43 @@
 
 ## Project Overview
 A cross-platform desktop evolution of the `file_finder.py.txt` script.
-It provides a GUI for recursive file searching with JSON exports.
+It provides a high-performance GUI for recursive file searching with structured JSON exports.
 
 ## Tech Stack
-- **Backend:** Rust (Tauri) for high-performance file system traversal.
-- **Frontend:** Svelte + TypeScript for a reactive, lightweight UI.
+- **Backend:** Rust (Tauri 2.0) for high-performance file system traversal.
+- **Frontend:** Svelte 5 + TypeScript for a reactive, lightweight UI using Runes.
 - **Styling:** SCSS (External) for modular, maintainable CSS.
 - **Package Manager:** `pnpm`.
 
 ## Key Features (Legacy Parity)
 - [x] Custom file type filtering.
 - [x] Pattern-based exclusions (glob).
-- [x] Real-time progress updates (replacing `tqdm`).
+- [x] Real-time progress updates (replacing `tqdm` with a live activity monitor).
 - [x] Tree-structured JSON output with alphanumeric sorting.
 
 ## Design Decisions
 - **Rust Backend**: Replaces Python's `tqdm` and `pathlib` with `walkdir` and `BTreeMap` for near-instant, ordered traversal.
-- **Svelte UI**: Replaces CLI arguments with reactive inputs and a native file picker.
+- **Svelte UI**: Replaces CLI arguments with reactive inputs, a native file picker, and manual copy-paste path support.
 - **Dark Mode Schema**: Uses #2D2D2D for input backgrounds and #FFFFFF for text to optimize readability and contrast.
-- **JSON Structure**: Matches the schema defined in `file_finder.py.txt`, now with deterministic sorting for files and folders.
+- **Live Monitoring**: Uses Tauri's event emission system to stream "Folders Scanned" and "Files Found" counts to the UI without blocking the main search thread.
 
 ## Developer Commands
 - `pnpm tauri dev`: Start development environment.
 - `pnpm tauri build`: Generate cross-platform binaries.
 
-## Update Log: 2026-05-03
+## Update Log: 2026-05-08
 
-### Alphanumeric Result Sorting
-- Switched `DirectoryResult` from `HashMap` to `BTreeMap` to ensure subdirectories are sorted alphanumerically.
-- Added a recursive file sorting function to ensure all matching file lists are ordered case-insensitively.
+### Path Validation & Manual Entry
+- Added support for manual path entry (copy/paste).
+- Implemented robust error catching for invalid or non-existent paths.
+- Added `input-error` visual states to the UI to highlight validation failures.
 
-### UI & Theming Improvements
-- Implemented high-contrast dark mode schema for all input fields (Path, Extensions, Exclusions).
-- Added dynamic CSS classes (`dark-theme-text` vs `light-theme-text`) to ensure result labels remain readable across themes.
-- Refined UI reset logic: results now clear specifically when search inputs change, preventing premature UI clearing during active searches.
+### Indeterminate Activity Monitor
+- Replaced the simple static spinner with a live monitor bar.
+- Shows real-time counts of `Directories Scanned` and `Matching Files Found`.
+- Added an indeterminate CSS animation to indicate the app is active during deep file system crawls.
 
-### Performance & Parity
-- Rust's `WalkDir` continues to provide significantly faster traversal than Python's `pathlib.rglob`.
-- Maintained exact JSON parity with `file_finder.py.txt` metadata while adding improved timestamp formatting.
+### Performance & UI Polish
+- Rust backend now throttles progress events to ensure the UI remains responsive even when scanning millions of files.
+- Refined UI layout to accommodate live statistics below the primary action button.
+- Cleaned up JSON export logic to handle cross-platform path delimiters (Windows/Unix) more gracefully when generating default filenames.
