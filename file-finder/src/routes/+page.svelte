@@ -9,13 +9,12 @@
   let fileTypes = $state(".xml");
   let excludes = $state("*temp*, *backup*");
   let isDarkMode = $state(true);
-  let result = $state<any>(null);
+  let result = $state<any>(null); // Now stores only Metadata
   let savedTo = $state("");
   let isSearching = $state(false);
   let isCancelled = $state(false);
   let validationError = $state("");
 
-  // Progress monitor states
   let liveFilesFound = $state(0);
   let liveDirsScanned = $state(0);
 
@@ -37,7 +36,6 @@
 
   onMount(async () => {
     applyTheme();
-    // Listen for progress events from Rust
     const unlisten = await listen("search-progress", (event: any) => {
       liveFilesFound = event.payload.files_found;
       liveDirsScanned = event.payload.dirs_scanned;
@@ -64,6 +62,24 @@
 
   async function runSearch() {
     if (!rootPath) return;
+
+    // Build default filename logic
+    const components = rootPath.split(/[/\\]/).filter(Boolean);
+    let rootName = components.pop() || components[0] || "export";
+    rootName = rootName.replace(/[:\\/]/g, "");
+    const now = new Date();
+    const ts = now.toISOString().split('.')[0].replace(/:/g, "-").replace("T", "_");
+    const defaultFilename = `${rootName}_${ts}.json`;
+
+    // NEW: Ask for the save path BEFORE scanning to enable streaming
+    const path = await save({
+      title: "Select Save Destination",
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      defaultPath: defaultFilename
+    });
+
+    if (!path) return; // User opted out
+
     isSearching = true;
     isCancelled = false;
     savedTo = "";
@@ -71,64 +87,36 @@
     validationError = "";
     liveFilesFound = 0;
     liveDirsScanned = 0;
-    let pathWasSelected = "";
 
     const types = fileTypes.split(",").map(s => s.trim());
     const excludeList = excludes.split(",").map(s => s.trim()).filter(s => s !== "");
 
     try {
-      const data = await invoke<any>("search_files", {
+      // PHASE 1 & 2 combined: Scan and stream directly to disk in Rust
+      const metadata = await invoke<any>("search_files", {
         rootDir: rootPath.trim(),
         fileTypes: types,
         excludePatterns: excludeList,
-        savePath: null
+        savePath: path
       });
 
-      result = data;
-
-      if (result.metadata.totalMatchingFiles > 0) {
-        const components = rootPath.split(/[/\\]/).filter(Boolean);
-        let rootName = components.pop() || components[0] || "export";
-        rootName = rootName.replace(/[:\\/]/g, "");
-
-        const ts = result.metadata.startTime
-          .split('.')[0]
-          .replace(/:/g, "-")
-          .replace("T", "_");
-
-        const defaultFilename = `${rootName}_${ts}.json`;
-
-        const path = await save({
-          title: "Save Search Results",
-          filters: [{ name: 'JSON', extensions: ['json'] }],
-          defaultPath: defaultFilename
-        });
-
-        if (path) {
-          pathWasSelected = path;
-          await invoke("search_files", {
-            rootDir: rootPath.trim(),
-            fileTypes: types,
-            excludePatterns: excludeList,
-            savePath: path
-          });
-        }
-      }
+      result = metadata;
+      savedTo = path;
     } catch (e: any) {
-      if (e === "Operation cancelled by user") {
+      const errMsg = typeof e === 'string' ? e : (e?.message || JSON.stringify(e));
+
+      if (errMsg === "Operation cancelled by user") {
         isCancelled = true;
         result = null;
-      } else if (e.includes("Path does not exist") || e.includes("is not a directory")) {
-        validationError = e;
+      } else if (errMsg.includes("Path does not exist") || errMsg.includes("is not a directory")) {
+        validationError = errMsg;
         result = null;
       } else {
-        console.error("Search Error:", e);
+        validationError = `System Error: ${errMsg}`;
+        console.error("Critical Error:", e);
       }
     } finally {
       isSearching = false;
-      if (pathWasSelected) {
-        savedTo = pathWasSelected;
-      }
     }
   }
 </script>
@@ -172,7 +160,7 @@
     <div style="display: flex; gap: 10px; width: 100%;">
         <button class="btn primary" onclick={runSearch} disabled={!rootPath || isSearching}>
           {#if isSearching}<span class="spinner"></span>{/if}
-          {isSearching ? "PROCESSING..." : "GENERATE JSON"}
+          {isSearching ? "SCANNING & WRITING..." : "GENERATE JSON"}
         </button>
 
         {#if isSearching}
@@ -205,30 +193,28 @@
         </div>
       {:else if validationError}
         <div style="padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 6px;">
-          <p style="color: #ef4444; font-weight: 600; margin: 0;">
-            🚫 <strong>Invalid Path:</strong> Please check the directory path and try again.
+          <p style="color: #ef4444; font-weight: 600; margin: 0; word-break: break-all;">
+            🚫 <strong>{validationError}</strong>
           </p>
         </div>
       {:else if result}
-        {#if result.metadata.totalMatchingFiles > 0}
+        {#if result.totalMatchingFiles > 0}
           <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-            Files Found: <strong>{result.metadata.totalMatchingFiles}</strong>
+            Total Matching Files: <strong>{result.totalMatchingFiles}</strong>
           </p>
           <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-            Time Taken: <strong>{result.metadata.executionTimeFormatted}</strong>
+            Search Time: <strong>{result.executionTimeFormatted}</strong>
           </p>
 
           {#if savedTo}
-            <p class="success-text">✓ Saved to: {savedTo}</p>
-          {:else if !isSearching}
-            <p class={isDarkMode ? "warning-text-dark" : "warning-text-light"}>⚠ Results found, but not saved.</p>
+            <p class="success-text">✓ Streamed to: {savedTo}</p>
           {/if}
         {:else}
           <p style="color: #ef4444; font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 4px;">
             No files found in the directory.
           </p>
           <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-            Search took: <strong>{result.metadata.executionTimeFormatted}</strong>
+            Search took: <strong>{result.executionTimeFormatted}</strong>
           </p>
         {/if}
       {/if}
