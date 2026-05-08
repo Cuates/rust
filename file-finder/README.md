@@ -41,8 +41,8 @@ The application utilizes a memory-efficient "Direct-to-Disk" streaming architect
 
 ### UI & UX Refinement
 - **Theme Persistence**: Fixed a bug where live monitor text ("Scanned" and "Found") remained dark in Dark Mode.
-- **Visual Alignment**: Corrected the vertical alignment of emojis (📁, 🔍) and count values in the status bar using flexbox centering.
-- **Global CSS Theming**: Refactored theme classes (`.dark-theme-text`, `.light-theme-text`) to be global variables, ensuring visibility across all UI components regardless of nesting.
+- **Visual Alignment**: Corrected the vertical alignment of emojis (📁, 🔍) and count values in the status bar using flexbox centering and line-height adjustments.
+- **Global CSS Theming**: Refactored theme classes (`.dark-theme-text`, `.light-theme-text`) to be global variables with `!important` overrides, ensuring visibility across all UI components regardless of nesting.
 
 ### Direct-to-Disk Streaming
 - Shifted architecture to a "Save-First" workflow.
