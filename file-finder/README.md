@@ -10,17 +10,26 @@ It provides a high-performance GUI for recursive file searching with structured 
 - **Styling:** SCSS (External) for modular, maintainable CSS.
 - **Package Manager:** `pnpm`.
 
-## Key Features (Legacy Parity)
-- [x] Custom file type filtering.
-- [x] Pattern-based exclusions (glob).
-- [x] Real-time progress updates (replacing `tqdm` with a live activity monitor).
-- [x] Tree-structured JSON output with alphanumeric sorting.
+## Data Flow & Architecture
+The application utilizes an asynchronous bridge between the Rust Core and the Svelte Frontend:
 
-## Design Decisions
-- **Rust Backend**: Replaces Python's `tqdm` and `pathlib` with `walkdir` and `BTreeMap` for near-instant, ordered traversal.
-- **Svelte UI**: Replaces CLI arguments with reactive inputs, a native file picker, and manual copy-paste path support.
-- **Dark Mode Schema**: Uses #2D2D2D for input backgrounds and #FFFFFF for text to optimize readability and contrast.
-- **Live Monitoring**: Uses Tauri's event emission system to stream "Folders Scanned" and "Files Found" counts to the UI without blocking the main search thread.
+1.  **Input Phase**: User enters a directory path (Browse or Paste). Frontend trims whitespace and clears previous results.
+2.  **Request Phase**: Frontend invokes the `search_files` command. Rust validates if the path exists and is a directory.
+3.  **Traversal Phase**:
+    - Rust spawns a `WalkDir` iterator.
+    - To prevent UI locking, Rust "emits" a `search-progress` event every 100 entries.
+    - Svelte listens for these events to update the **Live Activity Monitor** stats.
+4.  **Completion Phase**:
+    - Rust returns the final `OutputData` structure.
+    - Svelte triggers the native Save Dialog.
+    - Rust writes the final JSON file only if a save path is provided.
+
+## Key Features (Legacy Parity)
+- [x] **High Speed**: Significantly faster than Python `rglob`.
+- [x] **Path Validation**: Detects and displays invalid/missing directories immediately.
+- [x] **Live Monitor**: Visual indeterminate progress and real-time file counters.
+- [x] **Custom Filters**: Extension-based filtering and glob-pattern exclusions.
+- [x] **Deterministic Output**: JSON keys and files are sorted alphanumerically for consistent diffing.
 
 ## Developer Commands
 - `pnpm tauri dev`: Start development environment.
