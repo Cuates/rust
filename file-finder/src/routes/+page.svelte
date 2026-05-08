@@ -12,12 +12,14 @@
   let savedTo = $state("");
   let isSearching = $state(false);
   let isCancelled = $state(false);
+  let validationError = $state(""); // New state for path validation
 
   function clearResults() {
     if (!isSearching) {
       result = null;
       savedTo = "";
       isCancelled = false;
+      validationError = ""; // Clear errors when user interacts
     }
   }
 
@@ -51,6 +53,7 @@
     isCancelled = false;
     savedTo = "";
     result = null;
+    validationError = "";
     let pathWasSelected = "";
 
     const types = fileTypes.split(",").map(s => s.trim());
@@ -58,7 +61,7 @@
 
     try {
       const data = await invoke<any>("search_files", {
-        rootDir: rootPath,
+        rootDir: rootPath.trim(),
         fileTypes: types,
         excludePatterns: excludeList,
         savePath: null
@@ -67,15 +70,8 @@
       result = data;
 
       if (result.metadata.totalMatchingFiles > 0) {
-        // IMPROVED NAMING LOGIC:
-        // 1. Get components by splitting slashes
         const components = rootPath.split(/[/\\]/).filter(Boolean);
-
-        // 2. Try to get the last folder, or fallback to the drive/root component
         let rootName = components.pop() || components[0] || "export";
-
-        // 3. Clean rootName of characters that might be in a drive letter (like 'C:')
-        // or network path that aren't valid in a filename
         rootName = rootName.replace(/[:\\/]/g, "");
 
         const ts = result.metadata.startTime
@@ -94,16 +90,19 @@
         if (path) {
           pathWasSelected = path;
           await invoke("search_files", {
-            rootDir: rootPath,
+            rootDir: rootPath.trim(),
             fileTypes: types,
             excludePatterns: excludeList,
             savePath: path
           });
         }
       }
-    } catch (e) {
+    } catch (e: any) {
       if (e === "Operation cancelled by user") {
         isCancelled = true;
+        result = null;
+      } else if (e.includes("Path does not exist") || e.includes("is not a directory")) {
+        validationError = e;
         result = null;
       } else {
         console.error("Search Error:", e);
@@ -128,9 +127,18 @@
   <div class="field">
     <label>ROOT SEARCH DIRECTORY</label>
     <div class="input-row">
-      <input readonly value={rootPath} disabled={isSearching} placeholder="Select folder..." />
+      <input
+        bind:value={rootPath}
+        oninput={clearResults}
+        disabled={isSearching}
+        placeholder="Select or paste folder path..."
+        class={validationError ? "input-error" : ""}
+      />
       <button class="btn" onclick={pickFolder} disabled={isSearching}>Browse</button>
     </div>
+    {#if validationError}
+      <span class="error-subtext">✕ {validationError}</span>
+    {/if}
   </div>
 
   <div class="field">
@@ -156,12 +164,18 @@
     {/if}
   </div>
 
-  {#if isCancelled || result}
+  {#if isCancelled || result || validationError}
     <div class="results-display">
       {#if isCancelled}
         <div style="padding: 12px; background: rgba(251, 191, 36, 0.15); border: 1px solid #fbbf24; border-radius: 6px;">
           <p class={isDarkMode ? "warning-text-dark" : "warning-text-light"} style="margin: 0;">
             🛑 <strong>Generation Stopped:</strong> The process was cancelled by the user.
+          </p>
+        </div>
+      {:else if validationError}
+        <div style="padding: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid #ef4444; border-radius: 6px;">
+          <p style="color: #ef4444; font-weight: 600; margin: 0;">
+            🚫 <strong>Invalid Path:</strong> Please check the directory path and try again.
           </p>
         </div>
       {:else if result}
@@ -180,7 +194,7 @@
           {/if}
         {:else}
           <p style="color: #ef4444; font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 4px;">
-            No files with the extension(s) "{fileTypes}" were found in the selected directory.
+            No files found in the directory.
           </p>
           <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
             Search took: <strong>{result.metadata.executionTimeFormatted}</strong>
