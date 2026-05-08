@@ -86,6 +86,15 @@ async fn search_files(
     let start_time_local = Local::now().format("%Y-%m-%dT%H:%M:%S%.6f").to_string();
 
     let root_path = PathBuf::from(&root_dir);
+
+    // Validate path exists and is a directory before starting
+    if !root_path.exists() {
+        return Err(format!("Path does not exist: {}", root_dir));
+    }
+    if !root_path.is_dir() {
+        return Err(format!("Path is not a directory: {}", root_dir));
+    }
+
     let mut total_files = 0;
     let mut total_dirs = 0;
     let mut root_result = DirectoryResult::default();
