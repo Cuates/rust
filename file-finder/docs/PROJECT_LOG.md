@@ -1,10 +1,10 @@
 # File Finder Rust - Project Log
 
 ## Context
-Migration of `file_finder.py.txt` to a high-performance Rust/Svelte desktop app.
+Migration of `file_finder.py` to a high-performance Rust/Svelte desktop app.
 
 ## Project Goals
-- Replicate the recursive file search and JSON metadata generation of `file_finder.py.txt`.
+- Replicate the recursive file search and JSON metadata generation of `file_finder.py`.
 - Provide a modern GUI using Tauri 2.0 and Svelte 5.
 
 ## Technical Parity
