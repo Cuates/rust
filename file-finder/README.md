@@ -1,7 +1,7 @@
 # File Finder Rust (Tauri + Svelte)
 
 ## Project Overview
-A cross-platform desktop evolution of the `file_finder.py.txt` script.
+A cross-platform desktop evolution of the `file_finder.py` script.
 It provides a high-performance GUI for recursive file searching with structured JSON exports.
 
 ## Tech Stack
