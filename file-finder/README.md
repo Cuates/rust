@@ -1,3 +1,5 @@
+### README.md
+
 # File Finder Rust (Tauri + Svelte)
 
 ## Project Overview
@@ -10,21 +12,22 @@ It provides a high-performance GUI for recursive file searching with structured 
 - **Styling:** SCSS (External) for modular, maintainable CSS.
 - **Package Manager:** `pnpm`.
 
-## Data Flow & Architecture
-The application utilizes an asynchronous bridge between the Rust Core and the Svelte Frontend:
+## Data Flow & Architecture (Enterprise Streaming)
+The application utilizes a memory-efficient "Direct-to-Disk" streaming architecture:
 
 1.  **Input Phase**: User enters a directory path (Browse or Paste). Frontend trims whitespace and clears previous results.
-2.  **Request Phase**: Frontend invokes the `search_files` command. Rust validates if the path exists and is a directory.
-3.  **Traversal Phase**:
+2.  **Save Intent Phase**: Unlike standard apps, the Save Dialog triggers **before** the scan. Svelte captures the target path.
+3.  **Traversal & Stream Phase**:
     - Rust spawns a `WalkDir` iterator.
-    - To prevent UI locking, Rust "emits" a `search-progress` event every 100 entries.
-    - Svelte listens for these events to update the **Live Activity Monitor** stats.
+    - **Streaming Writer**: Rust opens a `BufWriter` directly to the disk path.
+    - As files are found, they are organized in memory, but the final write bypasses the JavaScript string limits.
+    - Rust "emits" a `search-progress` event every 100 entries for the UI monitor.
 4.  **Completion Phase**:
-    - Rust returns the final `OutputData` structure.
-    - Svelte triggers the native Save Dialog.
-    - Rust writes the final JSON file only if a save path is provided.
+    - Rust finishes writing the file and returns **only** the `Metadata` object to Svelte.
+    - This prevents the frontend from crashing when handling datasets with millions of files.
 
 ## Key Features (Legacy Parity)
+- [x] **Streaming Writes**: Handles millions of files without RAM exhaustion using `serde_json::to_writer_pretty`.
 - [x] **High Speed**: Significantly faster than Python `rglob`.
 - [x] **Path Validation**: Detects and displays invalid/missing directories immediately.
 - [x] **Live Monitor**: Visual indeterminate progress and real-time file counters.
@@ -37,17 +40,16 @@ The application utilizes an asynchronous bridge between the Rust Core and the Sv
 
 ## Update Log: 2026-05-08
 
-### Path Validation & Manual Entry
-- Added support for manual path entry (copy/paste).
-- Implemented robust error catching for invalid or non-existent paths.
-- Added `input-error` visual states to the UI to highlight validation failures.
+### Direct-to-Disk Streaming
+- Shifted architecture to a "Save-First" workflow.
+- Implemented `std::io::BufWriter` in Rust to stream JSON data directly to the filesystem.
+- Bypassed the Tauri IPC bottleneck where large JSON strings would previously cause memory spikes.
+
+### RAM Optimization
+- Reduced Frontend memory footprint by returning only Metadata to the UI.
+- The UI no longer holds a copy of the massive file tree, allowing for scans of entire server drives.
 
 ### Indeterminate Activity Monitor
 - Replaced the simple static spinner with a live monitor bar.
 - Shows real-time counts of `Directories Scanned` and `Matching Files Found`.
 - Added an indeterminate CSS animation to indicate the app is active during deep file system crawls.
-
-### Performance & UI Polish
-- Rust backend now throttles progress events to ensure the UI remains responsive even when scanning millions of files.
-- Refined UI layout to accommodate live statistics below the primary action button.
-- Cleaned up JSON export logic to handle cross-platform path delimiters (Windows/Unix) more gracefully when generating default filenames.
