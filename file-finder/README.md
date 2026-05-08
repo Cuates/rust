@@ -1,5 +1,3 @@
-### README.md
-
 # File Finder Rust (Tauri + Svelte)
 
 ## Project Overview
@@ -33,12 +31,18 @@ The application utilizes a memory-efficient "Direct-to-Disk" streaming architect
 - [x] **Live Monitor**: Visual indeterminate progress and real-time file counters.
 - [x] **Custom Filters**: Extension-based filtering and glob-pattern exclusions.
 - [x] **Deterministic Output**: JSON keys and files are sorted alphanumerically for consistent diffing.
+- [x] **Dynamic Theming**: Fully integrated Light/Dark mode with consistent text visibility across all sections.
 
 ## Developer Commands
 - `pnpm tauri dev`: Start development environment.
 - `pnpm tauri build`: Generate cross-platform binaries.
 
 ## Update Log: 2026-05-08
+
+### UI & UX Refinement
+- **Theme Persistence**: Fixed a bug where live monitor text ("Scanned" and "Found") remained dark in Dark Mode.
+- **Visual Alignment**: Corrected the vertical alignment of emojis (📁, 🔍) and count values in the status bar using flexbox centering.
+- **Global CSS Theming**: Refactored theme classes (`.dark-theme-text`, `.light-theme-text`) to be global variables, ensuring visibility across all UI components regardless of nesting.
 
 ### Direct-to-Disk Streaming
 - Shifted architecture to a "Save-First" workflow.
@@ -48,8 +52,3 @@ The application utilizes a memory-efficient "Direct-to-Disk" streaming architect
 ### RAM Optimization
 - Reduced Frontend memory footprint by returning only Metadata to the UI.
 - The UI no longer holds a copy of the massive file tree, allowing for scans of entire server drives.
-
-### Indeterminate Activity Monitor
-- Replaced the simple static spinner with a live monitor bar.
-- Shows real-time counts of `Directories Scanned` and `Matching Files Found`.
-- Added an indeterminate CSS animation to indicate the app is active during deep file system crawls.
