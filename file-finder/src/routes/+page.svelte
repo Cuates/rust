@@ -2,6 +2,7 @@
   import "../styles/app.scss";
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { open, save } from "@tauri-apps/plugin-dialog";
 
   let rootPath = $state("");
@@ -12,14 +13,20 @@
   let savedTo = $state("");
   let isSearching = $state(false);
   let isCancelled = $state(false);
-  let validationError = $state(""); // New state for path validation
+  let validationError = $state("");
+
+  // Progress monitor states
+  let liveFilesFound = $state(0);
+  let liveDirsScanned = $state(0);
 
   function clearResults() {
     if (!isSearching) {
       result = null;
       savedTo = "";
       isCancelled = false;
-      validationError = ""; // Clear errors when user interacts
+      validationError = "";
+      liveFilesFound = 0;
+      liveDirsScanned = 0;
     }
   }
 
@@ -28,7 +35,15 @@
     document.body.style.backgroundColor = isDarkMode ? "#121212" : "#ffffff";
   }
 
-  onMount(() => { applyTheme(); });
+  onMount(async () => {
+    applyTheme();
+    // Listen for progress events from Rust
+    const unlisten = await listen("search-progress", (event: any) => {
+      liveFilesFound = event.payload.files_found;
+      liveDirsScanned = event.payload.dirs_scanned;
+    });
+    return () => unlisten();
+  });
 
   function toggleTheme() {
     isDarkMode = !isDarkMode;
@@ -54,6 +69,8 @@
     savedTo = "";
     result = null;
     validationError = "";
+    liveFilesFound = 0;
+    liveDirsScanned = 0;
     let pathWasSelected = "";
 
     const types = fileTypes.split(",").map(s => s.trim());
@@ -151,16 +168,30 @@
     <input bind:value={excludes} oninput={clearResults} disabled={isSearching} placeholder="*temp*, *backup*" />
   </div>
 
-  <div style="display: flex; gap: 10px; width: 100%;">
-    <button class="btn primary" onclick={runSearch} disabled={!rootPath || isSearching}>
-      {#if isSearching}<span class="spinner"></span>{/if}
-      {isSearching ? "PROCESSING..." : "GENERATE JSON"}
-    </button>
+  <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+    <div style="display: flex; gap: 10px; width: 100%;">
+        <button class="btn primary" onclick={runSearch} disabled={!rootPath || isSearching}>
+          {#if isSearching}<span class="spinner"></span>{/if}
+          {isSearching ? "PROCESSING..." : "GENERATE JSON"}
+        </button>
+
+        {#if isSearching}
+          <button class="btn" onclick={stopSearch} style="border-color: #ef4444; color: #ef4444; width: auto;">
+            STOP
+          </button>
+        {/if}
+    </div>
 
     {#if isSearching}
-      <button class="btn" onclick={stopSearch} style="border-color: #ef4444; color: #ef4444; width: auto;">
-        STOP
-      </button>
+        <div class="monitor-bar">
+            <div class="progress-track">
+                <div class="indeterminate-thumb"></div>
+            </div>
+            <div class="monitor-stats">
+                <span>📁 Scanned: <strong>{liveDirsScanned}</strong></span>
+                <span>🔍 Found: <strong>{liveFilesFound}</strong></span>
+            </div>
+        </div>
     {/if}
   </div>
 
