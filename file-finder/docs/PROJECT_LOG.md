@@ -28,6 +28,12 @@ Migration of `file_finder.py.txt` to a high-performance Rust/Svelte desktop app.
 2. `pnpm approve-builds`
 3. `pnpm tauri dev`
 
+## Remove and Clean Instructions
+- Move into your apps root directory
+1. `rm -r -Force node_modules, pnpm-lock.yaml`
+2. `pnpm store prune`
+3. `pnpm install`
+
 ## Completed Features
 - **Recursive Search**: Implemented via Rust's `walkdir` crate.
 - **Ordered JSON**: Migrated from `HashMap` to `BTreeMap` for alphanumeric subdirectory sorting; implemented recursive case-insensitive file sorting.
