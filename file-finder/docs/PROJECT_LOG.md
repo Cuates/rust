@@ -57,7 +57,10 @@ allowBuilds:
 
 1. `rm -r -Force node_modules, pnpm-lock.yaml`
 2. `pnpm store prune`
-3. `pnpm install`
+3. `cd .\src-tauri\`
+4. `cargo clean`
+5. `cd ..`
+6. `pnpm install`
 
 ## Completed Features
 
