@@ -40,6 +40,7 @@ h1 { color: var(--accent); margin: 0; font-size: 2rem; font-weight: 800; }
 .btn {
   padding: 10px 18px; border-radius: 6px; border: 1px solid var(--border);
   background: var(--input-bg); color: var(--text); cursor: pointer; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
   &:hover:not(:disabled) { filter: brightness(1.1); }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
   &.primary { background: var(--accent); color: #fff; border: none; width: 100%; }
@@ -48,13 +49,41 @@ h1 { color: var(--accent); margin: 0; font-size: 2rem; font-weight: 800; }
 .spinner {
   width: 14px; height: 14px; border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%; border-top-color: #fff; animation: spin 0.8s linear infinite;
-  display: inline-block; margin-right: 8px; vertical-align: middle;
+  display: inline-block; margin-right: 8px;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Live Monitor Styles */
+.monitor-bar {
+    display: flex; flex-direction: column; gap: 8px; padding: 10px;
+    background: rgba(var(--accent), 0.05); border-radius: 8px;
+}
+
+.progress-track {
+    height: 4px; width: 100%; background: var(--border); border-radius: 2px;
+    overflow: hidden; position: relative;
+}
+
+.indeterminate-thumb {
+    width: 30%; height: 100%; background: var(--accent);
+    position: absolute; left: -30%;
+    animation: slide 1.5s infinite linear;
+}
+
+@keyframes slide {
+    0% { left: -30%; }
+    100% { left: 100%; }
+}
+
+.monitor-stats {
+    display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text);
+    span { display: flex; gap: 5px; }
+    strong { color: var(--accent); }
+}
+
 .results-display {
-  margin-top: 15px; font-size: 0.95rem; border-top: 1px solid var(--border); padding-top: 1.5rem;
+  margin-top: 5px; font-size: 0.95rem; border-top: 1px solid var(--border); padding-top: 1rem;
   .light-theme-text { color: #222222; font-weight: 500; }
   .dark-theme-text { color: #e0e0e0; font-weight: 400; }
   .warning-text-light { color: #854d0e; font-weight: 600; }
