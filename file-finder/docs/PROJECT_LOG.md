@@ -11,11 +11,15 @@ Migration of `file_finder.py` to a high-performance Rust/Svelte desktop app.
 Steps taken to initialize the environment and dependencies:
 1. `cd .\path\to\project`
 2. `npm install -g pnpm`
-3. `pnpm create tauri-app@latest` (Selected: Rust, Svelte, TypeScript)
-4. `pnpm add -D sass-embedded`
-5. `pnpm approve-builds`
-6. `pnpm add @tauri-apps/plugin-dialog @tauri-apps/plugin-opener @tauri-apps/api`
-7. `pnpm tauri dev`
+3. `pnpm create tauri-app@latest`
+* ✔ Choose which language to use for your frontend · TypeScript / JavaScript - (pnpm, yarn, npm, deno, bun)
+* ✔ Choose your package manager · pnpm
+* ✔ Choose your UI template · Svelte - (https://svelte.dev/)
+* ✔ Choose your UI flavor · TypeScript
+5. `pnpm add -D sass-embedded`
+6. `pnpm approve-builds`
+7. `pnpm add @tauri-apps/plugin-dialog @tauri-apps/plugin-opener @tauri-apps/api`
+8. `pnpm tauri dev`
 
 ## Workspace Configuration
 To prevent `node_modules`, `package.json`, and lockfiles from leaking into the user home directory, a `pnpm-workspace.yaml` was created in the root:
