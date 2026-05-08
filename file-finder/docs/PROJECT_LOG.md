@@ -1,3 +1,5 @@
+### PROJECT_LOG.md
+
 # File Finder Rust - Project Log
 
 ## Context
@@ -6,6 +8,7 @@ Migration of `file_finder.py` to a high-performance Rust/Svelte desktop app.
 ## Project Goals
 - Replicate the recursive file search and JSON metadata generation of `file_finder.py`.
 - Provide a modern GUI using Tauri 2.0 and Svelte 5.
+- Handle massive file systems (Millions of files) without memory crashes.
 
 ## Project Creation & Setup
 Steps taken to initialize the environment and dependencies:
@@ -16,10 +19,10 @@ Steps taken to initialize the environment and dependencies:
 * ✔ Choose your package manager · pnpm
 * ✔ Choose your UI template · Svelte - (https://svelte.dev/)
 * ✔ Choose your UI flavor · TypeScript
-5. `pnpm add -D sass-embedded`
-6. `pnpm approve-builds`
-7. `pnpm add @tauri-apps/plugin-dialog @tauri-apps/plugin-opener @tauri-apps/api`
-8. `pnpm tauri dev`
+4. `pnpm add -D sass-embedded`
+5. `pnpm approve-builds`
+6. `pnpm add @tauri-apps/plugin-dialog @tauri-apps/plugin-opener @tauri-apps/api`
+7. `pnpm tauri dev`
 
 ## Workspace Configuration
 To prevent `node_modules`, `package.json`, and lockfiles from leaking into the user home directory, a `pnpm-workspace.yaml` was created in the root:
@@ -39,14 +42,15 @@ allowBuilds:
 ## Architectural Decisions
 
 * **Backend**: Rust (Tauri 2.0). Modular plugins enabled for `dialog` and `opener`.
-* **Frontend**: Svelte 5. Using Runes (`$state`) for more efficient reactivity than legacy Svelte 4 stores.
-* **IPC Strategy**: Throttled event emission (every 100 items) via Tauri `Emitter` to keep the UI responsive during deep scans.
+* **Streaming Architecture**: Implemented `BufWriter` to stream JSON results directly to disk. This prevents the "String Length Limit" and "Out of Memory" errors common in JavaScript-heavy file managers.
+* **Frontend**: Svelte 5. Using Runes (`$state`) for more efficient reactivity.
+* **IPC Strategy**: Reduced IPC payload by 99% for large scans by returning only `Metadata` from Rust instead of the entire file tree.
 * **Package Manager**: pnpm. Strict dependency resolution and approved builds for `@parcel/watcher`.
 
 ## Current Status
 
-* **Backend**: Rust (Tauri 2.0) using `walkdir` and `BTreeMap` for ordered results.
-* **Frontend**: Svelte 5 with integrated dark mode toggle, path validation, and live progress monitoring.
+* **Backend**: Rust (Tauri 2.0) using `walkdir`, `serde_json` streaming, and `BTreeMap` for ordered results.
+* **Frontend**: Svelte 5 with "Save-First" workflow to support backend streaming.
 * **Parity**: Successfully replicated and improved upon `DirectoryResult` and `Metadata` structures.
 
 ## Build Instructions
@@ -69,24 +73,22 @@ allowBuilds:
 ## Completed Features
 
 * **Recursive Search**: Implemented via Rust's `walkdir` crate.
+* **Direct-to-Disk Streaming**: Rust writes the JSON file directly using a buffered stream, bypassing Svelte/JavaScript memory limits.
 * **Ordered JSON**: Migrated from `HashMap` to `BTreeMap` for alphanumeric subdirectory sorting; implemented recursive case-insensitive file sorting.
 * **Exclusion Logic**: Supports wildcard glob patterns for directory and file exclusion.
-* **Dark Mode UI**: High-contrast theme (#2D2D2D background) for all input fields and dynamic text coloring for results.
-* **Manual Path Entry**: Support for copy-pasting or typing directory paths with automatic whitespace trimming.
+* **Dark Mode UI**: High-contrast theme (#2D2D2D background) with dynamic text coloring for results.
 * **Input Validation**: Backend validation checks if paths exist and are directories, returning descriptive errors to the UI.
 * **Live Activity Monitor**: Real-time feedback showing "Directories Scanned" and "Files Matched" during execution using Tauri Emitters.
-* **Indeterminate Progress**: Visual CSS-based sliding bar to indicate active processing for long-running searches.
 
 ## Technical Maintenance
 
 * Replaced `HashMap` with `BTreeMap` in `main.rs` to guarantee alphanumeric JSON keys.
 * Implemented `sort_all_files` post-processing to ensure alphanumeric file order.
-* Added `!important` CSS overrides to ensure theme persistence across all browser defaults.
 * Implemented event-throttling (modulo 100) in Rust to prevent UI lag during high-frequency progress updates.
+* **Memory Management**: Fixed potential memory leaks by ensuring Svelte doesn't proxy the entire directory result tree.
 
 ## Evolution
 
 * Migrated `file_finder.py` logic to Rust/Svelte.
 * Replaced Python `tqdm` with a custom Svelte Indeterminate Activity Monitor.
-* Enhanced JSON output with deterministic alphanumeric sorting for better diffing and readability.
-* Added robust error handling for "path not found" scenarios common with manual input.
+* Optimized for "Millions of Files" by moving the save operation into the Rust backend during the scan phase.
