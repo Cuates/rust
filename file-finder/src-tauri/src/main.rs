@@ -4,14 +4,14 @@ use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::Write;
+use std::io::BufWriter; // Efficient streaming
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use walkdir::WalkDir;
 use chrono::Local;
-use tauri::{State, Window, Emitter}; // Added Emitter
+use tauri::{State, Window, Emitter};
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -86,8 +86,8 @@ async fn search_files(
     root_dir: String,
     file_types: Vec<String>,
     exclude_patterns: Vec<String>,
-    save_path: Option<String>,
-) -> Result<OutputData, String> {
+    save_path: String, // NEW: Takes the destination path immediately
+) -> Result<Metadata, String> {
     state.0.store(false, Ordering::SeqCst);
     let start_instant = Instant::now();
     let start_time_local = Local::now().format("%Y-%m-%dT%H:%M:%S%.6f").to_string();
@@ -135,7 +135,6 @@ async fn search_files(
             }
         }
 
-        // Emit progress every 100 items to keep UI responsive without flooding
         processed_count += 1;
         if processed_count % 100 == 0 {
             let _ = window.emit("search-progress", ProgressPayload {
@@ -149,28 +148,30 @@ async fn search_files(
     let duration = start_instant.elapsed();
     let end_time_local = Local::now().format("%Y-%m-%dT%H:%M:%S%.6f").to_string();
 
+    let metadata = Metadata {
+        start_time: start_time_local,
+        end_time: end_time_local,
+        execution_time_seconds: duration.as_secs_f64(),
+        execution_time_formatted: format_duration_consistent(duration),
+        root_directory: root_dir,
+        file_types_searched: file_types,
+        exclusion_patterns: exclude_patterns,
+        total_directories_processed: total_dirs,
+        total_matching_files: total_files,
+    };
+
     let output = OutputData {
-        metadata: Metadata {
-            start_time: start_time_local,
-            end_time: end_time_local,
-            execution_time_seconds: duration.as_secs_f64(),
-            execution_time_formatted: format_duration_consistent(duration),
-            root_directory: root_dir,
-            file_types_searched: file_types,
-            exclusion_patterns: exclude_patterns,
-            total_directories_processed: total_dirs,
-            total_matching_files: total_files,
-        },
+        metadata: metadata.clone(),
         results: root_result,
     };
 
-    if let Some(path) = save_path {
-        let json = serde_json::to_string_pretty(&output).map_err(|e| e.to_string())?;
-        let mut file = File::create(path).map_err(|e| e.to_string())?;
-        file.write_all(json.as_bytes()).map_err(|e| e.to_string())?;
-    }
+    // NEW: Stream-to-disk implementation
+    let file = File::create(&save_path).map_err(|e| format!("File creation failed: {}", e))?;
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &output).map_err(|e| format!("JSON stream failed: {}", e))?;
 
-    Ok(output)
+    // Return only metadata to Svelte to prevent UI memory bloating
+    Ok(metadata)
 }
 
 fn main() {
@@ -178,7 +179,10 @@ fn main() {
         .manage(CancelState(Arc::new(AtomicBool::new(false))))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![search_files, cancel_search])
+        .invoke_handler(tauri::generate_handler![
+            search_files,
+            cancel_search
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
