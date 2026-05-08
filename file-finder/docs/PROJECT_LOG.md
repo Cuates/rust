@@ -24,6 +24,7 @@ packages:
   - '.'
 allowBuilds:
   esbuild: true
+```
 
 ## Technical Parity
 
