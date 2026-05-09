@@ -4,14 +4,14 @@ use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::BufWriter; // Efficient streaming
+use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use walkdir::WalkDir;
 use chrono::Local;
-use tauri::{State, Window, Emitter};
+use tauri::{State, Window, Emitter, Theme};
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -75,6 +75,12 @@ fn insert_into_tree(root: &mut DirectoryResult, relative_path: &Path, file_name:
 }
 
 #[tauri::command]
+fn set_window_theme(window: Window, dark: bool) {
+    let theme = if dark { Theme::Dark } else { Theme::Light };
+    let _ = window.set_theme(Some(theme));
+}
+
+#[tauri::command]
 fn cancel_search(state: State<'_, CancelState>) {
     state.0.store(true, Ordering::SeqCst);
 }
@@ -86,7 +92,7 @@ async fn search_files(
     root_dir: String,
     file_types: Vec<String>,
     exclude_patterns: Vec<String>,
-    save_path: String, // NEW: Takes the destination path immediately
+    save_path: String,
 ) -> Result<Metadata, String> {
     state.0.store(false, Ordering::SeqCst);
     let start_instant = Instant::now();
@@ -165,12 +171,10 @@ async fn search_files(
         results: root_result,
     };
 
-    // NEW: Stream-to-disk implementation
     let file = File::create(&save_path).map_err(|e| format!("File creation failed: {}", e))?;
     let writer = BufWriter::new(file);
     serde_json::to_writer_pretty(writer, &output).map_err(|e| format!("JSON stream failed: {}", e))?;
 
-    // Return only metadata to Svelte to prevent UI memory bloating
     Ok(metadata)
 }
 
@@ -181,7 +185,8 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             search_files,
-            cancel_search
+            cancel_search,
+            set_window_theme
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
