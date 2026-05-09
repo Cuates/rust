@@ -35,7 +35,7 @@ allowBuilds:
 
 ### 🪟 Windows
 
-1. **System Requirements**: Install [Visual Studio Build Tools 2022](https://www.google.com/search?q=https://visualstudio.microsoft.com/visual-cpp-build-tools/) and ensure "Desktop development with C++" is checked.
+1. **System Requirements**: Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) and ensure "Desktop development with C++" is checked.
 2. **Rust**: Install via [rustup.rs](https://rustup.rs/).
 3. **Node**: Install Node.js and `npm install -g pnpm`.
 4. **Build**:
