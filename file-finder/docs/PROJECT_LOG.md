@@ -39,6 +39,7 @@ allowBuilds:
 2. **Rust**: Install via [rustup.rs](https://rustup.rs/).
 3. **Node**: Install Node.js and `npm install -g pnpm`.
 4. **Build**:
+
 * `pnpm install`
 * `pnpm tauri build`
 
@@ -47,9 +48,9 @@ allowBuilds:
 1. **System Requirements**: Install CLTools via `xcode-select --install`.
 2. **Rust**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
 3. **Build**:
+
 * `pnpm install`
 * `pnpm tauri build`
-* *Output*: Generates `.app` and `.dmg` in `src-tauri/target/release/bundle`.
 
 ### 🐧 Linux (*nix)
 
@@ -57,9 +58,9 @@ allowBuilds:
 `sudo apt update && sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
 2. **Rust**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
 3. **Build**:
+
 * `pnpm install`
 * `pnpm tauri build`
-* *Output*: Generates `.deb` and `AppImage`.
 
 ---
 
@@ -67,11 +68,11 @@ allowBuilds:
 
 * **Search Logic**: Implemented recursive `WalkDir` with `glob` pattern matching to mirror Python's `fnmatch` behavior.
 * **Data Structure**: Matches the `DirectoryResult` and `Metadata` JSON format precisely.
-* **Configuration**: Supports custom extensions and exclusion patterns originally handled via CLI arguments.
+* **Configuration**: Supports custom extensions and exclusion patterns.
 
 ## Architectural Decisions
 
-* **Backend**: Rust (Tauri 2.0). Modular plugins enabled for `dialog` and `opener`.
+* **Backend Logic Hub**: Consolidated all commands and traversal logic into `lib.rs`. `main.rs` is now a minimal entry point.
 * **Streaming Architecture**: Implemented `BufWriter` to stream JSON results directly to disk.
 * **Frontend**: Svelte 5. Using Runes (`$state`) for more efficient reactivity.
 * **IPC Strategy**: Reduced IPC payload by 99% for large scans by returning only `Metadata` from Rust.
@@ -80,7 +81,7 @@ allowBuilds:
 
 * **Backend**: Rust (Tauri 2.0) using `walkdir`, `serde_json` streaming, and `BTreeMap` for ordered results.
 * **Frontend**: Svelte 5 with "Save-First" workflow. Fully responsive Dark/Light mode theme integration.
-* **Release**: Production build successful (2026-05-08). MSI and NSIS installers generated for Windows x64.
+* **Release**: Production build successful (2026-05-09). Refactored library structure to resolve linker conflicts.
 
 ## Build Instructions
 
@@ -98,9 +99,9 @@ allowBuilds:
 
 ## Deployment Notes
 
-- **Vite Configuration**: Successfully building SSR bundle for production.
-- **Wix/Candle**: MSI bundling successfully configured and executed.
-- **NSIS**: Setup.exe bundling successfully configured and executed.
+* **Vite Configuration**: Successfully building SSR bundle for production.
+* **Wix/Candle**: MSI bundling successfully configured and executed.
+* **NSIS**: Setup.exe bundling successfully configured and executed.
 
 ## Remove and Clean Instructions
 
@@ -118,16 +119,14 @@ allowBuilds:
 * **Direct-to-Disk Streaming**: Rust writes the JSON file directly using a buffered stream.
 * **Ordered JSON**: Migrated from `HashMap` to `BTreeMap` for alphanumeric subdirectory sorting.
 * **Exclusion Logic**: Supports wildcard glob patterns.
-* **Dark Mode UI**: High-contrast theme (#2D2D2D background).
+* **OS-Level Theme Sync**: Title bar follows UI theme changes (Light/Dark).
 * **Live Activity Monitor**: Real-time feedback showing "Directories Scanned" and "Files Matched".
 
 ## Technical Maintenance
 
-* Replaced `HashMap` with `BTreeMap` in `main.rs` to guarantee alphanumeric JSON keys.
-* Implemented `sort_all_files` post-processing.
-* Implemented event-throttling (modulo 100) in Rust to prevent UI lag.
+* **Linker Resolution**: Moved core logic and command definitions to `src-tauri/src/lib.rs` to fix `pnpm tauri dev` compilation failure caused by multiple symbol definitions.
+* **Deterministic Sorting**: Replaced `HashMap` with `BTreeMap` in the Rust backend to guarantee alphanumeric JSON keys.
 * **Memory Management**: Fixed potential memory leaks by ensuring Svelte doesn't proxy the entire directory result tree.
-* **Build Artifacts**: Confirmed `adapter-static` overwriting `index.html` is expected behavior for SPA routing within the Tauri container; no action required.
 
 ## Evolution
 
