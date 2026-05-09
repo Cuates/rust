@@ -96,6 +96,7 @@
 
   async function openFolder(targetPath: string) {
     try {
+      // revealItemInDir reveals the file in its containing folder
       await revealItemInDir(targetPath);
     } catch (e: any) {
       console.error("Failed to open folder:", e);
@@ -129,7 +130,7 @@
     liveFilesFound = 0;
     liveDirsScanned = 0;
 
-    const types = fileTypes.split(",").map(s => s.trim());
+    const types = fileTypes.split(",").map(s => s.trim()).filter(s => s !== "");
     const excludeList = excludes.split(",").map(s => s.trim()).filter(s => s !== "");
 
     try {
@@ -263,10 +264,10 @@
         </div>
         <div class="monitor-stats">
           <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-            Scanned: <strong>{liveDirsScanned}</strong>
+            📁 Scanned: <strong>{liveDirsScanned}</strong>
           </span>
           <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-            Found: <strong>{liveFilesFound}</strong>
+            🔍 Found: <strong>{liveFilesFound}</strong>
           </span>
         </div>
       </div>
