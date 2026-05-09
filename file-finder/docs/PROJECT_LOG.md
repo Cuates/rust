@@ -47,8 +47,8 @@ allowBuilds:
 
 ## Current Status
 
-* **Backend**: Rust (Tauri 2.0) using `walkdir`, `serde_json` streaming, and `BTreeMap` for ordered results.
-* **Frontend**: Svelte 5 with "Save-First" workflow to support backend streaming. Fully responsive Dark/Light mode theme integration.
+* **Backend**: Rust (Tauri 2.0) using `walkdir`, `serde_json` streaming, and `BTreeMap` for ordered results. Added `set_window_theme` command for OS-level decoration handling.
+* **Frontend**: Svelte 5 with "Save-First" workflow. Robust theme toggle that synchronizes CSS variables and the native window frame.
 * **Parity**: Successfully replicated and improved upon `DirectoryResult` and `Metadata` structures.
 
 ## Build Instructions
@@ -74,7 +74,7 @@ allowBuilds:
 * **Direct-to-Disk Streaming**: Rust writes the JSON file directly using a buffered stream, bypassing Svelte/JavaScript memory limits.
 * **Ordered JSON**: Migrated from `HashMap` to `BTreeMap` for alphanumeric subdirectory sorting; implemented recursive case-insensitive file sorting.
 * **Exclusion Logic**: Supports wildcard glob patterns for directory and file exclusion.
-* **Dark Mode UI**: High-contrast theme (#2D2D2D background) with dynamic text coloring for results.
+* **Native Title Bar Sync**: The system window frame now switches themes alongside the app UI via `set_theme` API.
 * **Input Validation**: Backend validation checks if paths exist and are directories, returning descriptive errors to the UI.
 * **Live Activity Monitor**: Real-time feedback showing "Directories Scanned" and "Files Matched" during execution using Tauri Emitters.
 * **Global Theme Engine**: Moved theme classes out of component scopes into the global SCSS layer to ensure 100% readability across all UI states (Search, Idle, Error).
@@ -86,7 +86,7 @@ allowBuilds:
 * Implemented `sort_all_files` post-processing to ensure alphanumeric file order.
 * Implemented event-throttling (modulo 100) in Rust to prevent UI lag during high-frequency progress updates.
 * **Memory Management**: Fixed potential memory leaks by ensuring Svelte doesn't proxy the entire directory result tree.
-* **CSS Refactor**: Migrated nested theme styles to a global hierarchy to prevent inheritance issues during Dark Mode toggle.
+* **CSS Refactor**: Applied `!important` to root background colors to prevent transparency glitches when `transparent: false` is toggled in configuration.
 
 ## Evolution
 
