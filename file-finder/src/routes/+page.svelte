@@ -4,6 +4,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { open, save } from "@tauri-apps/plugin-dialog";
+  import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
   let rootPath = $state("");
   let fileTypes = $state(".xml");
@@ -18,6 +19,21 @@
   let liveFilesFound = $state(0);
   let liveDirsScanned = $state(0);
 
+  const darkInput  = "background-color:#2D2D2D;color:#e0e0e0;border-color:#4A4A4A;";
+  const lightInput = "background-color:#ffffff;color:#222222;border-color:#cccccc;";
+  const darkBtn    = "background-color:#2D2D2D;color:#e0e0e0;border-color:#4A4A4A;";
+  const lightBtn   = "background-color:#ffffff;color:#222222;border-color:#cccccc;";
+
+  let inputStyle = $derived(isDarkMode ? darkInput : lightInput);
+  let btnStyle   = $derived(isDarkMode ? darkBtn   : lightBtn);
+
+  function reapplyInputStyles() {
+    const style = isDarkMode ? darkInput : lightInput;
+    document.querySelectorAll<HTMLInputElement>("input").forEach(el => {
+      el.setAttribute("style", style);
+    });
+  }
+
   function clearResults() {
     if (!isSearching) {
       result = null;
@@ -29,6 +45,21 @@
     }
   }
 
+  function clearRootPath() {
+    rootPath = "";
+    clearResults();
+  }
+
+  function clearFileTypes() {
+    fileTypes = "";
+    clearResults();
+  }
+
+  function clearExcludes() {
+    excludes = "";
+    clearResults();
+  }
+
   function applyTheme() {
     document.body.classList.toggle("dark", isDarkMode);
     document.body.style.backgroundColor = isDarkMode ? "#121212" : "#ffffff";
@@ -36,6 +67,7 @@
 
   onMount(async () => {
     applyTheme();
+    await invoke("set_window_theme", { dark: isDarkMode });
     const unlisten = await listen("search-progress", (event: any) => {
       liveFilesFound = event.payload.files_found;
       liveDirsScanned = event.payload.dirs_scanned;
@@ -43,9 +75,11 @@
     return () => unlisten();
   });
 
-  function toggleTheme() {
+  async function toggleTheme() {
     isDarkMode = !isDarkMode;
     applyTheme();
+    await invoke("set_window_theme", { dark: isDarkMode });
+    reapplyInputStyles();
   }
 
   async function pickFolder() {
@@ -58,6 +92,15 @@
 
   async function stopSearch() {
     await invoke("cancel_search");
+  }
+
+  async function openFolder(targetPath: string) {
+    try {
+      await revealItemInDir(targetPath);
+    } catch (e: any) {
+      console.error("Failed to open folder:", e);
+      validationError = "Could not open folder. Check your system's default file manager.";
+    }
   }
 
   async function runSearch() {
@@ -121,22 +164,40 @@
 <main class="container">
   <div style="display: flex; justify-content: space-between; align-items: center;">
     <h1>FILE FINDER</h1>
-    <button class="btn" onclick={toggleTheme} disabled={isSearching} style="font-size: 2rem; border: none; background: none;">
+    <button
+      class="btn"
+      onclick={toggleTheme}
+      disabled={isSearching}
+      style="font-size: 2rem; border: none; background: none; color: inherit;"
+    >
       {isDarkMode ? "🌙" : "☀️"}
     </button>
   </div>
 
   <div class="field">
-    <label>ROOT SEARCH DIRECTORY</label>
+    <label for="root-path">ROOT SEARCH DIRECTORY</label>
     <div class="input-row">
-      <input
-        bind:value={rootPath}
-        oninput={clearResults}
+      <div class="input-wrapper">
+        <input
+          id="root-path"
+          bind:value={rootPath}
+          oninput={() => { clearResults(); reapplyInputStyles(); }}
+          onchange={reapplyInputStyles}
+          disabled={isSearching}
+          placeholder="Select or paste folder path..."
+          autocomplete="off"
+          style="{inputStyle}{validationError ? 'border-color:#ef4444;outline:1px solid #ef4444;' : ''}"
+        />
+        {#if rootPath && !isSearching}
+          <button class="clear-btn" onclick={clearRootPath} style={btnStyle} title="Clear">✕</button>
+        {/if}
+      </div>
+      <button
+        class="btn"
+        onclick={pickFolder}
         disabled={isSearching}
-        placeholder="Select or paste folder path..."
-        class={validationError ? "input-error" : ""}
-      />
-      <button class="btn" onclick={pickFolder} disabled={isSearching}>Browse</button>
+        style={btnStyle}
+      >Browse</button>
     </div>
     {#if validationError}
       <span class="error-subtext">✕ {validationError}</span>
@@ -144,43 +205,71 @@
   </div>
 
   <div class="field">
-    <label>EXTENSIONS</label>
-    <input bind:value={fileTypes} oninput={clearResults} disabled={isSearching} placeholder=".txt, .json" />
+    <label for="ext-input">EXTENSIONS</label>
+    <div class="input-wrapper">
+      <input
+        id="ext-input"
+        bind:value={fileTypes}
+        oninput={() => { clearResults(); reapplyInputStyles(); }}
+        onchange={reapplyInputStyles}
+        disabled={isSearching}
+        placeholder=".txt, .json"
+        autocomplete="off"
+        style={inputStyle}
+      />
+      {#if fileTypes && !isSearching}
+        <button class="clear-btn" onclick={clearFileTypes} style={btnStyle} title="Clear">✕</button>
+      {/if}
+    </div>
   </div>
 
   <div class="field">
-    <label>EXCLUSION PATTERNS</label>
-    <input bind:value={excludes} oninput={clearResults} disabled={isSearching} placeholder="*temp*, *backup*" />
+    <label for="exclude-input">EXCLUSION PATTERNS</label>
+    <div class="input-wrapper">
+      <input
+        id="exclude-input"
+        bind:value={excludes}
+        oninput={() => { clearResults(); reapplyInputStyles(); }}
+        onchange={reapplyInputStyles}
+        disabled={isSearching}
+        placeholder="*temp*, *backup*"
+        autocomplete="off"
+        style={inputStyle}
+      />
+      {#if excludes && !isSearching}
+        <button class="clear-btn" onclick={clearExcludes} style={btnStyle} title="Clear">✕</button>
+      {/if}
+    </div>
   </div>
 
   <div style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
     <div style="display: flex; gap: 10px; width: 100%;">
-        <button class="btn primary" onclick={runSearch} disabled={!rootPath || isSearching}>
-          {#if isSearching}<span class="spinner"></span>{/if}
-          {isSearching ? "SCANNING & WRITING..." : "GENERATE JSON"}
-        </button>
+      <button class="btn primary" onclick={runSearch} disabled={!rootPath || isSearching}>
+        {#if isSearching}<span class="spinner"></span>{/if}
+        {isSearching ? "SCANNING & WRITING..." : "GENERATE JSON"}
+      </button>
 
-        {#if isSearching}
-          <button class="btn" onclick={stopSearch} style="border-color: #ef4444; color: #ef4444; width: auto;">
-            STOP
-          </button>
-        {/if}
+      {#if isSearching}
+        <button class="btn" onclick={stopSearch} style="border-color:#ef4444;color:#ef4444;width:auto;">
+          STOP
+        </button>
+      {/if}
     </div>
 
     {#if isSearching}
-        <div class="monitor-bar">
-            <div class="progress-track">
-                <div class="indeterminate-thumb"></div>
-            </div>
-            <div class="monitor-stats">
-                <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-                  📁 Scanned: <strong>{liveDirsScanned}</strong>
-                </span>
-                <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-                  🔍 Found: <strong>{liveFilesFound}</strong>
-                </span>
-            </div>
+      <div class="monitor-bar">
+        <div class="progress-track">
+          <div class="indeterminate-thumb"></div>
         </div>
+        <div class="monitor-stats">
+          <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
+            Scanned: <strong>{liveDirsScanned}</strong>
+          </span>
+          <span class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
+            Found: <strong>{liveFilesFound}</strong>
+          </span>
+        </div>
+      </div>
     {/if}
   </div>
 
@@ -199,7 +288,7 @@
           </p>
         </div>
       {:else if result}
-        {#if result.totalMatchingFiles > 0}
+        <div style="margin-bottom: 1rem;">
           <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
             Total Matching Files: <strong>{result.totalMatchingFiles}</strong>
           </p>
@@ -207,16 +296,24 @@
             Search Time: <strong>{result.executionTimeFormatted}</strong>
           </p>
 
-          {#if savedTo}
-            <p class="success-text">✓ Streamed to: {savedTo}</p>
+          {#if result.totalMatchingFiles === 0}
+            <p style="color: #ef4444; font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 4px; margin-top: 10px;">
+              No matching files found. Metadata recorded.
+            </p>
           {/if}
-        {:else}
-          <p style="color: #ef4444; font-weight: 600; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: 4px;">
-            No files found in the directory.
-          </p>
-          <p class={isDarkMode ? "dark-theme-text" : "light-theme-text"}>
-            Search took: <strong>{result.executionTimeFormatted}</strong>
-          </p>
+        </div>
+
+        {#if savedTo}
+          <div class="success-banner">
+            <span class="success-text">✓ Streamed to: {savedTo}</span>
+            <button
+              class="btn secondary-action"
+              onclick={() => openFolder(savedTo)}
+              style={btnStyle}
+            >
+              📂 Open Folder
+            </button>
+          </div>
         {/if}
       {/if}
     </div>
