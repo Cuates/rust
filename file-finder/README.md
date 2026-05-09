@@ -31,7 +31,7 @@ The application utilizes a memory-efficient "Direct-to-Disk" streaming architect
 - [x] **Live Monitor**: Visual indeterminate progress and real-time file counters.
 - [x] **Custom Filters**: Extension-based filtering and glob-pattern exclusions.
 - [x] **Deterministic Output**: JSON keys and files are sorted alphanumerically for consistent diffing.
-- [x] **Dynamic Theming**: Fully integrated Light/Dark mode with consistent text visibility across all sections.
+- [x] **Dynamic Theming**: Fully integrated Light/Dark mode including OS-level Title Bar synchronization and text visibility across all sections.
 
 ## Developer Commands
 - `pnpm tauri dev`: Start development environment.
@@ -41,8 +41,9 @@ The application utilizes a memory-efficient "Direct-to-Disk" streaming architect
 
 ### UI & UX Refinement
 - **Theme Persistence**: Fixed a bug where live monitor text ("Scanned" and "Found") remained dark in Dark Mode.
+- **Title Bar Sync**: Integrated `set_window_theme` in the Rust backend to ensure the OS window frame (Close/Minimize buttons) switches between Light and Dark mode along with the UI.
+- **Transparency Fix**: Applied `background-color` to the `html` root with `!important` to prevent system-level transparency bleed when the window is initialized.
 - **Visual Alignment**: Corrected the vertical alignment of emojis (📁, 🔍) and count values in the status bar using flexbox centering and line-height adjustments.
-- **Global CSS Theming**: Refactored theme classes (`.dark-theme-text`, `.light-theme-text`) to be global variables with `!important` overrides, ensuring visibility across all UI components regardless of nesting.
 
 ### Direct-to-Disk Streaming
 - Shifted architecture to a "Save-First" workflow.
