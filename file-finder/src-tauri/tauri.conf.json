@@ -12,10 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "file-finder-rust",
+        "title": "File Finder",
         "width": 900,
         "height": 900,
-        "resizable": true
+        "resizable": true,
+        "decorations": true,
+        "transparent": false
       }
     ],
     "security": {
