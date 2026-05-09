@@ -80,12 +80,27 @@ allowBuilds:
 
 * **Backend**: Rust (Tauri 2.0) using `walkdir`, `serde_json` streaming, and `BTreeMap` for ordered results.
 * **Frontend**: Svelte 5 with "Save-First" workflow. Fully responsive Dark/Light mode theme integration.
+* **Release**: Production build successful (2026-05-08). MSI and NSIS installers generated for Windows x64.
 
 ## Build Instructions
+
+### Development Mode
 
 1. `pnpm install`
 2. `pnpm approve-builds`
 3. `pnpm tauri dev`
+
+### Production Build (Current Environment: Windows)
+
+1. `pnpm tauri build`
+2. Binary located in: `src-tauri/target/release/`
+3. Installers located in: `src-tauri/target/release/bundle/`
+
+## Deployment Notes
+
+- **Vite Configuration**: Successfully building SSR bundle for production.
+- **Wix/Candle**: MSI bundling successfully configured and executed.
+- **NSIS**: Setup.exe bundling successfully configured and executed.
 
 ## Remove and Clean Instructions
 
@@ -112,6 +127,7 @@ allowBuilds:
 * Implemented `sort_all_files` post-processing.
 * Implemented event-throttling (modulo 100) in Rust to prevent UI lag.
 * **Memory Management**: Fixed potential memory leaks by ensuring Svelte doesn't proxy the entire directory result tree.
+* **Build Artifacts**: Confirmed `adapter-static` overwriting `index.html` is expected behavior for SPA routing within the Tauri container; no action required.
 
 ## Evolution
 
