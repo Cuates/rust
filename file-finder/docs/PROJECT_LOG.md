@@ -31,6 +31,38 @@ allowBuilds:
   esbuild: true
 ```
 
+## OS-Specific Prerequisites & Build Guide
+
+### 🪟 Windows
+
+1. **System Requirements**: Install [Visual Studio Build Tools 2022](https://www.google.com/search?q=https://visualstudio.microsoft.com/visual-cpp-build-tools/) and ensure "Desktop development with C++" is checked.
+2. **Rust**: Install via [rustup.rs](https://rustup.rs/).
+3. **Node**: Install Node.js and `npm install -g pnpm`.
+4. **Build**:
+* `pnpm install`
+* `pnpm tauri build`
+
+### 🍎 macOS
+
+1. **System Requirements**: Install CLTools via `xcode-select --install`.
+2. **Rust**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
+3. **Build**:
+* `pnpm install`
+* `pnpm tauri build`
+* *Output*: Generates `.app` and `.dmg` in `src-tauri/target/release/bundle`.
+
+### 🐧 Linux (*nix)
+
+1. **System Requirements**: Install system dependencies (Ubuntu/Debian example):
+`sudo apt update && sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev`
+2. **Rust**: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
+3. **Build**:
+* `pnpm install`
+* `pnpm tauri build`
+* *Output*: Generates `.deb` and `AppImage`.
+
+---
+
 ## Technical Parity
 
 * **Search Logic**: Implemented recursive `WalkDir` with `glob` pattern matching to mirror Python's `fnmatch` behavior.
@@ -40,16 +72,14 @@ allowBuilds:
 ## Architectural Decisions
 
 * **Backend**: Rust (Tauri 2.0). Modular plugins enabled for `dialog` and `opener`.
-* **Streaming Architecture**: Implemented `BufWriter` to stream JSON results directly to disk. This prevents the "String Length Limit" and "Out of Memory" errors common in JavaScript-heavy file managers.
+* **Streaming Architecture**: Implemented `BufWriter` to stream JSON results directly to disk.
 * **Frontend**: Svelte 5. Using Runes (`$state`) for more efficient reactivity.
-* **IPC Strategy**: Reduced IPC payload by 99% for large scans by returning only `Metadata` from Rust instead of the entire file tree.
-* **Package Manager**: pnpm. Strict dependency resolution and approved builds for `@parcel/watcher`.
+* **IPC Strategy**: Reduced IPC payload by 99% for large scans by returning only `Metadata` from Rust.
 
 ## Current Status
 
-* **Backend**: Rust (Tauri 2.0) using `walkdir`, `serde_json` streaming, and `BTreeMap` for ordered results. Added `set_window_theme` command for OS-level decoration handling.
-* **Frontend**: Svelte 5 with "Save-First" workflow. Robust theme toggle that synchronizes CSS variables and the native window frame.
-* **Parity**: Successfully replicated and improved upon `DirectoryResult` and `Metadata` structures.
+* **Backend**: Rust (Tauri 2.0) using `walkdir`, `serde_json` streaming, and `BTreeMap` for ordered results.
+* **Frontend**: Svelte 5 with "Save-First" workflow. Fully responsive Dark/Light mode theme integration.
 
 ## Build Instructions
 
@@ -59,10 +89,9 @@ allowBuilds:
 
 ## Remove and Clean Instructions
 
-* Move into your apps root directory
-
 1. `rm -r -Force node_modules, pnpm-lock.yaml`
 2. `pnpm store prune`
+* *Note*: If `pnpm store prune` fails with `EPERM`, close VS Code and run the terminal as Administrator.
 3. `cd .\src-tauri\`
 4. `cargo clean`
 5. `cd ..`
@@ -71,25 +100,21 @@ allowBuilds:
 ## Completed Features
 
 * **Recursive Search**: Implemented via Rust's `walkdir` crate.
-* **Direct-to-Disk Streaming**: Rust writes the JSON file directly using a buffered stream, bypassing Svelte/JavaScript memory limits.
-* **Ordered JSON**: Migrated from `HashMap` to `BTreeMap` for alphanumeric subdirectory sorting; implemented recursive case-insensitive file sorting.
-* **Exclusion Logic**: Supports wildcard glob patterns for directory and file exclusion.
-* **Native Title Bar Sync**: The system window frame now switches themes alongside the app UI via `set_theme` API.
-* **Input Validation**: Backend validation checks if paths exist and are directories, returning descriptive errors to the UI.
-* **Live Activity Monitor**: Real-time feedback showing "Directories Scanned" and "Files Matched" during execution using Tauri Emitters.
-* **Global Theme Engine**: Moved theme classes out of component scopes into the global SCSS layer to ensure 100% readability across all UI states (Search, Idle, Error).
-* **Icon & Label Alignment**: Optimized the monitor bar layout using `align-items: center` to ensure icons and dynamic numbers share a perfectly horizontal baseline.
+* **Direct-to-Disk Streaming**: Rust writes the JSON file directly using a buffered stream.
+* **Ordered JSON**: Migrated from `HashMap` to `BTreeMap` for alphanumeric subdirectory sorting.
+* **Exclusion Logic**: Supports wildcard glob patterns.
+* **Dark Mode UI**: High-contrast theme (#2D2D2D background).
+* **Live Activity Monitor**: Real-time feedback showing "Directories Scanned" and "Files Matched".
 
 ## Technical Maintenance
 
 * Replaced `HashMap` with `BTreeMap` in `main.rs` to guarantee alphanumeric JSON keys.
-* Implemented `sort_all_files` post-processing to ensure alphanumeric file order.
-* Implemented event-throttling (modulo 100) in Rust to prevent UI lag during high-frequency progress updates.
+* Implemented `sort_all_files` post-processing.
+* Implemented event-throttling (modulo 100) in Rust to prevent UI lag.
 * **Memory Management**: Fixed potential memory leaks by ensuring Svelte doesn't proxy the entire directory result tree.
-* **CSS Refactor**: Applied `!important` to root background colors to prevent transparency glitches when `transparent: false` is toggled in configuration.
 
 ## Evolution
 
 * Migrated `file_finder.py` logic to Rust/Svelte.
 * Replaced Python `tqdm` with a custom Svelte Indeterminate Activity Monitor.
-* Optimized for "Millions of Files" by moving the save operation into the Rust backend during the scan phase.
+* Optimized for "Millions of Files" by moving the save operation into the Rust backend.
