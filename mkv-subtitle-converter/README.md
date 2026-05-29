@@ -1,4 +1,3 @@
-```markdown
 # 🎬 MKV Subtitle Converter (Tauri v2 + SvelteKit Workspace)
 
 A professional-grade, high-performance desktop utility designed to scan local directories, parse layout tracks inside multi-stream MKV video containers, and batch-extract embedded SubRip (SRT) files into highly formatted, custom-styled Advanced SubStation Alpha (ASS) subtitles.
@@ -43,7 +42,6 @@ Before attempting to compile or run the application locally, ensure your develop
 * **Linux (*nix Distros):** System-wide C-compilers and developer system packages for WebKit are mandatory. For Debian/Ubuntu distributions, execute the following block:
   ```bash
   sudo apt-get update && sudo apt-get install -y build-essential curl wget libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev textlive-fonts-recommended
-
 ```
 
 ---
@@ -106,7 +104,6 @@ To prevent system module dependency leakage and to allow the root profile to man
 ```yaml
 packages:
   - 'packages/*'
-
 ```
 
 ### Root `package.json`
@@ -124,7 +121,6 @@ packages:
     "@tauri-apps/cli": "latest"
   }
 }
-
 ```
 
 ---
@@ -149,7 +145,6 @@ To build out or recreate this exact platform layout safely without conflict para
 ```bash
 mkdir mkv-subtitle-converter
 cd mkv-subtitle-converter
-
 ```
 
 ---
@@ -160,7 +155,6 @@ Bootstrap the foundational scaffolding footprint directly inside your active ter
 
 ```bash
 pnpm create tauri-app .
-
 ```
 
 When prompted by the automated deployment assistant, input the exact values specified below:
@@ -180,7 +174,6 @@ The standard scaffolding configuration outputs a monolithic block where your web
 1. Create a physical directory named `packages` inside your root project space:
 ```bash
 mkdir packages
-
 ```
 
 
@@ -201,7 +194,6 @@ Modify **`packages/frontend/package.json`**:
   "private": true,
   "version": "2.0.0"
 }
-
 ```
 
 Modify **`packages/backend/package.json`**:
@@ -212,7 +204,6 @@ Modify **`packages/backend/package.json`**:
   "private": true,
   "version": "2.0.0"
 }
-
 ```
 
 ---
@@ -224,7 +215,6 @@ By decoupling packages into `@app/frontend` and `@app/backend`, we prevent syste
 ```bash
 # Example of explicit scoped installation filtering
 pnpm --filter @app/frontend add <package-name>
-
 ```
 
 ---
@@ -235,7 +225,6 @@ The main administrative orchestration runtime of Tauri v2 must exist at the work
 
 ```bash
 pnpm add -D @tauri-apps/cli -w
-
 ```
 
 This enables running commands like `pnpm dev` at the global root level, allowing the CLI to find individual configurations located deeper within the workspace structure.
@@ -251,7 +240,6 @@ cd packages/frontend
 pnpm add @tauri-apps/api
 pnpm add -D @sveltejs/adapter-static
 pnpm add -D sass
-
 ```
 
 ---
@@ -267,7 +255,6 @@ cargo add tauri-plugin-dialog
 cargo add tauri-plugin-opener
 cargo add tauri-plugin-shell
 cargo add indexmap serde serde_json chrono tokio regex
-
 ```
 
 ---
@@ -285,7 +272,6 @@ Update **`packages/backend/tauri.conf.json`**:
   "devUrl": "http://localhost:5173",
   "frontendDist": "../frontend/build"
 }
-
 ```
 
 Simultaneously, enforce static generation rules on your client configuration so it produces individual asset documents instead of node system server scripts.
@@ -311,7 +297,6 @@ const config = {
 };
 
 export default config;
-
 ```
 
 ---
@@ -333,7 +318,6 @@ Tauri requires SvelteKit to operate as a pure Single-Page Application (SPA) with
 ```typescript
 export const prerender = true;
 export const ssr = false;
-
 ```
 
 
@@ -378,7 +362,6 @@ async function triggerExtractionBatch(selectedFolders: string[]) {
         console.error(`Native runtime error reported: ${error}`);
     }
 }
-
 ```
 
 ---
@@ -404,7 +387,6 @@ Execute from the workspace root:
 
 ```bash
 pnpm tauri build
-
 ```
 
 ### Packaging Actions Triggered:
@@ -429,10 +411,7 @@ cd packages/backend
 cargo clean
 cd ../..
 pnpm dev
-
 ```
-
-
 
 ### ❌ Issue: IDE highlights permission blocks with "Value is not accepted" warnings
 
@@ -441,9 +420,7 @@ pnpm dev
 ```bash
 cd packages/backend && cargo add tauri-plugin-shell
 cd ../.. && pnpm tauri dev
-
 ```
-
 
 *(If warnings linger in VS Code, execute `Developer: Reload Window` from your command palette to refresh internal schemas).*
 
@@ -454,10 +431,7 @@ cd ../.. && pnpm tauri dev
 ```bash
 xattr -dr com.apple.quarantine packages/backend/binaries/ffmpeg-aarch64-apple-darwin
 xattr -dr com.apple.quarantine packages/backend/binaries/ffprobe-aarch64-apple-darwin
-
 ```
-
-
 
 ---
 
@@ -469,12 +443,10 @@ From the repository root workspace room, run:
 
 ```bash
 pnpm clean
-
 ```
 
 Once completed, boot standard local execution safely:
 
 ```bash
 pnpm dev
-
 ```
