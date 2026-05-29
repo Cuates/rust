@@ -57,7 +57,7 @@ mkv-subtitle-converter/
 ├── packages/
 │   ├── frontend/                  # Decoupled Webview Client (SvelteKit / Svelte 5)
 │   │   ├── package.json
-│   │   ├── svelte.config.js       # Outfitted with Adapter-Static constraints
+│   │   ├── svelte.config.js       # Outfitted with Adapter-Static constraints (outputs to dist/)
 │   │   ├── tsconfig.json          # TypeScript compiler configuration
 │   │   ├── vite.config.js         # Vite bundler configurations
 │   │   ├── static/                # Uncompiled raw static assets
@@ -75,7 +75,7 @@ mkv-subtitle-converter/
 │   │           └── +page.svelte   # Primary application interaction view
 │   └── backend/                   # Decoupled Native Desktop Layer (Tauri v2 + Rust)
 │       ├── Cargo.toml             # System crate workspace dependencies
-│       ├── tauri.conf.json        # Main Tauri application layout and compilation schema
+│       ├── tauri.conf.json        # Main Tauri application layout and compilation schema (reads dist/)
 │       ├── capabilities/
 │       │   └── default.json       # Security layer access token configuration
 │       ├── binaries/              # Embedded cross-platform system sidecars
@@ -90,7 +90,6 @@ mkv-subtitle-converter/
 │       └── src/
 │           ├── main.rs            # Application execution root entryway
 │           └── lib.rs             # Transcoding logic, sidecar streaming, and IPC definitions
-
 ```
 
 ---
@@ -115,7 +114,7 @@ packages:
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
-    "clean": "pnpm -r exec rm -rf node_modules build .svelte-kit target && pnpm install"
+    "clean": "pnpm -r exec rm -rf node_modules dist .svelte-kit target && pnpm install"
   },
   "devDependencies": {
     "@tauri-apps/cli": "latest"
@@ -190,17 +189,18 @@ Modify **`packages/frontend/package.json`**:
 
 ```json
 {
-  "name": "@app/frontend",
+  "name": "frontend",
   "private": true,
   "version": "2.0.0"
 }
+
 ```
 
 Modify **`packages/backend/package.json`**:
 
 ```json
 {
-  "name": "@app/backend",
+  "name": "backend",
   "private": true,
   "version": "2.0.0"
 }
@@ -210,11 +210,11 @@ Modify **`packages/backend/package.json`**:
 
 ## 9. Fixing Workspace Filtering
 
-By decoupling packages into `@app/frontend` and `@app/backend`, we prevent system configuration files from polluting competing scopes. When executing specific package actions, always utilize `pnpm` workspace filters to ensure precision execution targets:
+By decoupling packages into `frontend` and `backend`, we prevent system configuration files from polluting competing scopes. When executing specific package actions, always utilize `pnpm` workspace filters to ensure precision execution targets:
 
 ```bash
 # Example of explicit scoped installation filtering
-pnpm --filter @app/frontend add <package-name>
+pnpm --filter frontend add <package-name>
 ```
 
 ---
@@ -267,14 +267,14 @@ Update **`packages/backend/tauri.conf.json`**:
 
 ```json
 "build": {
-  "beforeDevCommand": "pnpm --filter @app/frontend dev",
-  "beforeBuildCommand": "pnpm --filter @app/frontend build",
+  "beforeDevCommand": "pnpm --filter frontend dev",
+  "beforeBuildCommand": "pnpm --filter frontend build",
   "devUrl": "http://localhost:5173",
-  "frontendDist": "../frontend/build"
+  "frontendDist": "../frontend/dist"
 }
 ```
 
-Simultaneously, enforce static generation rules on your client configuration so it produces individual asset documents instead of node system server scripts.
+Simultaneously, enforce static generation rules on your client configuration so it produces individual asset documents instead of node system server scripts, routing the compiler output straight into the standard `dist` folder.
 
 Update **`packages/frontend/svelte.config.js`**:
 
@@ -287,12 +287,16 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      pages: 'build',
-      assets: 'build',
-      fallback: 'index.html',
+      pages: 'dist',
+      assets: 'dist',
+      fallback: 'index.html', // Required for SPA. (Will throw a safe overwrite warning during build)
       precompress: false,
       strict: true
-    })
+    }),
+    alias: {
+      '$lib': './src/lib',
+      '$lib/*': './src/lib/*'
+    }
   }
 };
 
@@ -305,11 +309,6 @@ export default config;
 
 The application front interface relies on a combination of SCSS stylesheets, static assets, and reactive **Svelte 5 Runes** (`$state`, `$derived`, `$effect`) to build a cohesive desktop UI.
 
-### Static Assets & Global Styling
-
-* **`static/`**: Houses all uncompiled raw assets (`favicon.png`, `vite.svg`, `tauri.svg`, `svelte.svg`). Vite serves these directly to the compiled HTML.
-* **`src/styles/`**: Centralized SCSS architecture. Uses `_variables.scss` for standardized color theming and `app.scss` for global resets and core application stylesheets.
-
 ### Desktop Routing Shell
 
 Tauri requires SvelteKit to operate as a pure Single-Page Application (SPA) without a Node.js server backbone.
@@ -321,8 +320,6 @@ export const ssr = false;
 ```
 
 
-* **`+layout.svelte`**: The persistent application shell that imports the global `app.scss` stylesheet and wraps the main `<slot />`.
-* **`+page.svelte`**: The interactive interface orchestrating file dropzones and progress logs.
 
 ### Communication Implementation Model (`+page.svelte`)
 
@@ -342,12 +339,6 @@ progressChannel.onmessage = (message) => {
     switch (message.event) {
         case "LogMessage":
             console.log(`[Terminal Core UI Log] ${message.data}`);
-            break;
-        case "FileProcessed":
-            console.log(`Metrics Updated: Checked count: ${message.data.processed}`);
-            break;
-        case "Finished":
-            console.log("Batch processing complete across folders.");
             break;
     }
 };
@@ -373,38 +364,57 @@ The file system processing pipeline logic is fully managed inside `packages/back
 ### Essential Operations Performed Natively
 
 1. **Sidecar Verification Phase:** Fires asynchronous internal validation checks targeting embedded binary locations to extract structural runtime parameters (`ffmpeg -version`).
-2. **Layout Parsing Structure:** Uses `ffprobe` sidecars with specific formatting configuration mappings to scan targets, fetch track maps, check metadata language tags, and isolate binary layout properties (`default_flag`, `forced_flag`).
-3. **Async Subprocess Spawn:** Launches independent `ffmpeg` extraction sub-routines safely mapped inside Tokio task configurations to isolate raw target tracks into temporary filesystem locations.
-4. **Rust Transcoding Core Engine:** Parses linear raw time markers out of SRT logs via standard buffers and structurally rewrites text elements using customized style blocks inside highly optimized Advanced SubStation Alpha (ASS) files.
+2. **Layout Parsing Structure:** Uses `ffprobe` sidecars to scan targets, fetch track maps, and isolate binary layout properties (`default_flag`, `forced_flag`).
+3. **Async Subprocess Spawn:** Launches independent `ffmpeg` extraction sub-routines mapped inside Tokio tasks.
+4. **Rust Transcoding Core Engine:** Parses raw time markers out of SRT logs via standard buffers and structurally rewrites text elements using customized style blocks inside highly optimized Advanced SubStation Alpha (ASS) files.
 
 ---
 
 ## 16. Building for Production / Distribution
 
-When you are ready to compile the application into a single, production-ready release package for distribution, invoke the global bundler.
-
-Execute from the workspace root:
+When you are ready to compile the application into a single, production-ready release package, invoke the global bundler from the workspace root:
 
 ```bash
 pnpm tauri build
 ```
 
-### Packaging Actions Triggered:
+This triggers the production build across the SvelteKit frontend layout, compiles the Rust code with full release optimization flags (`-C opt-level=3`), and resolves your sidecars. From here, you have two distribution options:
 
-1. The script triggers a production build across the SvelteKit frontend layout, performing tree-shaking, JavaScript optimization, and code compilation into static directory assets.
-2. The Tauri compilation engine reads the target host operating system platform context.
-3. Cargo optimizes and compiles the Rust code with full release optimizations flags (`-C opt-level=3`).
-4. The system automatically fetches your embedded host architecture sidecars from `packages/backend/binaries/`, drops them cleanly inside the application payload container, and completely ignores the other unused architecture files.
-5. **Output Path:** Completed installers (`.msi` / `.exe` on Windows, `.dmg` / `.app` on macOS, `.deb` / `.AppImage` on Linux) are written into:
-`packages/backend/target/release/bundle/`
+### Option A: Standard System Installers
+
+Tauri automatically wraps your application inside standard OS installers (`.msi` / `.exe` on Windows, `.dmg` / `.app` on macOS, `.deb` / `.AppImage` on Linux).
+
+* **Location:** `packages/backend/target/release/bundle/`
+* **Use Case:** Best for standard user distribution where the application needs to live in `Program Files` or the macOS `Applications` folder.
+
+### Option B: Portable (No-Install) Application
+
+You can completely bypass the installer and provide a raw, portable folder that users can run instantly on any machine without needing administrator privileges.
+
+1. Navigate to the core compile directory: `packages/backend/target/release/`
+2. Locate the raw, compiled executable: `mkv-subtitle-converter.exe`
+3. Locate the embedded host architecture sidecars that Tauri copied into this exact same folder (e.g., `ffmpeg-x86_64-pc-windows-msvc.exe`).
+4. Create a new folder (e.g., `MKV-Converter-Portable`).
+5. Move the `.exe` and the sidecar binaries into this folder together.
+6. Zip the folder and distribute. Users simply double-click the `.exe` to run.
 
 ---
 
 ## 17. Troubleshooting & Common Pitfalls
 
+### ❌ Issue: Build warns "Overwriting dist\index.html with fallback page"
+
+* **Cause:** SvelteKit successfully generated a static homepage from your root route, but then overwrote it with the Single Page Application (SPA) `fallback: 'index.html'` file we configured in `svelte.config.js`.
+* **Resolution:** **Ignore this warning.** For a Tauri application, this overwrite is intended behavior and ensures the WebView can handle internal SPA routing correctly.
+
+### ❌ Issue: App opens to a white screen / "asset not found: index.html"
+
+* **Cause:** The `tauri.conf.json` is looking for `index.html` as its entry point, but `svelte.config.js` generated a different fallback file name, or `frontendDist` is misconfigured.
+* **Resolution:** Ensure `fallback: 'index.html'` is explicitly set in `svelte.config.js`. Ensure `frontendDist` in `tauri.conf.json` points to the `dist` folder (`"../frontend/dist"`), not a specific file.
+
 ### ❌ Issue: System terminal output UI reports old engine versions after file upgrades
 
-* **Cause:** Cargo optimizes compilation performance by aggressively caching system binary assets inside its compilation folder structure. If you swap physical files on your drive, Cargo may fail to recognize the filesystem modifications.
+* **Cause:** Cargo optimizes compilation performance by aggressively caching system binary assets.
 * **Resolution:** Wipe the internal target cache cleanly before restarting your development environment:
 ```bash
 cd packages/backend
@@ -413,21 +423,12 @@ cd ../..
 pnpm dev
 ```
 
-### ❌ Issue: IDE highlights permission blocks with "Value is not accepted" warnings
 
-* **Cause:** The auto-generated security schema specification blueprint (`packages/backend/gen/schemas/desktop-schema.json`) is currently out of sync with your new custom Rust plugin definitions.
-* **Resolution:** Ensure the dependency is explicitly registered inside `packages/backend/Cargo.toml`, then restart the dev pipeline to force schema generation:
-```bash
-cd packages/backend && cargo add tauri-plugin-shell
-cd ../.. && pnpm tauri dev
-```
-
-*(If warnings linger in VS Code, execute `Developer: Reload Window` from your command palette to refresh internal schemas).*
 
 ### ❌ Issue: macOS crashes or reports the sidecar binary file is "damaged" or untrusted
 
-* **Cause:** Apple Gatekeeper automatically appends an extended quarantine metadata attribute flag (`com.apple.quarantine`) onto raw executables downloaded via web browsers.
-* **Resolution:** Strip the security metadata quarantine flag manually via your Mac terminal workspace layout space:
+* **Cause:** Apple Gatekeeper automatically appends an extended quarantine metadata attribute flag (`com.apple.quarantine`) onto executables downloaded via browsers.
+* **Resolution:** Strip the security metadata quarantine flag manually via terminal:
 ```bash
 xattr -dr com.apple.quarantine packages/backend/binaries/ffmpeg-aarch64-apple-darwin
 xattr -dr com.apple.quarantine packages/backend/binaries/ffprobe-aarch64-apple-darwin
