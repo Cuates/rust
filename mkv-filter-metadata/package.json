@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tauri dev",
     "build": "tauri build",
+    "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && pnpm install",
-    "tauri": "tauri"
+    "dev": "tauri dev",
+    "format": "pnpm -F frontend format && cargo fmt --manifest-path backend/Cargo.toml",
+    "app-info": "tauri info",
+    "lint": "pnpm -F frontend lint && cargo clippy --manifest-path backend/Cargo.toml -- -D warnings",
+    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml"
   },
   "license": "MIT",
   "devDependencies": {
