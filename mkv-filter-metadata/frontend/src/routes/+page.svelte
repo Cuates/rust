@@ -28,7 +28,7 @@
   let overallProgress = $state(0);
   let runningTimeFormatted = $state('0ms');
 
-  let timerInterval: ReturnType<typeof setInterval> | null = null;
+  let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
   let startTime = 0;
 
   // Add this with your other state variables
