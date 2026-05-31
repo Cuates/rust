@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "mkv-filter-metadata-rust",
+  "version": "0.1.0",
+  "identifier": "com.cuates.mkv-filter-metadata-rust",
+  "build": {
+    "beforeDevCommand": "pnpm -F frontend dev",
+    "beforeBuildCommand": "pnpm -F frontend build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../frontend/build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "MKV Filter Metadata",
+        "width": 850,
+        "height": 1050,
+        "resizable": true,
+        "minWidth": 850,
+        "minHeight": 1050
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "externalBin": [
+      "sidecars/ffmpeg",
+      "sidecars/ffprobe",
+      "sidecars/mkvmerge"
+    ],
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

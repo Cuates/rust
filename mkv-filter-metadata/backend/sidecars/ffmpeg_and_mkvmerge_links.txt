@@ -1,0 +1,20 @@
+https://www.gyan.dev/ffmpeg/builds/#release-builds
+download latest release-essentials.zip
+---
+https://evermeet.cx/ffmpeg/
+download latest for both
+---
+https://osxexperts.net/
+download latest for both
+---
+https://johnvansickle.com/ffmpeg/
+download latest amd64 tar.xz release
+---
+https://mkvtoolnix.download/macos/releases/
+download latest universal dmg
+---
+https://mkvtoolnix.download/downloads.html#appimage
+download appimage from "here" link
+---
+https://mkvtoolnix.download/downloads.html#windows
+download latest portable 64-bit 7z
