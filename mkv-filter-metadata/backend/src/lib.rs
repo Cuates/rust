@@ -34,14 +34,14 @@ fn get_ffmpeg_preset(codec: &str, preset: &str) -> String {
     if codec.contains("nvenc") {
         match preset {
             "ultrafast" => "p1".to_string(),
-            "veryfast"  => "p2".to_string(),
-            "fast"      => "p3".to_string(),
-            "faster"    => "p4".to_string(),
-            "medium"    => "p4".to_string(),
-            "slow"      => "p5".to_string(),
-            "slower"    => "p6".to_string(),
-            "veryslow"  => "p7".to_string(),
-            _           => "p4".to_string(), // Default safe fallback
+            "veryfast" => "p2".to_string(),
+            "fast" => "p3".to_string(),
+            "faster" => "p4".to_string(),
+            "medium" => "p4".to_string(),
+            "slow" => "p5".to_string(),
+            "slower" => "p6".to_string(),
+            "veryslow" => "p7".to_string(),
+            _ => "p4".to_string(), // Default safe fallback
         }
     } else {
         preset.to_string()
@@ -70,6 +70,7 @@ fn stderr_indicates_subtitle_incompatibility(logs: &[String]) -> bool {
 
 /// Builds the base ffmpeg arg list (maps + codec flags) for either reencode or remux mode,
 /// with a caller-supplied subtitle codec string ("copy" or "ass").
+#[allow(clippy::too_many_arguments)]
 fn build_ffmpeg_args(
     file_path: &Path,
     output_path: &Path,
@@ -82,10 +83,14 @@ fn build_ffmpeg_args(
 ) -> Vec<String> {
     let mut args = vec![
         "-y".to_string(),
-        "-i".to_string(), file_path.to_string_lossy().into_owned(),
-        "-map".to_string(), "0:V?".to_string(), // map all video safely (Capital V ignores cover arts)
-        "-map".to_string(), "0:a?".to_string(), // map all audio safely
-        "-map".to_string(), "0:t?".to_string(), // Keep attachments (fonts)
+        "-i".to_string(),
+        file_path.to_string_lossy().into_owned(),
+        "-map".to_string(),
+        "0:V?".to_string(), // map all video safely (Capital V ignores cover arts)
+        "-map".to_string(),
+        "0:a?".to_string(), // map all audio safely
+        "-map".to_string(),
+        "0:t?".to_string(), // Keep attachments (fonts)
     ];
 
     // Explicitly map exactly the subtitle IDs discovered by ffprobe
@@ -96,10 +101,14 @@ fn build_ffmpeg_args(
 
     if mode == "reencode" {
         args.extend([
-            "-c:v".to_string(), video_codec.to_string(),
-            "-preset".to_string(), preset.to_string(),
-            "-crf".to_string(), crf.to_string(),
-            "-c:a".to_string(), "copy".to_string(),
+            "-c:v".to_string(),
+            video_codec.to_string(),
+            "-preset".to_string(),
+            preset.to_string(),
+            "-crf".to_string(),
+            crf.to_string(),
+            "-c:a".to_string(),
+            "copy".to_string(),
         ]);
     } else {
         // Remux: explicitly copy video and audio streams only.
@@ -107,8 +116,10 @@ fn build_ffmpeg_args(
         // follows, causing FFmpeg to emit a "Multiple -codec options specified" warning on
         // every subtitle stream. Setting -c:v and -c:a individually is unambiguous.
         args.extend([
-            "-c:v".to_string(), "copy".to_string(),
-            "-c:a".to_string(), "copy".to_string(),
+            "-c:v".to_string(),
+            "copy".to_string(),
+            "-c:a".to_string(),
+            "copy".to_string(),
         ]);
     }
 
@@ -128,14 +139,21 @@ async fn get_matching_subtitle_maps(
         .sidecar("ffprobe")
         .map_err(|e| format!("Failed to initialize ffprobe sidecar configuration: {}", e))?
         .args([
-            "-v", "error",
-            "-select_streams", "s",
-            "-show_entries", "stream=index:stream_tags=language",
-            "-of", "csv=p=0",
-            &file_path.to_string_lossy().into_owned(),
+            "-v",
+            "error",
+            "-select_streams",
+            "s",
+            "-show_entries",
+            "stream=index:stream_tags=language",
+            "-of",
+            "csv=p=0",
+            &file_path.to_string_lossy(),
         ]);
 
-    let output = cmd.output().await.map_err(|e| format!("ffprobe execution error: {}", e))?;
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| format!("ffprobe execution error: {}", e))?;
 
     if !output.status.success() {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
@@ -196,7 +214,10 @@ async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<Stri
         .map_err(|e| format!("Failed to initialize sidecar configuration: {e}"))?
         .args(args);
 
-    let output = cmd.output().await.map_err(|e| format!("Binary execution error: {e}"))?;
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| format!("Binary execution error: {e}"))?;
 
     if output.status.success() {
         let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -223,11 +244,17 @@ async fn check_nvenc_support(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
-async fn abort_video_pipeline(app: AppHandle, state: tauri::State<'_, AppState>) -> Result<(), String> {
+async fn abort_video_pipeline(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<(), String> {
     state.is_aborted.store(true, Ordering::SeqCst);
 
     let opt_child = {
-        let mut lock = state.active_child.lock().map_err(|_| "Process lock exception")?;
+        let mut lock = state
+            .active_child
+            .lock()
+            .map_err(|_| "Process lock exception")?;
         lock.take()
     };
 
@@ -237,8 +264,14 @@ async fn abort_video_pipeline(app: AppHandle, state: tauri::State<'_, AppState>)
     }
 
     let (files_to_delete, dirs_to_check) = {
-        let mut files_lock = state.session_output_files.lock().map_err(|_| "Files tracking lock exception")?;
-        let mut dirs_lock = state.session_output_dirs.lock().map_err(|_| "Dirs tracking lock exception")?;
+        let mut files_lock = state
+            .session_output_files
+            .lock()
+            .map_err(|_| "Files tracking lock exception")?;
+        let mut dirs_lock = state
+            .session_output_dirs
+            .lock()
+            .map_err(|_| "Dirs tracking lock exception")?;
 
         let files = files_lock.clone();
         let dirs = dirs_lock.clone();
@@ -250,7 +283,10 @@ async fn abort_video_pipeline(app: AppHandle, state: tauri::State<'_, AppState>)
     };
 
     let target_cleanup_path = {
-        let mut path_lock = state.current_output_path.lock().map_err(|_| "Path lock acquisition exception")?;
+        let mut path_lock = state
+            .current_output_path
+            .lock()
+            .map_err(|_| "Path lock acquisition exception")?;
         path_lock.take()
     };
 
@@ -263,9 +299,18 @@ async fn abort_video_pipeline(app: AppHandle, state: tauri::State<'_, AppState>)
     for file in files_to_delete {
         if file.exists() {
             if let Err(e) = fs::remove_file(&file) {
-                let _ = app.emit("process-log", format!("❌ Failed to delete rollback file {:?}: {}", file, e));
+                let _ = app.emit(
+                    "process-log",
+                    format!("❌ Failed to delete rollback file {:?}: {}", file, e),
+                );
             } else {
-                let _ = app.emit("process-log", format!("Cleaned up session file safely: \"{}\"", file.to_string_lossy()));
+                let _ = app.emit(
+                    "process-log",
+                    format!(
+                        "Cleaned up session file safely: \"{}\"",
+                        file.to_string_lossy()
+                    ),
+                );
             }
         }
     }
@@ -275,9 +320,18 @@ async fn abort_video_pipeline(app: AppHandle, state: tauri::State<'_, AppState>)
             if let Ok(mut entries) = fs::read_dir(&dir) {
                 if entries.next().is_none() {
                     if let Err(e) = fs::remove_dir(&dir) {
-                        let _ = app.emit("process-log", format!("❌ Failed to remove empty processed_files directory: {}", e));
+                        let _ = app.emit(
+                            "process-log",
+                            format!("❌ Failed to remove empty processed_files directory: {}", e),
+                        );
                     } else {
-                        let _ = app.emit("process-log", format!("Cleaned up empty workspace folder safely: \"{}\"", dir.to_string_lossy()));
+                        let _ = app.emit(
+                            "process-log",
+                            format!(
+                                "Cleaned up empty workspace folder safely: \"{}\"",
+                                dir.to_string_lossy()
+                            ),
+                        );
                     }
                 }
             }
@@ -299,7 +353,9 @@ fn is_error_line(line: &str) -> bool {
     // Strip optional leading FFmpeg bracket context: "[tag @ addr] " or "[tag] "
     let message = if line.starts_with('[') {
         // Find the closing bracket, then skip optional whitespace
-        line.find(']').map(|i| line[i + 1..].trim_start()).unwrap_or(line)
+        line.find(']')
+            .map(|i| line[i + 1..].trim_start())
+            .unwrap_or(line)
     } else {
         line
     };
@@ -307,7 +363,9 @@ fn is_error_line(line: &str) -> bool {
     // mkvmerge prefixes its own errors with "Error:"
     // FFmpeg genuine errors begin with the keyword directly after the bracket context
     let ml = message.to_lowercase();
-    ml.starts_with("error") || ml.starts_with("invalid") || ml.starts_with("failed")
+    ml.starts_with("error")
+        || ml.starts_with("invalid")
+        || ml.starts_with("failed")
         || ml.starts_with("conversion failed")
         || ml.starts_with("task finished with error")
         || ml.starts_with("error sending frames")
@@ -324,15 +382,20 @@ async fn run_sidecar_command(
     let shell = app.shell();
     let is_mkvmerge = binary_name == "mkvmerge";
 
-    let cmd = shell.sidecar(binary_name)
+    let cmd = shell
+        .sidecar(binary_name)
         .map_err(|e| format!("Failed generating sidecar configurations: {e}"))?
         .args(args);
 
-    let (mut rx, child) = cmd.spawn()
+    let (mut rx, child) = cmd
+        .spawn()
         .map_err(|e| format!("Failed allocating processing thread instance context: {e}"))?;
 
     {
-        let mut lock = state.active_child.lock().map_err(|_| "Process lock exception")?;
+        let mut lock = state
+            .active_child
+            .lock()
+            .map_err(|_| "Process lock exception")?;
         *lock = Some(child);
     }
 
@@ -412,7 +475,10 @@ async fn process_video_pipeline(
     {
         let mut lock = state.active_child.lock().map_err(|_| "State init fault")?;
         *lock = None;
-        let mut path_lock = state.current_output_path.lock().map_err(|_| "Output path tracking init fault")?;
+        let mut path_lock = state
+            .current_output_path
+            .lock()
+            .map_err(|_| "Output path tracking init fault")?;
         *path_lock = None;
 
         let mut files_lock = state.session_output_files.lock().unwrap();
@@ -422,7 +488,10 @@ async fn process_video_pipeline(
         dirs_lock.clear();
     }
 
-    let _ = app.emit("process-log", "Analyzing targets and indexing directories...");
+    let _ = app.emit(
+        "process-log",
+        "Analyzing targets and indexing directories...",
+    );
 
     let extensions = parse_comma_list(&payload.file_extensions);
     let sub_langs = parse_comma_list(&payload.subtitle_tracks);
@@ -448,7 +517,10 @@ async fn process_video_pipeline(
     }
 
     let total_files = target_files.len();
-    let _ = app.emit("process-log", format!("Scanned file total: {}", total_files));
+    let _ = app.emit(
+        "process-log",
+        format!("Scanned file total: {}", total_files),
+    );
 
     if total_files == 0 {
         return Ok("Pipeline terminated: No valid files matched filter parameters.".to_string());
@@ -466,24 +538,39 @@ async fn process_video_pipeline(
             return Err("Pipeline execution aborted by user Request.".to_string());
         }
 
-        let file_name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("Unknown");
+        let file_name = file_path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Unknown");
         let current_index = index + 1;
 
-        let _ = app.emit("process-log", format!("[{}/{}] Processing file: {}", current_index, total_files, file_name));
+        let _ = app.emit(
+            "process-log",
+            format!(
+                "[{}/{}] Processing file: {}",
+                current_index, total_files, file_name
+            ),
+        );
 
         let current_progress = ((index as f32 / total_files as f32) * 100.0) as u32;
-        let _ = app.emit("process-progress", serde_json::json!({
-            "progress": current_progress,
-            "current_index": current_index,
-            "total_files": total_files
-        }));
+        let _ = app.emit(
+            "process-progress",
+            serde_json::json!({
+                "progress": current_progress,
+                "current_index": current_index,
+                "total_files": total_files
+            }),
+        );
 
-        let parent_dir = file_path.parent().ok_or("Unable to resolve parent path contextual tracking.")?;
+        let parent_dir = file_path
+            .parent()
+            .ok_or("Unable to resolve parent path contextual tracking.")?;
         let processed_dir_path = parent_dir.join("processed_files");
 
         if !processed_dir_path.exists() {
-            std::fs::create_dir_all(&processed_dir_path)
-                .map_err(|e| format!("Failed to instantiate target subfolder workspace directory: {e}"))?;
+            std::fs::create_dir_all(&processed_dir_path).map_err(|e| {
+                format!("Failed to instantiate target subfolder workspace directory: {e}")
+            })?;
         }
 
         {
@@ -493,7 +580,10 @@ async fn process_video_pipeline(
             }
         }
 
-        let file_stub = file_path.file_stem().and_then(|s| s.to_str()).unwrap_or("output");
+        let file_stub = file_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("output");
         let formatted_ext = if payload.output_extension.starts_with('.') {
             payload.output_extension.clone()
         } else {
@@ -504,7 +594,10 @@ async fn process_video_pipeline(
         let output_file_path = processed_dir_path.join(clean_output_filename);
 
         {
-            let mut path_lock = state.current_output_path.lock().map_err(|_| "Failed lock acquisition")?;
+            let mut path_lock = state
+                .current_output_path
+                .lock()
+                .map_err(|_| "Failed lock acquisition")?;
             *path_lock = Some(output_file_path.clone());
 
             let mut files_lock = state.session_output_files.lock().unwrap();
@@ -534,7 +627,8 @@ async fn process_video_pipeline(
                 "copy",
             );
 
-            let (success, stderr_lines) = run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_args).await?;
+            let (success, stderr_lines) =
+                run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_args).await?;
             file_success = success;
 
             // If the copy failed due to a subtitle codec incompatible with the container,
@@ -558,7 +652,8 @@ async fn process_video_pipeline(
                     "ass",
                 );
 
-                let (retry_success, _) = run_sidecar_command(&app, &state, "ffmpeg", retry_args).await?;
+                let (retry_success, _) =
+                    run_sidecar_command(&app, &state, "ffmpeg", retry_args).await?;
                 file_success = retry_success;
 
                 // FIX: Emit a diagnostic if the ASS retry also failed, and track success separately.
@@ -570,7 +665,10 @@ async fn process_video_pipeline(
             }
         } else {
             // Remux protocol
-            let _ = app.emit("process-log", "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...");
+            let _ = app.emit(
+                "process-log",
+                "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...",
+            );
 
             // First attempt: try copying subtitles as-is
             let ffmpeg_copy_args = build_ffmpeg_args(
@@ -584,7 +682,8 @@ async fn process_video_pipeline(
                 "copy",
             );
 
-            let (success, stderr_lines) = run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_copy_args).await?;
+            let (success, stderr_lines) =
+                run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_copy_args).await?;
             file_success = success;
 
             // Same subtitle incompatibility retry as reencode path
@@ -606,7 +705,8 @@ async fn process_video_pipeline(
                     "ass",
                 );
 
-                let (retry_success, retry_stderr) = run_sidecar_command(&app, &state, "ffmpeg", retry_copy_args).await?;
+                let (retry_success, retry_stderr) =
+                    run_sidecar_command(&app, &state, "ffmpeg", retry_copy_args).await?;
                 file_success = retry_success;
 
                 // If the ASS retry also failed for a non-subtitle reason, propagate the
@@ -619,14 +719,18 @@ async fn process_video_pipeline(
             // If FFmpeg failed entirely (both copy and ASS retry), fall back to mkvmerge
             if !file_success {
                 ffmpeg_fallback_failures += 1; // Increment conversion failure count
-                let _ = app.emit("process-log", "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...");
+                let _ = app.emit(
+                    "process-log",
+                    "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...",
+                );
 
                 if output_file_path.exists() {
                     let _ = std::fs::remove_file(&output_file_path);
                 }
 
                 let mut mkvmerge_args = vec![
-                    "-o".to_string(), output_file_path.to_string_lossy().into_owned(),
+                    "-o".to_string(),
+                    output_file_path.to_string_lossy().into_owned(),
                 ];
 
                 // Append MKVMerge specific subtitle tracking rules
@@ -640,7 +744,8 @@ async fn process_video_pipeline(
 
                 mkvmerge_args.push(file_path.to_string_lossy().into_owned());
 
-                let (mkvmerge_success, _) = run_sidecar_command(&app, &state, "mkvmerge", mkvmerge_args).await?;
+                let (mkvmerge_success, _) =
+                    run_sidecar_command(&app, &state, "mkvmerge", mkvmerge_args).await?;
                 file_success = mkvmerge_success;
             }
         }
@@ -658,11 +763,14 @@ async fn process_video_pipeline(
         *path_lock = None;
     }
 
-    let _ = app.emit("process-progress", serde_json::json!({
-        "progress": 100,
-        "current_index": total_files,
-        "total_files": total_files
-    }));
+    let _ = app.emit(
+        "process-progress",
+        serde_json::json!({
+            "progress": 100,
+            "current_index": total_files,
+            "total_files": total_files
+        }),
+    );
 
     // Explicitly output the total ffmpeg stream copy failures to the Real-time Log ONLY if failures exist
     if payload.conversion_mode != "reencode" && ffmpeg_fallback_failures > 0 {
@@ -675,7 +783,8 @@ async fn process_video_pipeline(
     // FIX: Report retry attempts vs successes separately so the metric is accurate.
     // e.g. "3 triggered, 1 resolved" rather than the misleading "3 resolved" from before.
     if payload.conversion_mode == "reencode" && reencode_subtitle_retry_attempts > 0 {
-        let reencode_subtitle_retry_failures = reencode_subtitle_retry_attempts - reencode_subtitle_retry_successes;
+        let reencode_subtitle_retry_failures =
+            reencode_subtitle_retry_attempts - reencode_subtitle_retry_successes;
         let _ = app.emit(
             "process-log",
             format!(
@@ -688,9 +797,15 @@ async fn process_video_pipeline(
     }
 
     let final_summary = if failed_files == 0 {
-        format!("✅ Success! All {} active queue pipelines executed to completion.", successful_files)
+        format!(
+            "✅ Success! All {} active queue pipelines executed to completion.",
+            successful_files
+        )
     } else {
-        format!("⚠️ Execution Finished: {} Succeeded, {} Failed.", successful_files, failed_files)
+        format!(
+            "⚠️ Execution Finished: {} Succeeded, {} Failed.",
+            successful_files, failed_files
+        )
     };
 
     Ok(final_summary)
