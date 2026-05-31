@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm -F frontend dev & pnpm tauri dev",
+    "dev": "tauri dev",
     "build": "pnpm -F frontend build && pnpm tauri build",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && pnpm install",
     "tauri": "tauri"
