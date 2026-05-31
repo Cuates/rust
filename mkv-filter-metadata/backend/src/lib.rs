@@ -102,8 +102,14 @@ fn build_ffmpeg_args(
             "-c:a".to_string(), "copy".to_string(),
         ]);
     } else {
-        // Remux: copy everything except subtitles (handled below)
-        args.extend(["-c".to_string(), "copy".to_string()]);
+        // Remux: explicitly copy video and audio streams only.
+        // Avoid the global "-c copy" here because it conflicts with the "-c:s <codec>" that
+        // follows, causing FFmpeg to emit a "Multiple -codec options specified" warning on
+        // every subtitle stream. Setting -c:v and -c:a individually is unambiguous.
+        args.extend([
+            "-c:v".to_string(), "copy".to_string(),
+            "-c:a".to_string(), "copy".to_string(),
+        ]);
     }
 
     args.extend(["-c:s".to_string(), subtitle_codec.to_string()]);
