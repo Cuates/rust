@@ -27,6 +27,7 @@
   "bundle": {
     "externalBin": [
       "sidecars/ffmpeg",
+      "sidecars/ffprobe",
       "sidecars/mkvmerge"
     ],
     "active": true,
