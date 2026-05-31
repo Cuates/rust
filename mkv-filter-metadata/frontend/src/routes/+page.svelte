@@ -7,19 +7,18 @@
 
   let config = $state({
     input_directories: [] as string[],
-    file_extensions: "mkv, mp4, mov, avi, ogm, wmv",
-    subtitle_tracks: "ang, eng, enm, zxx, und",
-    output_extension: ".mkv",
-    conversion_mode: "remux",
-    video_codec: "libx265",
-    preset: "faster",
-    crf: "18"
+    file_extensions: 'mkv, mp4, mov, avi, ogm, wmv',
+    subtitle_tracks: 'ang, eng, enm, zxx, und',
+    output_extension: '.mkv',
+    conversion_mode: 'remux',
+    video_codec: 'libx265',
+    preset: 'faster',
+    crf: '18'
   });
 
   // State Management
   let consoleLogs = $state<string[]>([]);
   let processingActive = $state(false);
-  let errorMessage = $state("");
   let isDarkMode = $state(true);
   let showMetricsPanel = $state(false);
 
@@ -27,9 +26,9 @@
   let currentFileIndex = $state(0);
   let totalFilesCount = $state(0);
   let overallProgress = $state(0);
-  let runningTimeFormatted = $state("0ms");
+  let runningTimeFormatted = $state('0ms');
 
-  let timerInterval: any = null;
+  let timerInterval: ReturnType<typeof setInterval> | null = null;
   let startTime = 0;
 
   // Add this with your other state variables
@@ -54,18 +53,18 @@
       try {
         hasNvidia = await invoke('check_nvenc_support');
       } catch (err) {
-        console.error("Diagnostic check failed:", err);
+        console.error('Diagnostic check failed:', err);
       }
 
       // Event Listeners
       const unlistenLogFn = await listen<string>('process-log', async (event) => {
         // 🚀 Intercept and skip the log if it reports 0 fallback resolutions
-        if (event.payload.includes("Failures resolved via fallback: 0")) {
+        if (event.payload.includes('Failures resolved via fallback: 0')) {
           return;
         }
 
         consoleLogs = [...consoleLogs, event.payload];
-        if (event.payload.includes("Scanned file total:")) {
+        if (event.payload.includes('Scanned file total:')) {
           const match = event.payload.match(/Scanned file total:\s*(\d+)/);
           if (match) {
             totalFilesCount = parseInt(match[1], 10);
@@ -77,9 +76,14 @@
         if (term) term.scrollTop = term.scrollHeight;
       });
 
-      const unlistenProgressFn = await listen<{progress: number, current_index?: number, total_files?: number}>('process-progress', (event) => {
+      const unlistenProgressFn = await listen<{
+        progress: number;
+        current_index?: number;
+        total_files?: number;
+      }>('process-progress', (event) => {
         if (event.payload.progress !== undefined) overallProgress = event.payload.progress;
-        if (event.payload.current_index !== undefined) currentFileIndex = event.payload.current_index;
+        if (event.payload.current_index !== undefined)
+          currentFileIndex = event.payload.current_index;
         if (event.payload.total_files !== undefined) totalFilesCount = event.payload.total_files;
       });
 
@@ -91,7 +95,10 @@
           if (isClosing) return;
           isClosing = true;
           (async () => {
-            consoleLogs = [...consoleLogs, "⚠️ Window close requested mid-execution. Cleaning up..."];
+            consoleLogs = [
+              ...consoleLogs,
+              '⚠️ Window close requested mid-execution. Cleaning up...'
+            ];
             await abortPipeline();
             await appWindow.destroy();
           })();
@@ -131,7 +138,7 @@
       if (seconds > 0) outputSegments.push(`${seconds}s`);
       outputSegments.push(`${milliseconds}ms`);
 
-      runningTimeFormatted = outputSegments.join(" ");
+      runningTimeFormatted = outputSegments.join(' ');
     }, 33);
   }
 
@@ -149,24 +156,31 @@
     const appWindow = getCurrentWindow();
     if (isDarkMode) {
       document.documentElement.className = 'dark-mode';
-      try { await appWindow.setTheme('dark'); } catch (e) { console.error(e); }
+      try {
+        await appWindow.setTheme('dark');
+      } catch (e) {
+        console.error(e);
+      }
     } else {
       document.documentElement.className = 'light-mode';
-      try { await appWindow.setTheme('light'); } catch (e) { console.error(e); }
+      try {
+        await appWindow.setTheme('light');
+      } catch (e) {
+        console.error(e);
+      }
     }
   }
 
   async function handleDirectoryBrowse() {
-    errorMessage = "";
     try {
       const selectedPath = await open({
         directory: true,
         multiple: true,
-        title: "Select Input Video Processing Directory"
+        title: 'Select Input Video Processing Directory'
       });
       if (selectedPath) {
         if (Array.isArray(selectedPath)) {
-          const newPaths = selectedPath.filter(p => !config.input_directories.includes(p));
+          const newPaths = selectedPath.filter((p) => !config.input_directories.includes(p));
           config.input_directories = [...config.input_directories, ...newPaths];
         } else {
           if (!config.input_directories.includes(selectedPath as string)) {
@@ -188,24 +202,26 @@
       totalFilesCount = 0;
       currentFileIndex = 0;
       overallProgress = 0;
-      runningTimeFormatted = "0ms";
+      runningTimeFormatted = '0ms';
       showMetricsPanel = false;
-      errorMessage = "";
     }
   }
 
   async function displaySidecarVersions() {
-    consoleLogs = [...consoleLogs, "--- Querying Embedded Sidecar Binary Configurations ---"];
+    consoleLogs = [...consoleLogs, '--- Querying Embedded Sidecar Binary Configurations ---'];
     const tools = ['ffmpeg', 'mkvmerge'];
     for (const tool of tools) {
       try {
         const ver: string = await invoke('get_sidecar_version', { binaryName: tool });
         consoleLogs = [...consoleLogs, `[Sidecar Asset] ${tool.toUpperCase()}: ${ver.trim()}`];
-      } catch (e) {
-        consoleLogs = [...consoleLogs, `[Sidecar Asset] ${tool.toUpperCase()}: Verified embedded production binary instance asset active.`];
+      } catch {
+        consoleLogs = [
+          ...consoleLogs,
+          `[Sidecar Asset] ${tool.toUpperCase()}: Verified embedded production binary instance asset active.`
+        ];
       }
     }
-    consoleLogs = [...consoleLogs, "--------------------------------------------------------"];
+    consoleLogs = [...consoleLogs, '--------------------------------------------------------'];
     await tick();
     const term = document.getElementById('terminal-shell');
     if (term) term.scrollTop = term.scrollHeight;
@@ -213,7 +229,10 @@
 
   async function executePipeline() {
     if (config.input_directories.length === 0) {
-      consoleLogs = [...consoleLogs, "❌ Error: Please add at least one target directory to the queue before running processing tasks."];
+      consoleLogs = [
+        ...consoleLogs,
+        '❌ Error: Please add at least one target directory to the queue before running processing tasks.'
+      ];
       await tick();
       let term = document.getElementById('terminal-shell');
       if (term) term.scrollTop = term.scrollHeight;
@@ -222,11 +241,10 @@
 
     processingActive = true;
     showMetricsPanel = true;
-    errorMessage = "";
     overallProgress = 0;
     currentFileIndex = 0;
     totalFilesCount = 0;
-    consoleLogs = ["Pipeline initialization request authenticated..."];
+    consoleLogs = ['Pipeline initialization request authenticated...'];
 
     startTimer();
     await displaySidecarVersions();
@@ -249,13 +267,19 @@
 
   async function abortPipeline() {
     try {
-      consoleLogs = [...consoleLogs, "⚠️ Halt instruction issued. Terminating processes and rolling back..."];
+      consoleLogs = [
+        ...consoleLogs,
+        '⚠️ Halt instruction issued. Terminating processes and rolling back...'
+      ];
       await tick();
       let term = document.getElementById('terminal-shell');
       if (term) term.scrollTop = term.scrollHeight;
 
       await invoke('abort_video_pipeline');
-      consoleLogs = [...consoleLogs, "🛑 Processing execution stopped and partial files cleaned up."];
+      consoleLogs = [
+        ...consoleLogs,
+        '🛑 Processing execution stopped and partial files cleaned up.'
+      ];
     } catch (err) {
       consoleLogs = [...consoleLogs, `Error safely terminating workers: ${err}`];
     } finally {
@@ -293,7 +317,11 @@
 <main class="app-container">
   <header class="navbar-layer">
     <h1>MKV Filter Metadata</h1>
-    <button class="theme-toggle-icon-btn" onclick={toggleTheme} aria-label="Toggle color display theme">
+    <button
+      class="theme-toggle-icon-btn"
+      onclick={toggleTheme}
+      aria-label="Toggle color display theme"
+    >
       {#if isDarkMode}☀️{:else}🌙{/if}
     </button>
   </header>
@@ -310,11 +338,28 @@
         {#if config.input_directories.length === 0}
           <div class="empty-queue-msg">No directories currently in queue...</div>
         {:else}
-          {#each config.input_directories as dir, i}
+          {#each config.input_directories as dir, i (dir)}
             <div class="queue-item">
               <span class="queue-path" title={dir}>{dir}</span>
-              <button class="remove-btn" onclick={() => removeDirectory(i)} disabled={processingActive} aria-label="Remove item from path processing queue">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <button
+                class="remove-btn"
+                onclick={() => removeDirectory(i)}
+                disabled={processingActive}
+                aria-label="Remove item from path processing queue"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"
+                  ></line></svg
+                >
               </button>
             </div>
           {/each}
@@ -332,18 +377,36 @@
       </div>
       <div class="row">
         <label for="out-ext">Output Extension</label>
-        <input id="out-ext" bind:value={config.output_extension} placeholder=".mkv" autocomplete="off" disabled={processingActive} />
+        <input
+          id="out-ext"
+          bind:value={config.output_extension}
+          placeholder=".mkv"
+          autocomplete="off"
+          disabled={processingActive}
+        />
       </div>
     </div>
 
     <div class="grid-layout-2">
       <div class="row">
         <label for="exts">File Extensions Filter</label>
-        <input id="exts" bind:value={config.file_extensions} placeholder="mkv, mp4, mov, avi, ogm, wmv" autocomplete="off" disabled={processingActive} />
+        <input
+          id="exts"
+          bind:value={config.file_extensions}
+          placeholder="mkv, mp4, mov, avi, ogm, wmv"
+          autocomplete="off"
+          disabled={processingActive}
+        />
       </div>
       <div class="row">
         <label for="subs">Subtitle Tracks to Keep</label>
-        <input id="subs" bind:value={config.subtitle_tracks} placeholder="ang, eng, enm, zxx, und" autocomplete="off" disabled={processingActive} />
+        <input
+          id="subs"
+          bind:value={config.subtitle_tracks}
+          placeholder="ang, eng, enm, zxx, und"
+          autocomplete="off"
+          disabled={processingActive}
+        />
       </div>
     </div>
 
@@ -381,7 +444,7 @@
               id="crf-val"
               type="number"
               value={parseInt(config.crf)}
-              oninput={(e) => config.crf = e.currentTarget.value}
+              oninput={(e) => (config.crf = e.currentTarget.value)}
               min="0"
               max="51"
               autocomplete="off"
@@ -395,11 +458,22 @@
     <div class="action-row">
       {#if processingActive}
         <button class="action-abort-btn" onclick={abortPipeline}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg> Stop Execution
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            style="margin-right: 6px;"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
+          > Stop Execution
         </button>
       {/if}
-      <button class="action-trigger-btn" onclick={executePipeline} disabled={processingActive || config.input_directories.length === 0}>
-        {processingActive ? "Processing Pipelines..." : "Start Processing"}
+      <button
+        class="action-trigger-btn"
+        onclick={executePipeline}
+        disabled={processingActive || config.input_directories.length === 0}
+      >
+        {processingActive ? 'Processing Pipelines...' : 'Start Processing'}
       </button>
     </div>
   </div>
@@ -412,8 +486,12 @@
             <div class="progress-bar-fill" style="width: {overallProgress}%"></div>
           </div>
           <div class="progress-labels-sub-row">
-            <span class="sub-metric-label">Total Scanned: <strong>{currentFileIndex}</strong> / {totalFilesCount} file(s)</span>
-            <span class="sub-metric-label text-right">Overall Progress: <strong>{overallProgress}%</strong></span>
+            <span class="sub-metric-label"
+              >Total Scanned: <strong>{currentFileIndex}</strong> / {totalFilesCount} file(s)</span
+            >
+            <span class="sub-metric-label text-right"
+              >Overall Progress: <strong>{overallProgress}%</strong></span
+            >
           </div>
         </div>
         <div class="time-container-block">
@@ -432,14 +510,30 @@
             class:copied={copiedStatus}
             onclick={copyTerminalLogs}
             aria-label="Copy logs"
-            data-tooltip={copiedStatus ? "Copied!" : "Copy logs"}
+            data-tooltip={copiedStatus ? 'Copied!' : 'Copy logs'}
           >
             {#if copiedStatus}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
             {:else}
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
               </svg>
@@ -448,7 +542,7 @@
         {/if}
       </div>
       <div id="terminal-shell" class="terminal-shell">
-        {#each consoleLogs as log}
+        {#each consoleLogs as log, i (log + i)}
           <div class="log-line">{log}</div>
         {:else}
           <div class="empty-log-msg">Logs will appear here once processing begins...</div>
@@ -459,7 +553,9 @@
 </main>
 
 <style>
-  :global(body), :global(html), :global(#svelte) {
+  :global(body),
+  :global(html),
+  :global(#svelte) {
     margin: 0 !important;
     padding: 0 !important;
     height: 100vh !important;
@@ -470,10 +566,21 @@
     display: contents !important;
   }
 
-  :global(::-webkit-scrollbar) { width: 8px; height: 8px; }
-  :global(::-webkit-scrollbar-track) { background: var(--bg-canvas); border-radius: 4px; }
-  :global(::-webkit-scrollbar-thumb) { background: var(--border-color); border-radius: 6px; }
-  :global(::-webkit-scrollbar-thumb:hover) { background: var(--text-secondary); }
+  :global(::-webkit-scrollbar) {
+    width: 8px;
+    height: 8px;
+  }
+  :global(::-webkit-scrollbar-track) {
+    background: var(--bg-canvas);
+    border-radius: 4px;
+  }
+  :global(::-webkit-scrollbar-thumb) {
+    background: var(--border-color);
+    border-radius: 6px;
+  }
+  :global(::-webkit-scrollbar-thumb:hover) {
+    background: var(--text-secondary);
+  }
 
   :global(html.dark-mode) {
     --bg-canvas: #0f111a;
@@ -510,7 +617,10 @@
   :global(body) {
     background-color: var(--bg-canvas) !important;
     color: var(--text-primary);
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
     margin: 0;
     padding: 0;
     height: 100vh;
@@ -566,7 +676,9 @@
     justify-content: center;
     padding: 0;
   }
-  .theme-toggle-icon-btn:hover { background: var(--border-color); }
+  .theme-toggle-icon-btn:hover {
+    background: var(--border-color);
+  }
 
   .form-workspace-card {
     background-color: var(--bg-surface);
@@ -613,8 +725,14 @@
     align-items: center;
     justify-content: center;
   }
-  .add-folder-btn:hover:not(:disabled) { background-color: var(--accent-color); color: white; }
-  .add-folder-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .add-folder-btn:hover:not(:disabled) {
+    background-color: var(--accent-color);
+    color: white;
+  }
+  .add-folder-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
   /* Perfectly clearing 4 item containers + layout gaps */
   .queue-container {
@@ -629,36 +747,143 @@
     flex-direction: column;
     gap: 0.4rem;
   }
-  .empty-queue-msg { padding: 0.6rem; font-size: 0.85rem; color: var(--text-secondary); font-style: italic; text-align: center; padding-top: 3.7rem; }
-  .queue-item { display: grid !important; grid-template-columns: 1fr auto !important; align-items: center !important; background-color: var(--bg-surface); padding: 0.35rem 0.6rem; border-radius: 4px; border: 1px solid var(--border-color); }
-  .queue-path { font-size: 0.85rem; color: var(--text-primary); white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; padding-right: 0.5rem; }
+  .empty-queue-msg {
+    padding: 0.6rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-style: italic;
+    text-align: center;
+    padding-top: 3.7rem;
+  }
+  .queue-item {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    align-items: center !important;
+    background-color: var(--bg-surface);
+    padding: 0.35rem 0.6rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+  }
+  .queue-path {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding-right: 0.5rem;
+  }
 
-  .remove-btn { background: none !important; border: none !important; color: var(--danger-color) !important; cursor: pointer; padding: 0.25rem !important; border-radius: 4px; display: inline-flex !important; align-items: center !important; justify-content: center !important; transition: background-color 0.15s; position: relative; }
-  .remove-btn:hover:not(:disabled) { background-color: rgba(239, 68, 68, 0.15) !important; }
+  .remove-btn {
+    background: none !important;
+    border: none !important;
+    color: var(--danger-color) !important;
+    cursor: pointer;
+    padding: 0.25rem !important;
+    border-radius: 4px;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: background-color 0.15s;
+    position: relative;
+  }
+  .remove-btn:hover:not(:disabled) {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+  }
   .remove-btn:disabled {
     cursor: not-allowed !important;
     opacity: 0.5;
   }
 
-  .grid-layout-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
-  .grid-layout-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; }
-  .row { display: flex; flex-direction: column; gap: 0.25rem; }
-  .row label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+  .grid-layout-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .grid-layout-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .row label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
 
-  input, select { background-color: var(--bg-canvas); color: var(--text-primary); border: 1px solid var(--border-color); padding: 0.4rem 0.6rem; border-radius: 6px; font-size: 0.85rem; outline: none; transition: border-color 0.15s; }
-  input:focus:not(:disabled), select:focus:not(:disabled) { border-color: var(--accent-color); }
+  input,
+  select {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus:not(:disabled),
+  select:focus:not(:disabled) {
+    border-color: var(--accent-color);
+  }
 
-  .reencode-advanced-panel { border-top: 1px solid var(--border-color); padding-top: 0.5rem; }
-  .action-row { display: flex; justify-content: flex-end; align-items: center; gap: 0.75rem; }
+  .reencode-advanced-panel {
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.5rem;
+  }
+  .action-row {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.75rem;
+  }
 
-  .action-trigger-btn { background-color: var(--accent-color); color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer; transition: background-color 0.15s; }
-  .action-trigger-btn:hover:not(:disabled) { background-color: var(--accent-hover); }
-  .action-trigger-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .action-trigger-btn {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1.5rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .action-trigger-btn:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+  }
+  .action-trigger-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 
-  .action-abort-btn { background-color: var(--danger-color); color: white; border: none; padding: 0.5rem 1.25rem; border-radius: 6px; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; transition: background-color 0.15s; }
-  .action-abort-btn:hover { background-color: var(--danger-hover); }
+  .action-abort-btn {
+    background-color: var(--danger-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: background-color 0.15s;
+  }
+  .action-abort-btn:hover {
+    background-color: var(--danger-hover);
+  }
 
-  .output-workspace-area { display: flex; flex-direction: column; gap: 0.6rem; flex-shrink: 0; }
+  .output-workspace-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    flex-shrink: 0;
+  }
 
   .metrics-panel-row {
     display: flex;
@@ -668,21 +893,63 @@
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 0.6rem 1rem;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
     flex-shrink: 0;
   }
-  .progress-container-block { display: flex; flex-direction: column; gap: 0.25rem; }
-  .progress-bar-track { background-color: var(--bg-canvas); border: 1px solid var(--border-color); height: 8px; border-radius: 4px; overflow: hidden; }
-  .progress-bar-fill { background-color: var(--accent-color); height: 100%; transition: width 0.2s ease-out; }
-  .progress-labels-sub-row { display: flex; justify-content: space-between; align-items: center; }
-  .sub-metric-label { font-size: 0.8rem; color: var(--text-secondary); }
-  .sub-metric-label strong { color: var(--text-primary); }
+  .progress-container-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .progress-bar-track {
+    background-color: var(--bg-canvas);
+    border: 1px solid var(--border-color);
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    background-color: var(--accent-color);
+    height: 100%;
+    transition: width 0.2s ease-out;
+  }
+  .progress-labels-sub-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .sub-metric-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+  .sub-metric-label strong {
+    color: var(--text-primary);
+  }
 
-  .time-container-block { display: flex; align-items: center; gap: 0.4rem; border-top: 1px solid var(--border-color); padding-top: 0.35rem; font-size: 0.8rem; }
-  .total-time-title { color: var(--text-secondary); font-weight: 500; }
-  .total-time-value { color: var(--metrics-time-color); font-weight: 700; font-family: monospace, system-ui; }
+  .time-container-block {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.35rem;
+    font-size: 0.8rem;
+  }
+  .total-time-title {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .total-time-value {
+    color: var(--metrics-time-color);
+    font-weight: 700;
+    font-family: monospace, system-ui;
+  }
 
-  .terminal-container { display: flex; flex-direction: column; gap: 0.3rem; flex-shrink: 0; }
+  .terminal-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    flex-shrink: 0;
+  }
 
   .terminal-header-row {
     display: flex;
@@ -690,7 +957,12 @@
     align-items: center;
     height: 24px;
   }
-  .terminal-container h3 { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+  .terminal-container h3 {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
 
   /* Icon-Only Copy Button Configuration */
   .copy-logs-btn {
@@ -747,13 +1019,18 @@
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 500;
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      sans-serif;
     white-space: nowrap;
 
     opacity: 0;
     pointer-events: none;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
-    transition: opacity 0.12s ease, transform 0.12s ease;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+    transition:
+      opacity 0.12s ease,
+      transform 0.12s ease;
   }
 
   .copy-logs-btn:hover::before,
@@ -776,6 +1053,17 @@
     border: 1px solid var(--border-color);
     box-sizing: border-box;
   }
-  .log-line { margin-bottom: 0.25rem; white-space: pre-wrap; word-break: break-all; text-align: left; }
-  .empty-log-msg { color: var(--text-secondary); font-style: italic; opacity: 0.5; text-align: center; padding-top: 4rem; }
+  .log-line {
+    margin-bottom: 0.25rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+    text-align: left;
+  }
+  .empty-log-msg {
+    color: var(--text-secondary);
+    font-style: italic;
+    opacity: 0.5;
+    text-align: center;
+    padding-top: 4rem;
+  }
 </style>
