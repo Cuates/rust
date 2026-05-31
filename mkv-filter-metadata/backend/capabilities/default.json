@@ -18,6 +18,9 @@
         "sidecar": "ffmpeg"
       },
       {
+        "sidecar": "ffprobe"
+      },
+      {
         "sidecar": "mkvmerge"
       }
     ]
