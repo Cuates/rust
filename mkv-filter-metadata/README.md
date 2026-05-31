@@ -8,25 +8,25 @@ Whether you are onboarding a new developer or rebuilding from scratch, follow th
 
 ## Table of Contents
 
-1. [Prerequisites](https://www.google.com/search?q=%231-prerequisites)
-2. [Tree Structure](https://www.google.com/search?q=%232-tree-structure)
-3. [Monorepo Root Configurations](https://www.google.com/search?q=%233-monorepo-root-configurations)
-4. [Developer Commands](https://www.google.com/search?q=%234-developer-commands)
-5. [Base Directory Configuration](https://www.google.com/search?q=%235-base-directory-configuration)
-6. [Running the Scaffolder](https://www.google.com/search?q=%236-running-the-scaffolder)
-7. [Rearranging into a Monorepo Workspace Split](https://www.google.com/search?q=%237-rearranging-into-a-monorepo-workspace-split)
-8. [Embedding Native Sidecars (FFmpeg & MKVMerge)](https://www.google.com/search?q=%238-embedding-native-sidecars-ffmpeg--mkvmerge)
-9. [Initializing the Root Workspace Files](https://www.google.com/search?q=%239-initializing-the-root-workspace-files)
-10. [Fixing Workspace Filtering](https://www.google.com/search?q=%2310-fixing-workspace-filtering)
-11. [Injecting the Global Tauri CLI & Approving Builds](https://www.google.com/search?q=%2311-injecting-the-global-tauri-cli--approving-builds)
-12. [Injecting Dependencies into the Frontend Package](https://www.google.com/search?q=%2312-injecting-dependencies-into-the-frontend-package)
-13. [Injecting Dependencies into the Backend Package](https://www.google.com/search?q=%2313-injecting-dependencies-into-the-backend-package)
-14. [Update Project Build Paths](https://www.google.com/search?q=%2314-update-project-build-paths)
-15. [Frontend Layout Layer (SvelteKit, Svelte 5 & Vite)](https://www.google.com/search?q=%2315-frontend-layout-layer)
-16. [Backend Native Layer (Tauri 2.0 & Rust)](https://www.google.com/search?q=%2316-backend-native-layer)
-17. [Building for Production / Distribution](https://www.google.com/search?q=%2317-building-for-production--distribution)
-18. [Troubleshooting & Common Pitfalls](https://www.google.com/search?q=%2318-troubleshooting--common-pitfalls)
-19. [Run the Clean Suite](https://www.google.com/search?q=%2319-run-the-clean-suite)
+1. [Prerequisites](#1-prerequisites)
+2. [Tree Structure](#2-tree-structure)
+3. [Monorepo Root Configurations](#3-monorepo-root-configurations)
+4. [Developer Commands](#4-developer-commands)
+5. [Base Directory Configuration](#5-base-directory-configuration)
+6. [Running the Scaffolder](#6-running-the-scaffolder)
+7. [Rearranging into a Monorepo Workspace Split](#7-rearranging-into-a-monorepo-workspace-split)
+8. [Embedding Native Sidecars (FFmpeg & MKVMerge)](#8-embedding-native-sidecars-ffmpeg--mkvmerge)
+9. [Initializing the Root Workspace Files](#9-initializing-the-root-workspace-files)
+10. [Unified Workflow Orchestration](#10-unified-workflow-orchestration)
+11. [Injecting the Global Tauri CLI & Approving Builds](#11-injecting-the-global-tauri-cli--approving-builds)
+12. [Injecting Quality Tooling & Code Verification into Frontend](#12-injecting-quality-tooling--code-verification-into-frontend)
+13. [Injecting Dependencies into the Backend Package](#13-injecting-dependencies-into-the-backend-package)
+14. [Update Project Build Paths](#14-update-project-build-paths)
+15. [Frontend Layout Layer (SvelteKit, Svelte 5 & Vite)](#15-frontend-layout-layer)
+16. [Backend Native Layer (Tauri 2.0 & Rust)](#16-backend-native-layer)
+17. [Building for Production / Distribution](#17-building-for-production--distribution)
+18. [Troubleshooting & Common Pitfalls](#18-troubleshooting--common-pitfalls)
+19. [Run the Clean Suite](#19-run-the-clean-suite)
 
 ---
 
@@ -37,6 +37,11 @@ Before beginning, ensure your system has the required tooling installed:
 * **Node.js** (v18+ recommended)
 * **pnpm** (Required package manager for this workspace)
 * **Rust & Cargo** (Installed via `rustup`)
+* **Rust Components**: Ensure `clippy` and `rustfmt` are active:
+  ```bash
+  rustup component add clippy rustfmt
+```
+
 * **OS-Specific Build Tools**:
 * *Windows*: Visual Studio C++ Build Tools.
 * *macOS*: Xcode Command Line Tools.
@@ -44,42 +49,49 @@ Before beginning, ensure your system has the required tooling installed:
 
 ## 2. Tree Structure
 
-By the end of this guide, your project will strictly adhere to the following architecture:
+This project strictly adheres to the following architecture:
 
 ```text
-my-tauri-app/
-├── package.json             # Root commands and devDependencies
-├── pnpm-workspace.yaml      # Monorepo boundary definitions
-├── frontend/                # Svelte 5 + Vite Web Layer
-│   ├── package.json
+mkv-filter-metadata-rust/
+├── package.json             # Root workspace engine commands
+├── pnpm-workspace.yaml      # Monorepo boundary definition (Frontend UI only)
+├── frontend/                # Svelte 5 + Vite Web UI Layer
+│   ├── package.json         # UI scripts, dependencies, testing/lint configs
+│   ├── eslint.config.js     # Linter rules
+│   ├── .prettierrc          # Formatter configurations
 │   ├── vite.config.ts
 │   └── src/
-└── backend/                 # Rust + Tauri Native Layer
-    ├── bin/                 # Sidecar Binaries (FFmpeg/MKVMerge)
-    ├── Cargo.toml
-    ├── tauri.conf.json
+└── backend/                 # Rust + Tauri Native System Layer
+    ├── bin/                 # Target-suffixed Sidecar Binaries (FFmpeg/MKVMerge)
+    ├── Cargo.toml           # Native definitions
+    ├── tauri.conf.json      # Window, shell permissions, pathing parameters
     └── src/
 ```
 
 ## 3. Monorepo Root Configurations
 
-The root directory acts purely as an orchestrator. It does not contain application code. It holds the workspace configuration (`pnpm-workspace.yaml`) and a root `package.json` that provides unified developer commands to spin up both the frontend and backend simultaneously.
+The root directory acts purely as an orchestrator. It does not contain application code. It holds the workspace boundaries (`pnpm-workspace.yaml`) and a root `package.json` that provides unified developer commands to lint, typecheck, format, test, and spin up both environments simultaneously.
 
 ## 4. Developer Commands
 
-Once setup is complete, you will run the entire stack from the root directory using these commands:
+The entire system stack can be managed using these high-level script controls from the workspace root:
 
-* `pnpm dev` - Spins up the Vite dev server and the Tauri native window simultaneously.
-* `pnpm build` - Compiles the SvelteKit frontend and builds the Rust production binaries.
-* `pnpm clean` - Purges all `node_modules` and Rust `target` directories.
+* `pnpm dev` - Parallel execution spinning up Vite's server alongside Tauri's system window.
+* `pnpm build` - Bundles production-optimized Svelte client assets and builds optimized binaries.
+* `pnpm clean` - Cross-platform wipeout of local Cargo caches and node dependency trees.
+* `pnpm check` - Full type safety verification across both Svelte and native Rust.
+* `pnpm lint` - Evaluates code safety using ESLint and enforces strict Rust code standards.
+* `pnpm format` - Auto-aligns all JS/TS/Svelte styling (Prettier) and Rust formatting standards (`cargo fmt`).
+* `pnpm test` - Headless UI assertion runtime (Vitest) grouped with unit/integration tests (`cargo test`).
+* `pnpm info` - Diagnostic telemetry reporting OS environment states and toolchain versions.
 
 ## 5. Base Directory Configuration
 
 Start by creating the shell for the project:
 
 ```bash
-mkdir my-tauri-app
-cd my-tauri-app
+mkdir mkv-filter-metadata-rust
+cd mkv-filter-metadata-rust
 git init
 ```
 
@@ -94,7 +106,7 @@ pnpm create tauri-app@latest
 # - Choose your package manager (pnpm)
 ```
 
-## 7. Rearranging into a Monorepo Workspace Split
+## 7. Rearranging into a Monorepo Workspace Workspace Split
 
 The default Tauri scaffolder mixes frontend and backend folders. We want a strict separation of concerns.
 
@@ -148,35 +160,55 @@ let cmd = app.shell().sidecar("ffmpeg")
 
 ## 9. Initializing the Root Workspace Files
 
-In your project root, create a file named `pnpm-workspace.yaml` to tell `pnpm` how to link the packages:
+In your project root, create a file named `pnpm-workspace.yaml`. Because our backend is managed independently by Cargo, only the frontend is registered as a Node.js workspace module:
 
 ```yaml
 packages:
-  - "frontend"
-  - "backend"
+  - 'frontend'
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
 ```
 
-Next, create a root `package.json`:
+Next, initialize the parent orchestrator `package.json`:
 
 ```bash
 pnpm init
 ```
 
-*(Remove the generic `main` and `scripts` generated by default, we will add workspace scripts shortly).*
+---
 
-## 10. Fixing Workspace Filtering
+## 10. Unified Workflow Orchestration
 
-Now that packages are split, standard commands won't work. We must use `pnpm`'s filtering flag (`-F` or `--filter`) to target specific folders.
-In your root `package.json`, add your orchestrator scripts:
+Because the backend isn't managed within the Node workspace graph, root pipeline controls address `frontend` filtering specifically via `pnpm -F`, and route native parameters to `backend/Cargo.toml` manually using manifest path redirections.
+
+Update the **root** `package.json` to reflect this structure:
 
 ```json
-"scripts": {
-  "dev": "tauri dev",
-  "build": "tauri build",
-  "frontend:install": "pnpm -F frontend install",
-  "backend:audit": "pnpm -F backend cargo check"
+{
+  "name": "mkv-filter-metadata-rust",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -F frontend dev & pnpm tauri dev",
+    "build": "pnpm -F frontend build && pnpm tauri build",
+    "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && pnpm install",
+    "tauri": "tauri",
+    "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
+    "lint": "pnpm -F frontend lint && cargo clippy --manifest-path backend/Cargo.toml -- -D warnings",
+    "format": "pnpm -F frontend format && cargo fmt --manifest-path backend/Cargo.toml",
+    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
+    "info": "pnpm tauri info"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2"
+  }
 }
 ```
+
+---
 
 ## 11. Injecting the Global Tauri CLI & Approving Builds
 
@@ -188,91 +220,143 @@ pnpm add -D @tauri-apps/cli -w
 
 *(The `-w` flag tells pnpm to install it in the root workspace, making the `tauri` command available to our root scripts).*
 
-## 12. Injecting Dependencies into the Frontend Package
+---
 
-Navigate to (or filter) the `frontend` directory to update Svelte and Tauri API bindings.
+## 12. Injecting Quality Tooling & Code Verification into Frontend
+
+To unlock advanced code safety features (linting, formatting, testing), install the core development dependencies directly inside the frontend package ecosystem:
 
 ```bash
-pnpm -F frontend add @tauri-apps/api @tauri-apps/plugin-dialog
-pnpm -F frontend add -D svelte@next # If upgrading to Svelte 5
+pnpm -F frontend add -D vitest eslint eslint-plugin-svelte prettier prettier-plugin-svelte typescript-eslint
 ```
 
-Ensure your `frontend/package.json` names the package correctly (e.g., `"name": "frontend"`).
+Ensure your `frontend/package.json` matches this script architecture exactly:
+
+```json
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test:unit": "vitest"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2.5.4"
+  }
+}
+```
+
+Ensure configuration targets exist inside the `frontend/` subdirectory:
+
+* **`frontend/eslint.config.js`**: Integrates ESLint flat rule graphs with TypeScript and Svelte 5 compilers.
+* **`frontend/.prettierrc`**: Integrates style parameters alongside `prettier-plugin-svelte`.
+
+---
 
 ## 13. Injecting Dependencies into the Backend Package
 
-Your backend relies on `Cargo`. Navigate to the `backend` directory and ensure your `Cargo.toml` has the necessary Tauri 2.0 plugins.
+Your backend relies on `Cargo`. The `backend/Cargo.toml` points to your required crate modules and system integration paths:
 
 ```toml
+[package]
+name = "mkv-filter-metadata-rust"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "mkv_filter_metadata_rust_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0.0" }
+
 [dependencies]
-tauri = { version = "2.0.0", features = [] }
-tauri-plugin-shell = "2.0.0"
+tauri = { version = "2.0.0" }
 tauri-plugin-dialog = "2.0.0"
+tauri-plugin-shell = "2.0.0"
+tauri-plugin-opener = "2.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tokio = { version = "1.37", features = ["full"] }
 ```
+
+---
 
 ## 14. Update Project Build Paths
 
-Because we moved folders, Tauri is now "blind". We must fix the paths in `backend/tauri.conf.json`.
-Update the `build` object to point to the frontend:
+Because folders are moved out of boilerplate definitions, Tauri must be directed to find your compiled assets via `backend/tauri.conf.json`. Update the `build` object:
 
 ```json
 "build": {
   "beforeDevCommand": "pnpm -F frontend dev",
   "beforeBuildCommand": "pnpm -F frontend build",
-  "devUrl": "http://localhost:1420",
+  "devUrl": "http://localhost:5173",
   "frontendDist": "../frontend/build"
 }
 ```
 
-*(Note: Change `../frontend/build` to `../frontend/dist` depending on your Vite adapter).*
+*(Note: Ensure your `devUrl` matches your Vite configuration port, and `frontendDist` points directly to your SvelteKit static build location).*
+
+---
 
 ## 15. Frontend Layout Layer (SvelteKit, Svelte 5 & Vite)
 
-The `frontend` folder handles 100% of the UI. It uses Svelte 5 runes (`$state`, `$derived`) for reactivity.
+The `frontend` folder handles 100% of the UI. It uses Svelte 5 runes (`$state`, `$derived`, `$effect`) for modern state handling.
 
-* To communicate with Rust, import Tauri APIs in your `.svelte` or `.ts` files:
-`import { invoke } from '@tauri-apps/api/core';`
-* Keep all CSS and layout concerns strictly within this folder.
+* Core interfaces talk directly to the system hardware via explicit core bridge invokes:
+```ts
+import { invoke } from '@tauri-apps/api/core';
+```
 
 ## 16. Backend Native Layer (Tauri 2.0 & Rust)
 
 The `backend` folder handles hardware access, sidecars (FFmpeg/MKVMerge), and the filesystem.
 
-* The entry point is `backend/src/main.rs`.
-* Heavy logic is placed in `backend/src/lib.rs`.
-* We use Tauri commands (`#[tauri::command]`) to expose Rust functions to the Svelte frontend.
+* Heavy system processes belong encapsulated under custom cross-communicating command logic within `backend/src/lib.rs`.
+* Expose commands to the frontend by adding them to your application builder's invoke handler array: `.invoke_handler(tauri::generate_handler![your_command])`.
+
+---
 
 ## 17. Building for Production / Distribution
 
-To compile a standalone binary/installer for your OS:
+To compile a standalone binary/installer for your current OS:
 
-1. Ensure your `tauri.conf.json` has a unique `identifier` (e.g., `com.my-app.dev`).
+1. Ensure your `tauri.conf.json` has a unique `identifier` (e.g., `com.mkvfilter.app`).
 2. From the root directory, run:
 
 ```bash
 pnpm build
 ```
 
-Tauri will automatically build the Svelte frontend, compile the Rust backend, bind the external sidecars, and bundle them into `.exe`, `.dmg`, or `.AppImage` files located in `backend/target/release/bundle/`.
+Tauri will compile the frontend, run Cargo code optimizations, link target sidecars, and output platform packages (`.exe`, `.dmg`, or `.deb`) inside `backend/target/release/bundle/`.
+
+---
 
 ## 18. Troubleshooting & Common Pitfalls
 
-* **"Cannot find module '@tauri-apps/api'"**: You forgot to install it in the `frontend` workspace. Run `pnpm -F frontend add @tauri-apps/api`.
-* **"CommandNotFound" error when invoking Rust**: You forgot to register your command in `lib.rs` inside `.invoke_handler(tauri::generate_handler![...])`.
-* **Vite Port Collisions**: Ensure `vite.config.ts` enforces `strictPort: true` so it doesn't randomly jump to `1421` while Tauri looks for `1420`.
-* **"Sidecar not found"**: Double-check that your executable suffix perfectly matches your OS's target triple, and that the path in `tauri.conf.json` is strictly `bin/executable_name`.
+* **"Cannot find project matching filter 'backend'"**: Occurs when trying to run `pnpm -F backend`. The backend is a Cargo container, not a Node package. Always target its files directly via path references (e.g., `--manifest-path backend/Cargo.toml`).
+* **Vite Port Collisions**: Set `strictPort: true` inside `frontend/vite.config.ts` to prevent Vite from changing ports when port `5173` is busy.
+* **Sidecar Execution Failure**: Ensure your local binary filename accurately reflects your machine’s architecture triple (e.g. `ffmpeg-x86_64-pc-windows-msvc.exe` on Windows 64-bit systems).
+
+---
 
 ## 19. Run the Clean Suite
 
-If you encounter weird caching issues, ghost errors, or need to free up hard drive space, you must clean both the node environment and the Rust environment.
-Add this script to your root `package.json`:
+If you hit dependency cache corruption, cross-platform terminal errors, or lock file issues, execute the deep clean workspace pipeline:
 
-```json
-"scripts": {
-  "clean": "pnpm -r exec rm -rf node_modules && pnpm -F backend exec cargo clean"
-}
+```bash
+pnpm clean
 ```
 
-Run `pnpm clean` to purge all dependencies and build artifacts safely. (On Windows, you may need to use `rimraf` or manually delete the folders).
+### Why this is safe across all platforms:
+
+Rather than depending on native Unix commands like `rm -rf` (which fail on Windows environments), the workspace clean engine invokes inline Node filesystems scripts (`node -e "require('fs').rmSync(...)"`). This cleanly targets sub-package node folders, root modules, and resets Rust's `target/` binaries safely on Windows, macOS, and Linux systems.
