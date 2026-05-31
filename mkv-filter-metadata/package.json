@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "pnpm -F frontend dev & pnpm tauri dev",
     "build": "pnpm -F frontend build && pnpm tauri build",
-    "clean": "pnpm -r exec rm -rf node_modules && pnpm -F backend exec cargo clean && pnpm install",
+    "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && pnpm install",
     "tauri": "tauri"
   },
   "license": "MIT",
