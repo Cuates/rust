@@ -124,6 +124,11 @@ fn build_ffmpeg_args(
     }
 
     args.extend(["-c:s".to_string(), subtitle_codec.to_string()]);
+
+    // Clear the title metadata from the output file, matching the Python script's
+    // build_metadata_flags logic: `-metadata title=`
+    args.extend(["-metadata".to_string(), "title=".to_string()]);
+
     args.push(output_path.to_string_lossy().into_owned());
     args
 }
@@ -741,6 +746,11 @@ async fn process_video_pipeline(
                     // Drop all subtitles if array is blank
                     mkvmerge_args.push("--no-subtitles".to_string());
                 }
+
+                // Clear the title metadata, matching the Python script's mkvmerge command:
+                // `--title ""`
+                mkvmerge_args.push("--title".to_string());
+                mkvmerge_args.push(String::new());
 
                 mkvmerge_args.push(file_path.to_string_lossy().into_owned());
 
