@@ -412,8 +412,8 @@ async fn process_video_pipeline(
         "total_files": total_files
     }));
 
-    // Explicitly output the total ffmpeg stream copy failures to the Real-time Log
-    if payload.conversion_mode != "reencode" {
+    // Explicitly output the total ffmpeg stream copy failures to the Real-time Log ONLY if failures exist
+    if payload.conversion_mode != "reencode" && ffmpeg_fallback_failures > 0 {
         let _ = app.emit(
             "process-log",
             format!("📊 Session Metrics -> Primary FFmpeg Stream Copy Failures resolved via fallback: {}", ffmpeg_fallback_failures)
