@@ -139,7 +139,16 @@ async fn get_matching_subtitle_maps(
 
     if !output.status.success() {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("ffprobe diagnostic failure: {}", stderr_str));
+        // Collapse newlines in the ffprobe error string so the entire message emits
+        // as a single tagged line. Without this, embedded \n characters in the stderr
+        // output render as bare untagged blank lines in the real-time log UI.
+        let stderr_sanitized = stderr_str
+            .lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join(" | ");
+        return Err(format!("ffprobe diagnostic failure: {}", stderr_sanitized));
     }
 
     let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -504,7 +513,7 @@ async fn process_video_pipeline(
 
         // Run ffprobe to get exact stream IDs for matching subtitles before building ffmpeg command
         let subtitle_maps = get_matching_subtitle_maps(&app, file_path, &sub_langs).await.unwrap_or_else(|e| {
-            let _ = app.emit("process-log", format!("  | ⚠️ FFprobe parsing error, defaulting to no subtitles. Error: {}", e));
+            let _ = app.emit("process-log", format!("  | [ERROR] ⚠️ FFprobe parsing error, defaulting to no subtitles. Error: {}", e));
             Vec::new()
         });
 
@@ -561,7 +570,7 @@ async fn process_video_pipeline(
             }
         } else {
             // Remux protocol
-            let _ = app.emit("process-log", "  | Initializing primary stream copy protocol (FFmpeg)...");
+            let _ = app.emit("process-log", "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...");
 
             // First attempt: try copying subtitles as-is
             let ffmpeg_copy_args = build_ffmpeg_args(
@@ -610,7 +619,7 @@ async fn process_video_pipeline(
             // If FFmpeg failed entirely (both copy and ASS retry), fall back to mkvmerge
             if !file_success {
                 ffmpeg_fallback_failures += 1; // Increment conversion failure count
-                let _ = app.emit("process-log", "  | ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...");
+                let _ = app.emit("process-log", "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...");
 
                 if output_file_path.exists() {
                     let _ = std::fs::remove_file(&output_file_path);
