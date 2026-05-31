@@ -1,0 +1,16 @@
+{
+  "name": "mkv-filter-metadata-rust",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -F frontend dev & pnpm tauri dev",
+    "build": "pnpm -F frontend build && pnpm tauri build",
+    "clean": "pnpm -r exec rm -rf node_modules && pnpm -F backend exec cargo clean && pnpm install",
+    "tauri": "tauri"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2"
+  }
+}
