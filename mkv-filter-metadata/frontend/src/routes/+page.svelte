@@ -59,6 +59,11 @@
 
       // Event Listeners
       const unlistenLogFn = await listen<string>('process-log', async (event) => {
+        // 🚀 Intercept and skip the log if it reports 0 fallback resolutions
+        if (event.payload.includes("Failures resolved via fallback: 0")) {
+          return;
+        }
+
         consoleLogs = [...consoleLogs, event.payload];
         if (event.payload.includes("Scanned file total:")) {
           const match = event.payload.match(/Scanned file total:\s*(\d+)/);
@@ -296,7 +301,7 @@
   <div class="form-workspace-card">
     <div class="row">
       <div class="queue-header">
-        <label for="queue-box">Target Processing Queue</label>
+        <label for="queue-box">Target Processing Queue ({config.input_directories.length})</label>
         <button class="add-folder-btn" onclick={handleDirectoryBrowse} disabled={processingActive}>
           + Add Folder to Queue
         </button>
@@ -630,7 +635,6 @@
 
   .remove-btn { background: none !important; border: none !important; color: var(--danger-color) !important; cursor: pointer; padding: 0.25rem !important; border-radius: 4px; display: inline-flex !important; align-items: center !important; justify-content: center !important; transition: background-color 0.15s; position: relative; }
   .remove-btn:hover:not(:disabled) { background-color: rgba(239, 68, 68, 0.15) !important; }
-  /* Visual "No Action" indicator when disabled */
   .remove-btn:disabled {
     cursor: not-allowed !important;
     opacity: 0.5;
