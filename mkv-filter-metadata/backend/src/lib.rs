@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter};
@@ -48,11 +48,123 @@ fn get_ffmpeg_preset(codec: &str, preset: &str) -> String {
     }
 }
 
-fn parse_extension_list(raw: &str) -> Vec<String> {
+/// Generic parser used to break comma-separated strings (like extensions or languages) into arrays
+fn parse_comma_list(raw: &str) -> Vec<String> {
     raw.split(',')
         .map(|s| s.trim().to_lowercase())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+/// Inspects collected stderr lines from an FFmpeg run and determines whether the failure
+/// was caused by a subtitle codec being incompatible with the target container.
+/// This approach lets FFmpeg itself be the source of truth — no hardcoded codec lists needed.
+fn stderr_indicates_subtitle_incompatibility(logs: &[String]) -> bool {
+    logs.iter().any(|l| {
+        let l = l.to_lowercase();
+        (l.contains("subtitle codec") && l.contains("not supported"))
+            || l.contains("could not write header")
+            || (l.contains("function not implemented") && !l.contains("vf#"))
+    })
+}
+
+/// Builds the base ffmpeg arg list (maps + codec flags) for either reencode or remux mode,
+/// with a caller-supplied subtitle codec string ("copy" or "ass").
+fn build_ffmpeg_args(
+    file_path: &Path,
+    output_path: &Path,
+    subtitle_maps: &[String],
+    video_codec: &str,
+    preset: &str,
+    crf: &str,
+    mode: &str,
+    subtitle_codec: &str,
+) -> Vec<String> {
+    let mut args = vec![
+        "-y".to_string(),
+        "-i".to_string(), file_path.to_string_lossy().into_owned(),
+        "-map".to_string(), "0:V?".to_string(), // map all video safely (Capital V ignores cover arts)
+        "-map".to_string(), "0:a?".to_string(), // map all audio safely
+        "-map".to_string(), "0:t?".to_string(), // Keep attachments (fonts)
+    ];
+
+    // Explicitly map exactly the subtitle IDs discovered by ffprobe
+    for map in subtitle_maps {
+        args.push("-map".to_string());
+        args.push(map.clone());
+    }
+
+    if mode == "reencode" {
+        args.extend([
+            "-c:v".to_string(), video_codec.to_string(),
+            "-preset".to_string(), preset.to_string(),
+            "-crf".to_string(), crf.to_string(),
+            "-c:a".to_string(), "copy".to_string(),
+        ]);
+    } else {
+        // Remux: copy everything except subtitles (handled below)
+        args.extend(["-c".to_string(), "copy".to_string()]);
+    }
+
+    args.extend(["-c:s".to_string(), subtitle_codec.to_string()]);
+    args.push(output_path.to_string_lossy().into_owned());
+    args
+}
+
+/// Mimics the Python script's `get_matching_subtitle_maps` to extract exact numeric stream IDs using ffprobe
+async fn get_matching_subtitle_maps(
+    app: &AppHandle,
+    file_path: &Path,
+    allowed_langs: &[String],
+) -> Result<Vec<String>, String> {
+    let shell = app.shell();
+    let cmd = shell
+        .sidecar("ffprobe")
+        .map_err(|e| format!("Failed to initialize ffprobe sidecar configuration: {}", e))?
+        .args([
+            "-v", "error",
+            "-select_streams", "s",
+            "-show_entries", "stream=index:stream_tags=language",
+            "-of", "csv=p=0",
+            &file_path.to_string_lossy().into_owned(),
+        ]);
+
+    let output = cmd.output().await.map_err(|e| format!("ffprobe execution error: {}", e))?;
+
+    if !output.status.success() {
+        let stderr_str = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffprobe diagnostic failure: {}", stderr_str));
+    }
+
+    let stdout_str = String::from_utf8_lossy(&output.stdout);
+    let mut maps = Vec::new();
+
+    for line in stdout_str.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.is_empty() {
+            continue;
+        }
+
+        let index = parts[0].trim();
+
+        // Treat missing language tag as 'und' (undetermined) just like the Python script
+        let lang = if parts.len() > 1 {
+            parts[1].trim().to_lowercase()
+        } else {
+            "und".to_string()
+        };
+
+        if allowed_langs.iter().any(|l| l == &lang) {
+            maps.push(format!("0:{}", index));
+        }
+    }
+
+    Ok(maps)
 }
 
 #[tauri::command]
@@ -160,13 +272,40 @@ async fn abort_video_pipeline(app: AppHandle, state: tauri::State<'_, AppState>)
     Ok(())
 }
 
+/// Determines whether a log line from FFmpeg or mkvmerge should be classified as [ERROR].
+///
+/// Simple substring matching on the full line is unreliable because filenames can contain
+/// words like "Terror" (which contains "error") or "Invalid" as part of a title. Instead,
+/// we strip any leading bracketed context tag (e.g. "[muxer @ 0x...]") that FFmpeg prepends
+/// and check whether the error keyword appears at the start of the actual message text.
+/// This ensures only genuine tool error messages are promoted to [ERROR], not false positives
+/// caused by keywords embedded in file paths or media titles.
+fn is_error_line(line: &str) -> bool {
+    // Strip optional leading FFmpeg bracket context: "[tag @ addr] " or "[tag] "
+    let message = if line.starts_with('[') {
+        // Find the closing bracket, then skip optional whitespace
+        line.find(']').map(|i| line[i + 1..].trim_start()).unwrap_or(line)
+    } else {
+        line
+    };
+
+    // mkvmerge prefixes its own errors with "Error:"
+    // FFmpeg genuine errors begin with the keyword directly after the bracket context
+    let ml = message.to_lowercase();
+    ml.starts_with("error") || ml.starts_with("invalid") || ml.starts_with("failed")
+        || ml.starts_with("conversion failed")
+        || ml.starts_with("task finished with error")
+        || ml.starts_with("error sending frames")
+}
+
 /// Helper function to execute a sidecar command and handle its events.
+/// Returns (success, collected_stderr_lines) so callers can inspect FFmpeg's error output.
 async fn run_sidecar_command(
     app: &AppHandle,
     state: &tauri::State<'_, AppState>,
     binary_name: &str,
     args: Vec<String>,
-) -> Result<bool, String> {
+) -> Result<(bool, Vec<String>), String> {
     let shell = app.shell();
     let is_mkvmerge = binary_name == "mkvmerge";
 
@@ -184,6 +323,7 @@ async fn run_sidecar_command(
 
     let mut aborted_mid_stream = false;
     let mut file_success = false;
+    let mut collected_stderr: Vec<String> = Vec::new();
 
     while let Some(event) = rx.recv().await {
         if state.is_aborted.load(Ordering::SeqCst) {
@@ -200,7 +340,11 @@ async fn run_sidecar_command(
                 for line in sanitized.lines() {
                     let t = line.trim();
                     if !t.is_empty() {
-                        let _ = app.emit("process-log", format!("  | {}", t));
+                        if is_error_line(t) {
+                            let _ = app.emit("process-log", format!("  | [ERROR] {}", t));
+                        } else {
+                            let _ = app.emit("process-log", format!("  | [INFO] {}", t));
+                        }
                     }
                 }
             }
@@ -210,8 +354,11 @@ async fn run_sidecar_command(
                 for line in sanitized.lines() {
                     let t = line.trim();
                     if !t.is_empty() {
-                        // Check if it's an actual severe error message
-                        if t.to_lowercase().contains("error") || t.to_lowercase().contains("invalid") {
+                        // Collect all stderr lines so the caller can inspect them for
+                        // subtitle incompatibility errors after the run completes
+                        collected_stderr.push(t.to_string());
+
+                        if is_error_line(t) {
                             let _ = app.emit("process-log", format!("  | [ERROR] {}", t));
                         } else {
                             // Treat standard progress and summary dumps as info
@@ -237,7 +384,7 @@ async fn run_sidecar_command(
         return Err("Pipeline execution aborted by user Request.".to_string());
     }
 
-    Ok(file_success)
+    Ok((file_success, collected_stderr))
 }
 
 #[tauri::command]
@@ -262,7 +409,8 @@ async fn process_video_pipeline(
 
     let _ = app.emit("process-log", "Analyzing targets and indexing directories...");
 
-    let extensions = parse_extension_list(&payload.file_extensions);
+    let extensions = parse_comma_list(&payload.file_extensions);
+    let sub_langs = parse_comma_list(&payload.subtitle_tracks);
     let mut target_files = Vec::new();
 
     for dir_path in &payload.input_directories {
@@ -293,8 +441,10 @@ async fn process_video_pipeline(
 
     let mut successful_files = 0;
     let mut failed_files = 0;
-    // Track how many times FFmpeg copy failed and triggered MKVMerge
     let mut ffmpeg_fallback_failures = 0;
+    // FIX: Track retry attempts and retry successes separately for accurate metrics reporting.
+    let mut reencode_subtitle_retry_attempts = 0;
+    let mut reencode_subtitle_retry_successes = 0;
 
     for (index, file_path) in target_files.iter().enumerate() {
         if state.is_aborted.load(Ordering::SeqCst) {
@@ -346,36 +496,112 @@ async fn process_video_pipeline(
             files_lock.push(output_file_path.clone());
         }
 
+        // Run ffprobe to get exact stream IDs for matching subtitles before building ffmpeg command
+        let subtitle_maps = get_matching_subtitle_maps(&app, file_path, &sub_langs).await.unwrap_or_else(|e| {
+            let _ = app.emit("process-log", format!("  | ⚠️ FFprobe parsing error, defaulting to no subtitles. Error: {}", e));
+            Vec::new()
+        });
+
         let mapped_preset = get_ffmpeg_preset(&payload.video_codec, &payload.preset);
         let mut file_success;
 
         // Routing Logic: Reencode vs Remux Fallback Protocol
         if payload.conversion_mode == "reencode" {
-            let ffmpeg_args = vec![
-                "-y".to_string(),
-                "-i".to_string(), file_path.to_string_lossy().into_owned(),
-                "-c:v".to_string(), payload.video_codec.clone(),
-                "-preset".to_string(), mapped_preset,
-                "-crf".to_string(), payload.crf.clone(),
-                "-c:a".to_string(), "copy".to_string(),
-                output_file_path.to_string_lossy().into_owned()
-            ];
-            file_success = run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_args).await?;
+            // First attempt: try copying subtitles as-is
+            let ffmpeg_args = build_ffmpeg_args(
+                file_path,
+                &output_file_path,
+                &subtitle_maps,
+                &payload.video_codec,
+                &mapped_preset,
+                &payload.crf,
+                "reencode",
+                "copy",
+            );
+
+            let (success, stderr_lines) = run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_args).await?;
+            file_success = success;
+
+            // If the copy failed due to a subtitle codec incompatible with the container,
+            // retry automatically with ASS conversion. No codec list needed — FFmpeg tells us.
+            if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
+                reencode_subtitle_retry_attempts += 1;
+                let _ = app.emit("process-log", "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
+
+                if output_file_path.exists() {
+                    let _ = std::fs::remove_file(&output_file_path);
+                }
+
+                let retry_args = build_ffmpeg_args(
+                    file_path,
+                    &output_file_path,
+                    &subtitle_maps,
+                    &payload.video_codec,
+                    &mapped_preset,
+                    &payload.crf,
+                    "reencode",
+                    "ass",
+                );
+
+                let (retry_success, _) = run_sidecar_command(&app, &state, "ffmpeg", retry_args).await?;
+                file_success = retry_success;
+
+                // FIX: Emit a diagnostic if the ASS retry also failed, and track success separately.
+                if file_success {
+                    reencode_subtitle_retry_successes += 1;
+                } else {
+                    let _ = app.emit("process-log", "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.");
+                }
+            }
         } else {
             // Remux protocol
             let _ = app.emit("process-log", "  | Initializing primary stream copy protocol (FFmpeg)...");
 
-            let ffmpeg_copy_args = vec![
-                "-y".to_string(),
-                "-i".to_string(), file_path.to_string_lossy().into_owned(),
-                "-map".to_string(), "0".to_string(),
-                "-c".to_string(), "copy".to_string(),
-                output_file_path.to_string_lossy().into_owned()
-            ];
+            // First attempt: try copying subtitles as-is
+            let ffmpeg_copy_args = build_ffmpeg_args(
+                file_path,
+                &output_file_path,
+                &subtitle_maps,
+                "",
+                "",
+                "",
+                "remux",
+                "copy",
+            );
 
-            file_success = run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_copy_args).await?;
+            let (success, stderr_lines) = run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_copy_args).await?;
+            file_success = success;
 
-            // If FFmpeg fails, clean up the bad output and fall back to mkvmerge
+            // Same subtitle incompatibility retry as reencode path
+            if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
+                let _ = app.emit("process-log", "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
+
+                if output_file_path.exists() {
+                    let _ = std::fs::remove_file(&output_file_path);
+                }
+
+                let retry_copy_args = build_ffmpeg_args(
+                    file_path,
+                    &output_file_path,
+                    &subtitle_maps,
+                    "",
+                    "",
+                    "",
+                    "remux",
+                    "ass",
+                );
+
+                let (retry_success, retry_stderr) = run_sidecar_command(&app, &state, "ffmpeg", retry_copy_args).await?;
+                file_success = retry_success;
+
+                // If the ASS retry also failed for a non-subtitle reason, propagate the
+                // original failure so the mkvmerge fallback below can still trigger
+                if !file_success && stderr_indicates_subtitle_incompatibility(&retry_stderr) {
+                    file_success = false; // still failed, fall through to mkvmerge
+                }
+            }
+
+            // If FFmpeg failed entirely (both copy and ASS retry), fall back to mkvmerge
             if !file_success {
                 ffmpeg_fallback_failures += 1; // Increment conversion failure count
                 let _ = app.emit("process-log", "  | ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...");
@@ -384,12 +610,23 @@ async fn process_video_pipeline(
                     let _ = std::fs::remove_file(&output_file_path);
                 }
 
-                let mkvmerge_args = vec![
+                let mut mkvmerge_args = vec![
                     "-o".to_string(), output_file_path.to_string_lossy().into_owned(),
-                    file_path.to_string_lossy().into_owned()
                 ];
 
-                file_success = run_sidecar_command(&app, &state, "mkvmerge", mkvmerge_args).await?;
+                // Append MKVMerge specific subtitle tracking rules
+                if !sub_langs.is_empty() {
+                    mkvmerge_args.push("--subtitle-tracks".to_string());
+                    mkvmerge_args.push(sub_langs.join(","));
+                } else {
+                    // Drop all subtitles if array is blank
+                    mkvmerge_args.push("--no-subtitles".to_string());
+                }
+
+                mkvmerge_args.push(file_path.to_string_lossy().into_owned());
+
+                let (mkvmerge_success, _) = run_sidecar_command(&app, &state, "mkvmerge", mkvmerge_args).await?;
+                file_success = mkvmerge_success;
             }
         }
 
@@ -417,6 +654,21 @@ async fn process_video_pipeline(
         let _ = app.emit(
             "process-log",
             format!("📊 Session Metrics -> Primary FFmpeg Stream Copy Failures resolved via fallback: {}", ffmpeg_fallback_failures)
+        );
+    }
+
+    // FIX: Report retry attempts vs successes separately so the metric is accurate.
+    // e.g. "3 triggered, 1 resolved" rather than the misleading "3 resolved" from before.
+    if payload.conversion_mode == "reencode" && reencode_subtitle_retry_attempts > 0 {
+        let reencode_subtitle_retry_failures = reencode_subtitle_retry_attempts - reencode_subtitle_retry_successes;
+        let _ = app.emit(
+            "process-log",
+            format!(
+                "📊 Session Metrics -> Reencode Subtitle Codec Retries: {} triggered, {} resolved via ASS conversion, {} still failed.",
+                reencode_subtitle_retry_attempts,
+                reencode_subtitle_retry_successes,
+                reencode_subtitle_retry_failures,
+            )
         );
     }
 
