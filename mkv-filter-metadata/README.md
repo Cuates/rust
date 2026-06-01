@@ -7,7 +7,7 @@
 5. [Base Directory Configuration](#5-base-directory-configuration)
 6. [Running the Scaffolder](#6-running-the-scaffolder)
 7. [Rearranging into a Monorepo Workspace Split](#7-rearranging-into-a-monorepo-workspace-split)
-8. [Embedding Native Sidecars (FFmpeg & MKVMerge)](#8-embedding-native-sidecars-ffmpeg--mkvmerge)
+8. [Embedding Native Sidecars (FFmpeg, FFprobe & MKVMerge)](#8-embedding-native-sidecars-ffmpeg-ffprobe--mkvmerge)
 9. [Initializing the Root Workspace Files](#9-initializing-the-root-workspace-files)
 10. [Unified Workflow Orchestration](#10-unified-workflow-orchestration)
 11. [Injecting the Global Tauri CLI](#11-injecting-the-global-tauri-cli)
@@ -29,7 +29,7 @@ Before beginning, ensure your system has the required tooling installed:
 * **pnpm** (Required package manager for this workspace)
 * **Rust & Cargo** (Installed via `rustup`)
 * **Rust Components**: Ensure `clippy` and `rustfmt` are active:
-```bash
+  ```bash
   rustup component add clippy rustfmt
 ```
 
@@ -40,23 +40,30 @@ Before beginning, ensure your system has the required tooling installed:
 
 ## 2. Tree Structure
 
-This project strictly adheres to the following architecture:
+This project strictly adheres to the following architecture based on our specific integrations:
 
 ```text
 mkv-filter-metadata-rust/
 ├── package.json             # Root workspace engine commands
 ├── pnpm-workspace.yaml      # Monorepo boundary definition (Frontend UI only)
+├── README.md                # Project documentation
 ├── frontend/                # Svelte 5 + Vite Web UI Layer
 │   ├── package.json         # UI scripts, dependencies, testing/lint configs
 │   ├── eslint.config.js     # Linter flat-config rules (Svelte + Node integrations)
 │   ├── .prettierrc          # Formatter configurations
-│   ├── vite.config.ts
+│   ├── vite.config.js       # Vite bundler configuration
+│   ├── svelte.config.js     # SvelteKit framework configurations
+│   ├── tsconfig.json        # TypeScript compiler options
 │   └── src/
+│       └── routes/
+│           └── +page.svelte # Main UI view and Svelte reactivity logic
 └── backend/                 # Rust + Tauri Native System Layer
-    ├── bin/                 # Target-suffixed Sidecar Binaries (FFmpeg/MKVMerge)
-    ├── Cargo.toml           # Native definitions
+    ├── sidecars/            # Target-suffixed Sidecar Binaries (FFmpeg/FFprobe/MKVMerge)
+    ├── Cargo.toml           # Native Rust dependencies and definitions
     ├── tauri.conf.json      # Window, shell permissions, pathing parameters
     └── src/
+        ├── lib.rs           # Core Rust backend logic, hardware checks, and rollback ledgers
+        └── main.rs          # Tauri application entry point
 ```
 
 ## 3. Monorepo Root Configurations
@@ -107,14 +114,14 @@ The default Tauri scaffolder mixes frontend and backend folders. We want a stric
 
 ---
 
-## 8. Embedding Native Sidecars (FFmpeg & MKVMerge)
+## 8. Embedding Native Sidecars (FFmpeg, FFprobe & MKVMerge)
 
 Because this application relies on external video processing tools, we must bundle them as "Sidecars" so the end-user does not have to install them globally.
 
 ### A. Sourcing and Naming the Binaries
 
-1. Create a `bin/` directory inside your `backend/` folder (`backend/bin/`).
-2. Download the standalone executables for FFmpeg and MKVMerge.
+1. Create a `sidecars/` directory inside your `backend/` folder (`backend/sidecars/`).
+2. Download the standalone executables for FFmpeg, FFprobe, and MKVMerge.
 3. **CRITICAL:** Tauri requires sidecar binaries to be suffixed with the **Target Triple** of the host architecture. You cannot simply name the file `ffmpeg.exe`.
 * *Windows Example:* Rename `ffmpeg.exe` to `ffmpeg-x86_64-pc-windows-msvc.exe`.
 * *Windows Example:* Rename `mkvmerge.exe` to `mkvmerge-x86_64-pc-windows-msvc.exe`.
@@ -128,8 +135,9 @@ You must explicitly declare these binaries in your configuration file so the bun
 ```json
 "bundle": {
   "externalBin": [
-    "bin/ffmpeg",
-    "bin/mkvmerge"
+    "sidecars/ffmpeg",
+    "sidecars/ffprobe",
+    "sidecars/mkvmerge"
   ]
 }
 ```
