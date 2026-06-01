@@ -1,11 +1,3 @@
-# Tauri 2.0 + SvelteKit Monorepo Architecture Guide
-
-Welcome to the definitive guide for this project's architecture. This document outlines the start-to-finish journey of setting up a strict Monorepo workspace separating a modern Svelte 5 (Frontend) environment from a Rust/Tauri 2.0 (Backend) native application layer, complete with bundled native sidecar executables, strict code-quality tooling, and self-healing system processing.
-
-Whether you are onboarding a new developer or rebuilding from scratch, follow these categorized steps carefully.
-
----
-
 ## Table of Contents
 
 1. [Prerequisites](#1-prerequisites)
@@ -37,7 +29,7 @@ Before beginning, ensure your system has the required tooling installed:
 * **pnpm** (Required package manager for this workspace)
 * **Rust & Cargo** (Installed via `rustup`)
 * **Rust Components**: Ensure `clippy` and `rustfmt` are active:
-  ```bash
+```bash
   rustup component add clippy rustfmt
 ```
 
