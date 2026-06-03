@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { open } from '@tauri-apps/plugin-dialog';
+  import { open, save } from '@tauri-apps/plugin-dialog';
   import { listen } from '@tauri-apps/api/event';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { onMount, tick } from 'svelte';
@@ -21,6 +21,7 @@
   let processingActive = $state(false);
   let isDarkMode = $state(true);
   let showMetricsPanel = $state(false);
+  let isDragging = $state(false); // UX: Drag state
 
   // Layout Metric Sync Parameters
   let currentFileIndex = $state(0);
@@ -31,8 +32,12 @@
   let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
   let startTime = 0;
 
-  // Add this with your other state variables
   let hasNvidia = $state(false);
+
+  // Granular Status tracking
+  let directoryStatuses = $state<Record<string, 'pending' | 'processing' | 'done' | 'error'>>({});
+  let directoryErrors = $state<Record<string, boolean>>({});
+  let currentActiveDirectory = $state<string | null>(null);
 
   onMount(() => {
     // 1. Synchronous UI initialization
@@ -56,11 +61,31 @@
         console.error('Diagnostic check failed:', err);
       }
 
+      // UX Enhancement: OS-level Drop Listener
+      const unlistenDrop = await listen<{ paths: string[] }>('tauri://drag-drop', (event) => {
+        isDragging = false;
+        if (!processingActive && event.payload?.paths) {
+          const newPaths = event.payload.paths.filter((p) => !config.input_directories.includes(p));
+          config.input_directories = [...config.input_directories, ...newPaths];
+        }
+      });
+
       // Event Listeners
       const unlistenLogFn = await listen<string>('process-log', async (event) => {
         // 🚀 Intercept and skip the log if it reports 0 fallback resolutions
         if (event.payload.includes('Failures resolved via fallback: 0')) {
           return;
+        }
+
+        // Track errors for the current active directory
+        if (
+          event.payload.includes('[ERROR]') ||
+          event.payload.includes('[FATAL]') ||
+          event.payload.includes('❌')
+        ) {
+          if (currentActiveDirectory) {
+            directoryErrors[currentActiveDirectory] = true;
+          }
         }
 
         consoleLogs = [...consoleLogs, event.payload];
@@ -80,11 +105,28 @@
         progress: number;
         current_index?: number;
         total_files?: number;
+        active_directory?: string;
       }>('process-progress', (event) => {
         if (event.payload.progress !== undefined) overallProgress = event.payload.progress;
         if (event.payload.current_index !== undefined)
           currentFileIndex = event.payload.current_index;
         if (event.payload.total_files !== undefined) totalFilesCount = event.payload.total_files;
+
+        if (event.payload.active_directory !== undefined) {
+          const activeDir = event.payload.active_directory;
+          currentActiveDirectory = activeDir;
+          if (directoryStatuses[activeDir] !== 'processing') {
+            // Mark previously processing directories as done
+            const newStatuses = { ...directoryStatuses };
+            for (const key in newStatuses) {
+              if (newStatuses[key] === 'processing' && key !== activeDir) {
+                newStatuses[key] = 'done';
+              }
+            }
+            newStatuses[activeDir] = 'processing';
+            directoryStatuses = newStatuses;
+          }
+        }
       });
 
       const appWindow = getCurrentWindow();
@@ -110,6 +152,7 @@
         unlistenLogFn();
         unlistenProgressFn();
         unlistenCloseFn();
+        unlistenDrop();
         clearInterval(timerInterval);
       };
     };
@@ -204,7 +247,85 @@
       overallProgress = 0;
       runningTimeFormatted = '0ms';
       showMetricsPanel = false;
+      directoryStatuses = {};
+      directoryErrors = {};
+      currentActiveDirectory = null;
     }
+  }
+
+  // Pointer-based Custom Drag and Drop State (Bypasses Tauri HTML5 D&D bugs)
+  let pointerDraggingIndex = $state<number | null>(null);
+  let pointerStartY = $state(0);
+  let pointerCurrentY = $state(0);
+  const ITEM_HEIGHT = 34; // Approx total height of item + gap
+
+  function handlePointerDown(e: PointerEvent, index: number) {
+    if (processingActive) return;
+
+    // Ignore clicks on the remove button
+    if ((e.target as HTMLElement).closest('.remove-btn')) return;
+
+    // Prevent text selection
+    e.preventDefault();
+
+    pointerDraggingIndex = index;
+    pointerStartY = e.clientY;
+    pointerCurrentY = e.clientY;
+  }
+
+  function handleGlobalPointerMove(e: PointerEvent) {
+    if (pointerDraggingIndex === null) return;
+    pointerCurrentY = e.clientY;
+
+    const deltaY = pointerCurrentY - pointerStartY;
+
+    if (deltaY > ITEM_HEIGHT && pointerDraggingIndex < config.input_directories.length - 1) {
+      // Swap down
+      const newDirs = [...config.input_directories];
+      const temp = newDirs[pointerDraggingIndex];
+      newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex + 1];
+      newDirs[pointerDraggingIndex + 1] = temp;
+      config.input_directories = newDirs;
+
+      pointerDraggingIndex++;
+      pointerStartY += ITEM_HEIGHT;
+    } else if (deltaY < -ITEM_HEIGHT && pointerDraggingIndex > 0) {
+      // Swap up
+      const newDirs = [...config.input_directories];
+      const temp = newDirs[pointerDraggingIndex];
+      newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex - 1];
+      newDirs[pointerDraggingIndex - 1] = temp;
+      config.input_directories = newDirs;
+
+      pointerDraggingIndex--;
+      pointerStartY -= ITEM_HEIGHT;
+    }
+  }
+
+  function handleGlobalPointerUp() {
+    pointerDraggingIndex = null;
+  }
+
+  // File Drop Handlers for Tauri Dropzone visuals
+  function handleDragOver(e: DragEvent) {
+    e.preventDefault();
+    if (!processingActive) isDragging = true;
+  }
+
+  function handleDragLeave(e: DragEvent) {
+    e.preventDefault();
+    isDragging = false;
+  }
+
+  // UX Enhancement: Syntax Highlighting Logic
+  function getLogClass(line: string) {
+    const lower = line.toLowerCase();
+    if (lower.includes('[error]') || line.includes('❌') || lower.startsWith('error'))
+      return 'log-error';
+    if (line.includes('⚠️')) return 'log-warning';
+    if (line.includes('✅') || lower.includes('success')) return 'log-success';
+    if (lower.includes('[info]')) return 'log-info';
+    return '';
   }
 
   async function displaySidecarVersions() {
@@ -244,7 +365,24 @@
     overallProgress = 0;
     currentFileIndex = 0;
     totalFilesCount = 0;
-    consoleLogs = ['Pipeline initialization request authenticated...'];
+
+    const startDate = new Date();
+    consoleLogs = [
+      'Pipeline initialization request authenticated...',
+      `Session started at: ${startDate.toLocaleString()}`
+    ];
+
+    // Reset directory statuses
+    const initialStatuses: Record<string, 'pending'> = {};
+    for (const dir of config.input_directories) {
+      initialStatuses[dir] = 'pending';
+    }
+    directoryStatuses = initialStatuses as Record<
+      string,
+      'pending' | 'processing' | 'done' | 'error'
+    >;
+    directoryErrors = {};
+    currentActiveDirectory = null;
 
     startTimer();
     await displaySidecarVersions();
@@ -254,13 +392,46 @@
 
       overallProgress = 100;
       consoleLogs = [...consoleLogs, summaryMessage];
-    } catch (err) {
+
+      // Mark any remaining processing/pending directories as done
+      const newStatuses = { ...directoryStatuses };
+      for (const key in newStatuses) {
+        if (newStatuses[key] === 'processing' || newStatuses[key] === 'pending') {
+          newStatuses[key] = 'done';
+        }
+      }
+      directoryStatuses = newStatuses;
+    } catch (err: unknown) {
       consoleLogs = [...consoleLogs, `❌ Pipeline execution failure: ${err}`];
     } finally {
       processingActive = false;
       stopTimer();
+
+      const endDate = new Date();
+      const elapsedMs = endDate.getTime() - startTime;
+      const hours = Math.floor(elapsedMs / 3600000);
+      const minutes = Math.floor((elapsedMs % 3600000) / 60000);
+      const seconds = Math.floor((elapsedMs % 60000) / 1000);
+      const milliseconds = elapsedMs % 1000;
+
+      let outputSegments = [];
+      if (hours > 0) outputSegments.push(`${hours}h`);
+      if (minutes > 0) outputSegments.push(`${minutes}m`);
+      if (seconds > 0) outputSegments.push(`${seconds}s`);
+      outputSegments.push(`${milliseconds}ms`);
+
+      const finalTimeStr = outputSegments.join(' ');
+      runningTimeFormatted = finalTimeStr;
+
+      consoleLogs = [
+        ...consoleLogs,
+        `Session finished at: ${endDate.toLocaleString()}`,
+        `Total Conversion Time: ${finalTimeStr}`
+      ];
+
+      // Re-apply focus to queue box for accessibility/keyboard nav if needed
       await tick();
-      let term = document.getElementById('terminal-shell');
+      const term = document.getElementById('terminal-shell');
       if (term) term.scrollTop = term.scrollHeight;
     }
   }
@@ -296,6 +467,7 @@
 
   // --- Copy Logs Feature State ---
   let copiedStatus = $state(false);
+  let savedStatus = $state(false);
 
   async function copyTerminalLogs() {
     if (consoleLogs.length === 0) return;
@@ -312,7 +484,54 @@
       console.error('Failed to copy pipeline terminal output logs: ', err);
     }
   }
+
+  // --- Save Logs Feature ---
+  async function saveTerminalLogs() {
+    if (consoleLogs.length === 0) return;
+    try {
+      const now = new Date();
+      // Format: YYYYMMDD_HHMMSS
+      const dateStr =
+        now.getFullYear() +
+        String(now.getMonth() + 1).padStart(2, '0') +
+        String(now.getDate()).padStart(2, '0') +
+        '_' +
+        String(now.getHours()).padStart(2, '0') +
+        String(now.getMinutes()).padStart(2, '0') +
+        String(now.getSeconds()).padStart(2, '0');
+
+      const defaultFilename = `mkv_filter_metadata_${dateStr}.log`;
+
+      const filePath = await save({
+        defaultPath: defaultFilename,
+        filters: [
+          {
+            name: 'Log Files',
+            extensions: ['log']
+          }
+        ]
+      });
+
+      if (filePath) {
+        const plainTextLogs = consoleLogs.join('\n');
+        await invoke('save_log_file', { content: plainTextLogs, path: filePath });
+
+        savedStatus = true;
+        setTimeout(() => {
+          savedStatus = false;
+        }, 2000);
+      }
+    } catch (err) {
+      consoleLogs = [...consoleLogs, `  | [ERROR] Failed to save log: ${err}`];
+    }
+  }
 </script>
+
+<svelte:window
+  onpointermove={handleGlobalPointerMove}
+  onpointerup={handleGlobalPointerUp}
+  onpointercancel={handleGlobalPointerUp}
+/>
 
 <main class="app-container">
   <header class="navbar-layer">
@@ -334,13 +553,81 @@
           + Add Folder to Queue
         </button>
       </div>
-      <div id="queue-box" class="queue-container">
+      <div
+        id="queue-box"
+        class="queue-container"
+        class:dragging={isDragging}
+        ondragover={handleDragOver}
+        ondragleave={handleDragLeave}
+        ondrop={handleDragLeave}
+        role="button"
+        tabindex="0"
+      >
         {#if config.input_directories.length === 0}
-          <div class="empty-queue-msg">No directories currently in queue...</div>
+          <div class="empty-queue-msg">Drag & drop video folders here or click Add Folder...</div>
         {:else}
           {#each config.input_directories as dir, i (dir)}
-            <div class="queue-item">
-              <span class="queue-path" title={dir}>{dir}</span>
+            <div
+              class="queue-item"
+              class:dragging-item={pointerDraggingIndex === i}
+              class:status-processing={directoryStatuses[dir] === 'processing'}
+              class:status-done={directoryStatuses[dir] === 'done' && !directoryErrors[dir]}
+              class:status-warning={directoryStatuses[dir] === 'done' && directoryErrors[dir]}
+              style={pointerDraggingIndex === i
+                ? `transform: translateY(${pointerCurrentY - pointerStartY}px); z-index: 10; position: relative;`
+                : ''}
+              onpointerdown={(e) => handlePointerDown(e, i)}
+              role="listitem"
+            >
+              <div class="queue-path-wrapper">
+                {#if directoryStatuses[dir] === 'processing'}
+                  <div class="status-indicator processing" title="Processing...">
+                    <svg class="spinner" viewBox="0 0 50 50"
+                      ><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"
+                      ></circle></svg
+                    >
+                  </div>
+                {:else if directoryStatuses[dir] === 'done'}
+                  {#if directoryErrors[dir]}
+                    <div class="status-indicator warning" title="Finished with warnings or errors">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><path
+                          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                        ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
+                          x1="12"
+                          y1="17"
+                          x2="12.01"
+                          y2="17"
+                        ></line></svg
+                      >
+                    </div>
+                  {:else}
+                    <div class="status-indicator done" title="Finished successfully">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg
+                      >
+                    </div>
+                  {/if}
+                {/if}
+                <span class="queue-path" title={dir}>{dir}</span>
+              </div>
               <button
                 class="remove-btn"
                 onclick={() => removeDirectory(i)}
@@ -410,7 +697,7 @@
       </div>
     </div>
 
-    {#if config.conversion_mode === 'reencode'}
+    <div class="advanced-wrapper" class:expanded={config.conversion_mode === 'reencode'}>
       <div class="reencode-advanced-panel">
         <div class="grid-layout-3">
           <div class="row">
@@ -453,7 +740,7 @@
           </div>
         </div>
       </div>
-    {/if}
+    </div>
 
     <div class="action-row">
       {#if processingActive}
@@ -505,45 +792,78 @@
       <div class="terminal-header-row">
         <h3>Real-time Output Pipeline Log</h3>
         {#if consoleLogs.length > 0}
-          <button
-            class="copy-logs-btn"
-            class:copied={copiedStatus}
-            onclick={copyTerminalLogs}
-            aria-label="Copy logs"
-            data-tooltip={copiedStatus ? 'Copied!' : 'Copy logs'}
-          >
-            {#if copiedStatus}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            {:else}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-            {/if}
-          </button>
+          <div class="terminal-actions">
+            <button
+              class="copy-logs-btn"
+              class:copied={savedStatus}
+              onclick={saveTerminalLogs}
+              aria-label="Save logs"
+              data-tooltip={savedStatus ? 'Saved!' : 'Save logs'}
+            >
+              {#if savedStatus}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg
+                >
+              {:else}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                  ></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline
+                    points="7 3 7 8 15 8"
+                  ></polyline></svg
+                >
+              {/if}
+            </button>
+            <button
+              class="copy-logs-btn"
+              class:copied={copiedStatus}
+              onclick={copyTerminalLogs}
+              aria-label="Copy logs"
+              data-tooltip={copiedStatus ? 'Copied!' : 'Copy logs'}
+            >
+              {#if copiedStatus}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg
+                >
+              {:else}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path
+                    d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                  ></path></svg
+                >
+              {/if}
+            </button>
+          </div>
         {/if}
       </div>
       <div id="terminal-shell" class="terminal-shell">
         {#each consoleLogs as log, i (log + i)}
-          <div class="log-line">{log}</div>
+          <div class="log-line {getLogClass(log)}">{log}</div>
         {:else}
           <div class="empty-log-msg">Logs will appear here once processing begins...</div>
         {/each}
@@ -734,7 +1054,7 @@
     cursor: not-allowed;
   }
 
-  /* Perfectly clearing 4 item containers + layout gaps */
+  /* Dropzone Enhanced Queue Container */
   .queue-container {
     background-color: var(--bg-canvas);
     border: 1px solid var(--border-color);
@@ -746,7 +1066,14 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    transition: all 0.2s ease-in-out;
   }
+  .queue-container.dragging {
+    border-color: var(--accent-color);
+    background-color: rgba(59, 130, 246, 0.05);
+    outline: 1px dashed var(--accent-color);
+  }
+
   .empty-queue-msg {
     padding: 0.6rem;
     font-size: 0.85rem;
@@ -754,6 +1081,7 @@
     font-style: italic;
     text-align: center;
     padding-top: 3.7rem;
+    pointer-events: none;
   }
   .queue-item {
     display: grid !important;
@@ -763,6 +1091,79 @@
     padding: 0.35rem 0.6rem;
     border-radius: 4px;
     border: 1px solid var(--border-color);
+    transition:
+      background-color 0.2s ease,
+      opacity 0.2s ease;
+  }
+  .queue-item:hover {
+    cursor: grab;
+  }
+  .queue-item:active {
+    cursor: grabbing;
+  }
+  .queue-item.dragging-item {
+    opacity: 0.9;
+    background-color: var(--border-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+  .queue-item.status-processing {
+    border-color: var(--accent-color);
+  }
+  .queue-item.status-done {
+    border-color: #22c55e;
+  }
+  .queue-item.status-warning {
+    border-color: #f59e0b;
+  }
+  .queue-path-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    overflow: hidden;
+  }
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .status-indicator.done {
+    color: #22c55e;
+  }
+  .status-indicator.warning {
+    color: #f59e0b; /* Amber/Orange for warnings */
+  }
+  .status-indicator.processing {
+    color: var(--accent-color);
+  }
+  .spinner {
+    animation: rotate 2s linear infinite;
+    width: 14px;
+    height: 14px;
+  }
+  .spinner .path {
+    stroke: currentColor;
+    stroke-linecap: round;
+    animation: dash 1.5s ease-in-out infinite;
+  }
+  @keyframes rotate {
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes dash {
+    0% {
+      stroke-dasharray: 1, 150;
+      stroke-dashoffset: 0;
+    }
+    50% {
+      stroke-dasharray: 90, 150;
+      stroke-dashoffset: -35;
+    }
+    100% {
+      stroke-dasharray: 90, 150;
+      stroke-dashoffset: -124;
+    }
   }
   .queue-path {
     font-size: 0.85rem;
@@ -831,10 +1232,22 @@
     border-color: var(--accent-color);
   }
 
+  /* Collapsible Settings Implementation */
+  .advanced-wrapper {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.25s ease-out;
+    overflow: hidden;
+  }
+  .advanced-wrapper.expanded {
+    grid-template-rows: 1fr;
+  }
   .reencode-advanced-panel {
+    min-height: 0;
     border-top: 1px solid var(--border-color);
     padding-top: 0.5rem;
   }
+
   .action-row {
     display: flex;
     justify-content: flex-end;
@@ -957,14 +1370,17 @@
     align-items: center;
     height: 24px;
   }
-  .terminal-container h3 {
+  .terminal-header-row h3 {
     margin: 0;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-secondary);
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+  .terminal-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
   }
 
-  /* Icon-Only Copy Button Configuration */
   .copy-logs-btn {
     position: relative;
     display: inline-flex;
@@ -985,17 +1401,13 @@
     background-color: var(--bg-hover-panel);
     color: var(--text-primary);
   }
-
   .copy-logs-btn:active {
     transform: scale(0.92);
   }
-
   .copy-logs-btn.copied {
     color: var(--text-primary);
     border-color: var(--text-secondary);
   }
-
-  /* Force inner SVGs to be visible and correctly scaled */
   .copy-logs-btn svg {
     display: block !important;
     width: 14px !important;
@@ -1003,7 +1415,6 @@
     stroke: currentColor !important;
   }
 
-  /* Tooltip configured beneath the icon to bypass terminal header clipping boundaries */
   .copy-logs-btn::before {
     content: attr(data-tooltip);
     position: absolute;
@@ -1011,7 +1422,6 @@
     top: calc(100% + 6px);
     transform: translateY(-4px);
     z-index: 99;
-
     background-color: var(--bg-surface);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
@@ -1024,7 +1434,6 @@
       -apple-system,
       sans-serif;
     white-space: nowrap;
-
     opacity: 0;
     pointer-events: none;
     box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
@@ -1059,6 +1468,22 @@
     word-break: break-all;
     text-align: left;
   }
+
+  /* Log Highlight Colors */
+  .log-error {
+    color: var(--danger-color);
+    font-weight: 600;
+  }
+  .log-warning {
+    color: #eab308;
+  }
+  .log-success {
+    color: #22c55e;
+  }
+  .log-info {
+    color: var(--accent-color);
+  }
+
   .empty-log-msg {
     color: var(--text-secondary);
     font-style: italic;
