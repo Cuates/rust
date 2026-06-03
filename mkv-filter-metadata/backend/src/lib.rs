@@ -513,7 +513,7 @@ async fn process_video_pipeline(
                 if path.is_file() {
                     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                         if extensions.contains(&ext.to_lowercase()) {
-                            target_files.push(path);
+                            target_files.push((dir_path.clone(), path));
                         }
                     }
                 }
@@ -538,7 +538,7 @@ async fn process_video_pipeline(
     let mut reencode_subtitle_retry_attempts = 0;
     let mut reencode_subtitle_retry_successes = 0;
 
-    for (index, file_path) in target_files.iter().enumerate() {
+    for (index, (queue_dir, file_path)) in target_files.iter().enumerate() {
         if state.is_aborted.load(Ordering::SeqCst) {
             return Err("Pipeline execution aborted by user Request.".to_string());
         }
@@ -563,7 +563,8 @@ async fn process_video_pipeline(
             serde_json::json!({
                 "progress": current_progress,
                 "current_index": current_index,
-                "total_files": total_files
+                "total_files": total_files,
+                "active_directory": queue_dir
             }),
         );
 
@@ -821,6 +822,11 @@ async fn process_video_pipeline(
     Ok(final_summary)
 }
 
+#[tauri::command]
+fn save_log_file(content: String, path: String) -> Result<(), String> {
+    std::fs::write(&path, content).map_err(|e| format!("Failed to save log file {}: {}", path, e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -831,7 +837,8 @@ pub fn run() {
             process_video_pipeline,
             abort_video_pipeline,
             get_sidecar_version,
-            check_nvenc_support
+            check_nvenc_support,
+            save_log_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
