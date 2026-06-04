@@ -257,7 +257,7 @@
   let pointerDraggingIndex = $state<number | null>(null);
   let pointerStartY = $state(0);
   let pointerCurrentY = $state(0);
-  const ITEM_HEIGHT = 34; // Approx total height of item + gap
+  const ITEM_HEIGHT = 36; // Adjusted to closely match 34px item + 2px border + 6.4px gap
 
   function handlePointerDown(e: PointerEvent, index: number) {
     if (processingActive) return;
@@ -273,13 +273,53 @@
     pointerCurrentY = e.clientY;
   }
 
-  function handleGlobalPointerMove(e: PointerEvent) {
+  let autoScrollDirection = 0;
+  let autoScrollRAF: number | null = null;
+
+  function startAutoScroll() {
+    if (autoScrollRAF !== null) return;
+
+    function scrollStep() {
+      if (pointerDraggingIndex === null || autoScrollDirection === 0) {
+        stopAutoScroll();
+        return;
+      }
+      const queueBox = document.getElementById('queue-box');
+      if (!queueBox) {
+        stopAutoScroll();
+        return;
+      }
+
+      const speed = 2; // Slower, more controlled scroll speed
+      const deltaScroll = autoScrollDirection * speed;
+      const before = queueBox.scrollTop;
+
+      queueBox.scrollTop += deltaScroll;
+      const actualScroll = queueBox.scrollTop - before;
+
+      if (actualScroll !== 0) {
+        pointerStartY -= actualScroll;
+        checkSwapLogic();
+      }
+
+      autoScrollRAF = requestAnimationFrame(scrollStep);
+    }
+    autoScrollRAF = requestAnimationFrame(scrollStep);
+  }
+
+  function stopAutoScroll() {
+    if (autoScrollRAF !== null) {
+      cancelAnimationFrame(autoScrollRAF);
+      autoScrollRAF = null;
+    }
+    autoScrollDirection = 0;
+  }
+
+  function checkSwapLogic() {
     if (pointerDraggingIndex === null) return;
-    pointerCurrentY = e.clientY;
+    let deltaY = pointerCurrentY - pointerStartY;
 
-    const deltaY = pointerCurrentY - pointerStartY;
-
-    if (deltaY > ITEM_HEIGHT && pointerDraggingIndex < config.input_directories.length - 1) {
+    while (deltaY > ITEM_HEIGHT && pointerDraggingIndex < config.input_directories.length - 1) {
       // Swap down
       const newDirs = [...config.input_directories];
       const temp = newDirs[pointerDraggingIndex];
@@ -289,7 +329,10 @@
 
       pointerDraggingIndex++;
       pointerStartY += ITEM_HEIGHT;
-    } else if (deltaY < -ITEM_HEIGHT && pointerDraggingIndex > 0) {
+      deltaY = pointerCurrentY - pointerStartY;
+    }
+
+    while (deltaY < -ITEM_HEIGHT && pointerDraggingIndex > 0) {
       // Swap up
       const newDirs = [...config.input_directories];
       const temp = newDirs[pointerDraggingIndex];
@@ -299,11 +342,44 @@
 
       pointerDraggingIndex--;
       pointerStartY -= ITEM_HEIGHT;
+      deltaY = pointerCurrentY - pointerStartY;
     }
+  }
+
+  function handleGlobalPointerMove(e: PointerEvent) {
+    if (pointerDraggingIndex === null) return;
+
+    const queueBox = document.getElementById('queue-box');
+    let clampedY = e.clientY;
+
+    if (queueBox) {
+      const rect = queueBox.getBoundingClientRect();
+      const scrollThreshold = 15; // Decreased from 40 to prevent accidental scroll when clicking items near the edge
+
+      if (clampedY < rect.top) {
+        clampedY = rect.top;
+      } else if (clampedY > rect.bottom) {
+        clampedY = rect.bottom;
+      }
+
+      if (e.clientY < rect.top + scrollThreshold) {
+        autoScrollDirection = -1;
+        startAutoScroll();
+      } else if (e.clientY > rect.bottom - scrollThreshold) {
+        autoScrollDirection = 1;
+        startAutoScroll();
+      } else {
+        stopAutoScroll();
+      }
+    }
+
+    pointerCurrentY = clampedY;
+    checkSwapLogic();
   }
 
   function handleGlobalPointerUp() {
     pointerDraggingIndex = null;
+    stopAutoScroll();
   }
 
   // File Drop Handlers for Tauri Dropzone visuals
@@ -574,7 +650,14 @@
               class:status-done={directoryStatuses[dir] === 'done' && !directoryErrors[dir]}
               class:status-warning={directoryStatuses[dir] === 'done' && directoryErrors[dir]}
               style={pointerDraggingIndex === i
-                ? `transform: translateY(${pointerCurrentY - pointerStartY}px); z-index: 10; position: relative;`
+                ? `transform: translateY(${
+                    i === 0 && pointerCurrentY - pointerStartY < 0
+                      ? Math.max(pointerCurrentY - pointerStartY, -20)
+                      : i === config.input_directories.length - 1 &&
+                          pointerCurrentY - pointerStartY > 0
+                        ? Math.min(pointerCurrentY - pointerStartY, 20)
+                        : pointerCurrentY - pointerStartY
+                  }px); z-index: 10; position: relative;`
                 : ''}
               onpointerdown={(e) => handlePointerDown(e, i)}
               role="listitem"
