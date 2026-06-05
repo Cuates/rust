@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
@@ -86,15 +85,26 @@ async fn get_directory_stats(
     .map_err(|e| format!("Task join error: {}", e))
 }
 
-#[derive(Default)]
 pub struct AppState {
     pub is_aborted: AtomicBool,
-    pub active_child: Mutex<Option<tauri_plugin_shell::process::CommandChild>>,
-    pub current_output_path: Mutex<Option<PathBuf>>,
+    pub process: tokio::sync::Mutex<ProcessSession>,
+}
 
-    // --- NEW: Full Session Rollback Ledgers ---
-    pub session_output_files: Mutex<Vec<PathBuf>>,
-    pub session_output_dirs: Mutex<Vec<PathBuf>>,
+#[derive(Default)]
+pub struct ProcessSession {
+    pub child: Option<tauri_plugin_shell::process::CommandChild>,
+    pub output_path: Option<PathBuf>,
+    pub output_files: Vec<PathBuf>,
+    pub output_dirs: Vec<PathBuf>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            is_aborted: AtomicBool::new(false),
+            process: tokio::sync::Mutex::new(ProcessSession::default()),
+        }
+    }
 }
 
 /// Maps generic presets to NVENC-specific hardware presets (p1-p7)
@@ -323,45 +333,24 @@ async fn abort_video_pipeline(
 ) -> Result<(), String> {
     state.is_aborted.store(true, Ordering::SeqCst);
 
-    let opt_child = {
-        let mut lock = state
-            .active_child
-            .lock()
-            .map_err(|_| "Process lock exception")?;
-        lock.take()
+    let (opt_child, target_cleanup_path, files_to_delete, dirs_to_check) = {
+        let mut session = state.process.lock().await;
+
+        let child = session.child.take();
+        let path = session.output_path.take();
+        let files = session.output_files.clone();
+        let dirs = session.output_dirs.clone();
+
+        session.output_files.clear();
+        session.output_dirs.clear();
+
+        (child, path, files, dirs)
     };
 
     if let Some(child) = opt_child {
         let _ = child.kill();
         tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
     }
-
-    let (files_to_delete, dirs_to_check) = {
-        let mut files_lock = state
-            .session_output_files
-            .lock()
-            .map_err(|_| "Files tracking lock exception")?;
-        let mut dirs_lock = state
-            .session_output_dirs
-            .lock()
-            .map_err(|_| "Dirs tracking lock exception")?;
-
-        let files = files_lock.clone();
-        let dirs = dirs_lock.clone();
-
-        files_lock.clear();
-        dirs_lock.clear();
-
-        (files, dirs)
-    };
-
-    let target_cleanup_path = {
-        let mut path_lock = state
-            .current_output_path
-            .lock()
-            .map_err(|_| "Path lock acquisition exception")?;
-        path_lock.take()
-    };
 
     if let Some(path) = target_cleanup_path {
         if path.exists() {
@@ -478,11 +467,8 @@ async fn run_sidecar_command(
         .map_err(|e| format!("Failed allocating processing thread instance context: {e}"))?;
 
     {
-        let mut lock = state
-            .active_child
-            .lock()
-            .map_err(|_| "Process lock exception")?;
-        *lock = Some(child);
+        let mut session = state.process.lock().await;
+        session.child = Some(child);
     }
 
     let mut aborted_mid_stream = false;
@@ -588,19 +574,11 @@ async fn process_video_pipeline(
 ) -> Result<String, String> {
     state.is_aborted.store(false, Ordering::SeqCst);
     {
-        let mut lock = state.active_child.lock().map_err(|_| "State init fault")?;
-        *lock = None;
-        let mut path_lock = state
-            .current_output_path
-            .lock()
-            .map_err(|_| "Output path tracking init fault")?;
-        *path_lock = None;
-
-        let mut files_lock = state.session_output_files.lock().unwrap();
-        files_lock.clear();
-
-        let mut dirs_lock = state.session_output_dirs.lock().unwrap();
-        dirs_lock.clear();
+        let mut session = state.process.lock().await;
+        session.child = None;
+        session.output_path = None;
+        session.output_files.clear();
+        session.output_dirs.clear();
     }
 
     let _ = app.emit(
@@ -702,9 +680,9 @@ async fn process_video_pipeline(
         }
 
         {
-            let mut dirs_lock = state.session_output_dirs.lock().unwrap();
-            if !dirs_lock.contains(&processed_dir_path) {
-                dirs_lock.push(processed_dir_path.clone());
+            let mut session = state.process.lock().await;
+            if !session.output_dirs.contains(&processed_dir_path) {
+                session.output_dirs.push(processed_dir_path.clone());
             }
         }
 
@@ -722,14 +700,9 @@ async fn process_video_pipeline(
         let output_file_path = processed_dir_path.join(clean_output_filename);
 
         {
-            let mut path_lock = state
-                .current_output_path
-                .lock()
-                .map_err(|_| "Failed lock acquisition")?;
-            *path_lock = Some(output_file_path.clone());
-
-            let mut files_lock = state.session_output_files.lock().unwrap();
-            files_lock.push(output_file_path.clone());
+            let mut session = state.process.lock().await;
+            session.output_path = Some(output_file_path.clone());
+            session.output_files.push(output_file_path.clone());
         }
 
         // Run ffprobe to get exact stream IDs for matching subtitles before building ffmpeg command
@@ -892,8 +865,8 @@ async fn process_video_pipeline(
     }
 
     {
-        let mut path_lock = state.current_output_path.lock().unwrap();
-        *path_lock = None;
+        let mut session = state.process.lock().await;
+        session.output_path = None;
     }
 
     let _ = app.emit(
