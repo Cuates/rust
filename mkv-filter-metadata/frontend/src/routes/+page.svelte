@@ -535,23 +535,27 @@
       const summaryMessage: string = await invoke('process_video_pipeline', { payload: config });
 
       overallProgress = 100;
-      currentFilename = '';
-      intraFileProgress = 0;
       consoleLogs = [...consoleLogs, summaryMessage];
-
-      // Mark any remaining processing/pending directories as done
-      const newStatuses = { ...directoryStatuses };
-      for (const key in newStatuses) {
-        if (newStatuses[key] === 'processing' || newStatuses[key] === 'pending') {
-          newStatuses[key] = 'done';
-        }
-      }
-      directoryStatuses = newStatuses;
     } catch (err: unknown) {
       consoleLogs = [...consoleLogs, `❌ Pipeline execution failure: ${err}`];
     } finally {
       processingActive = false;
       stopTimer();
+
+      currentFilename = '';
+      intraFileProgress = 0;
+
+      const newStatuses = { ...directoryStatuses };
+      for (const key in newStatuses) {
+        if (newStatuses[key] === 'processing' || newStatuses[key] === 'pending') {
+          if (overallProgress === 100) {
+            newStatuses[key] = 'done';
+          } else {
+            delete newStatuses[key];
+          }
+        }
+      }
+      directoryStatuses = newStatuses;
 
       const endDate = new Date();
       const elapsedMs = endDate.getTime() - startTime;
