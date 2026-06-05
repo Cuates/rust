@@ -438,6 +438,19 @@ fn is_error_line(line: &str) -> bool {
         || ml.starts_with("error sending frames")
 }
 
+/// Helper function to parse FFmpeg time format (HH:MM:SS.xx) into seconds.
+fn parse_ffmpeg_time(time_str: &str) -> Option<f64> {
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() == 3 {
+        let h: f64 = parts[0].parse().unwrap_or(0.0);
+        let m: f64 = parts[1].parse().unwrap_or(0.0);
+        let s: f64 = parts[2].parse().unwrap_or(0.0);
+        Some(h * 3600.0 + m * 60.0 + s)
+    } else {
+        None
+    }
+}
+
 /// Helper function to execute a sidecar command and handle its events.
 /// Returns (success, collected_stderr_lines) so callers can inspect FFmpeg's error output.
 async fn run_sidecar_command(
@@ -469,6 +482,7 @@ async fn run_sidecar_command(
     let mut aborted_mid_stream = false;
     let mut file_success = false;
     let mut collected_stderr: Vec<String> = Vec::new();
+    let mut total_duration_secs: Option<f64> = None;
 
     while let Some(event) = rx.recv().await {
         if state.is_aborted.load(Ordering::SeqCst) {
@@ -502,6 +516,34 @@ async fn run_sidecar_command(
                         // Collect all stderr lines so the caller can inspect them for
                         // subtitle incompatibility errors after the run completes
                         collected_stderr.push(t.to_string());
+
+                        if total_duration_secs.is_none() && t.starts_with("Duration:") {
+                            if let Some(dur_str) = t
+                                .strip_prefix("Duration:")
+                                .map(|s| s.trim())
+                                .and_then(|s| s.split(',').next())
+                            {
+                                total_duration_secs = parse_ffmpeg_time(dur_str);
+                            }
+                        } else if let Some(total_secs) = total_duration_secs {
+                            if let Some(time_idx) = t.find("time=") {
+                                let time_sub = &t[time_idx + 5..];
+                                if let Some(time_str) = time_sub.split_whitespace().next() {
+                                    if let Some(current_secs) = parse_ffmpeg_time(time_str) {
+                                        let mut percent = (current_secs / total_secs) * 100.0;
+                                        if percent > 100.0 {
+                                            percent = 100.0;
+                                        }
+                                        let _ = app.emit(
+                                            "process-progress",
+                                            serde_json::json!({
+                                                "intra_progress": percent
+                                            }),
+                                        );
+                                    }
+                                }
+                            }
+                        }
 
                         if is_error_line(t) {
                             let _ = app.emit("process-log", format!("  | [ERROR] {}", t));
@@ -626,7 +668,8 @@ async fn process_video_pipeline(
                 "progress": current_progress,
                 "current_index": current_index,
                 "total_files": total_files,
-                "active_directory": queue_dir
+                "active_directory": queue_dir,
+                "current_filename": file_name
             }),
         );
 
