@@ -18,6 +18,68 @@ pub struct VideoPipelinePayload {
     pub crf: String,
 }
 
+#[derive(Serialize)]
+pub struct FileStat {
+    pub name: String,
+    pub size_bytes: u64,
+}
+
+#[derive(Serialize)]
+pub struct DirectoryStats {
+    pub exists: bool,
+    pub file_count: usize,
+    pub total_size_bytes: u64,
+    pub files: Vec<FileStat>,
+}
+
+#[tauri::command]
+async fn get_directory_stats(
+    dir_path: String,
+    file_extensions: String,
+) -> Result<DirectoryStats, String> {
+    let path = Path::new(&dir_path);
+    if !path.exists() || !path.is_dir() {
+        return Ok(DirectoryStats {
+            exists: false,
+            file_count: 0,
+            total_size_bytes: 0,
+            files: Vec::new(),
+        });
+    }
+
+    let extensions = parse_comma_list(&file_extensions);
+    let mut file_count = 0;
+    let mut total_size_bytes = 0;
+    let mut files = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+                    if extensions.contains(&ext.to_lowercase()) {
+                        file_count += 1;
+                        let mut size_bytes = 0;
+                        if let Ok(meta) = entry.metadata() {
+                            size_bytes = meta.len();
+                            total_size_bytes += size_bytes;
+                        }
+                        let name = entry.file_name().to_string_lossy().into_owned();
+                        files.push(FileStat { name, size_bytes });
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(DirectoryStats {
+        exists: true,
+        file_count,
+        total_size_bytes,
+        files,
+    })
+}
+
 #[derive(Default)]
 pub struct AppState {
     pub is_aborted: AtomicBool,
@@ -838,7 +900,8 @@ pub fn run() {
             abort_video_pipeline,
             get_sidecar_version,
             check_nvenc_support,
-            save_log_file
+            save_log_file,
+            get_directory_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
