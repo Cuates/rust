@@ -17,6 +17,7 @@
   let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
   let startTime = 0;
   let queueComponent: ReturnType<typeof DirectoryQueue>;
+  let terminalComponent: ReturnType<typeof TerminalLog>;
 
   onMount(() => {
     const savedTheme = localStorage.getItem('app-theme');
@@ -66,8 +67,7 @@
           }
         }
         await tick();
-        const term = document.getElementById('terminal-shell');
-        if (term) term.scrollTop = term.scrollHeight;
+        if (terminalComponent) terminalComponent.scrollToBottom();
       });
 
       const unlistenProgressFn = await listen<{
@@ -201,8 +201,7 @@
       '--------------------------------------------------------'
     ];
     await tick();
-    const term = document.getElementById('terminal-shell');
-    if (term) term.scrollTop = term.scrollHeight;
+    if (terminalComponent) terminalComponent.scrollToBottom();
   }
 
   async function executePipeline() {
@@ -212,8 +211,7 @@
         '❌ Error: Please add at least one target directory to the queue before running processing tasks.'
       ];
       await tick();
-      let term = document.getElementById('terminal-shell');
-      if (term) term.scrollTop = term.scrollHeight;
+      if (terminalComponent) terminalComponent.scrollToBottom();
       return;
     }
 
@@ -305,8 +303,7 @@
       ];
 
       await tick();
-      const term = document.getElementById('terminal-shell');
-      if (term) term.scrollTop = term.scrollHeight;
+      if (terminalComponent) terminalComponent.scrollToBottom();
     }
   }
 
@@ -317,8 +314,7 @@
         '⚠️ Halt instruction issued. Terminating processes and rolling back...'
       ];
       await tick();
-      let term = document.getElementById('terminal-shell');
-      if (term) term.scrollTop = term.scrollHeight;
+      if (terminalComponent) terminalComponent.scrollToBottom();
 
       await invoke('abort_video_pipeline');
       pipeline.consoleLogs = [
@@ -333,8 +329,7 @@
 
       await tick();
       setTimeout(() => {
-        let term = document.getElementById('terminal-shell');
-        if (term) term.scrollTop = term.scrollHeight;
+        if (terminalComponent) terminalComponent.scrollToBottom();
       }, 40);
     }
   }
@@ -397,7 +392,7 @@
     {#if pipeline.showMetricsPanel}
       <MetricsPanel />
     {/if}
-    <TerminalLog />
+    <TerminalLog bind:this={terminalComponent} />
   </div>
 </main>
 

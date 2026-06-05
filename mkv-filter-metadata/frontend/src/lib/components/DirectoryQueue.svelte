@@ -11,6 +11,7 @@
   const ITEM_HEIGHT = 36;
   let autoScrollDirection = 0;
   let autoScrollRAF: number | null = null;
+  let queueBoxEl = $state<HTMLElement | null>(null);
 
   export function handleDragDrop(paths: string[]) {
     const newPaths = paths.filter((p) => !config.input_directories.includes(p));
@@ -84,16 +85,15 @@
         stopAutoScroll();
         return;
       }
-      const queueBox = document.getElementById('queue-box');
-      if (!queueBox) {
+      if (!queueBoxEl) {
         stopAutoScroll();
         return;
       }
       const speed = 2;
       const deltaScroll = autoScrollDirection * speed;
-      const before = queueBox.scrollTop;
-      queueBox.scrollTop += deltaScroll;
-      const actualScroll = queueBox.scrollTop - before;
+      const before = queueBoxEl.scrollTop;
+      queueBoxEl.scrollTop += deltaScroll;
+      const actualScroll = queueBoxEl.scrollTop - before;
       if (actualScroll !== 0) {
         pointerStartY -= actualScroll;
         checkSwapLogic();
@@ -138,10 +138,9 @@
 
   export function handleGlobalPointerMove(e: PointerEvent) {
     if (pointerDraggingIndex === null) return;
-    const queueBox = document.getElementById('queue-box');
     let clampedY = e.clientY;
-    if (queueBox) {
-      const rect = queueBox.getBoundingClientRect();
+    if (queueBoxEl) {
+      const rect = queueBoxEl.getBoundingClientRect();
       const scrollThreshold = 15;
       if (clampedY < rect.top) clampedY = rect.top;
       else if (clampedY > rect.bottom) clampedY = rect.bottom;
@@ -218,6 +217,7 @@
     </div>
   </div>
   <div
+    bind:this={queueBoxEl}
     id="queue-box"
     class="queue-container {isDragging ? 'dragging' : ''}"
     ondragover={handleDragOver}

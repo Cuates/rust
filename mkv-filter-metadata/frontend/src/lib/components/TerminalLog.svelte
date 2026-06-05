@@ -6,6 +6,13 @@
 
   let copiedStatus = $state(false);
   let savedStatus = $state(false);
+  let terminalEl = $state<HTMLElement | null>(null);
+
+  export function scrollToBottom() {
+    if (terminalEl) {
+      terminalEl.scrollTop = terminalEl.scrollHeight;
+    }
+  }
 
   async function copyTerminalLogs() {
     if (pipeline.consoleLogs.length === 0) return;
@@ -135,7 +142,7 @@
       </div>
     {/if}
   </div>
-  <div id="terminal-shell" class="terminal-shell">
+  <div bind:this={terminalEl} id="terminal-shell" class="terminal-shell">
     {#each pipeline.consoleLogs as log, i (log + i)}
       <div class="log-line {getLogClass(log)}">{log}</div>
     {:else}
