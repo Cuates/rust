@@ -3,6 +3,7 @@ use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_shell::ShellExt;
 
+use crate::error::AppError;
 use crate::models::AppState;
 
 /// Maps generic presets to NVENC-specific hardware presets (p1-p7)
@@ -109,11 +110,11 @@ pub async fn get_matching_subtitle_maps(
     app: &AppHandle,
     file_path: &Path,
     allowed_langs: &[String],
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<String>, AppError> {
     let shell = app.shell();
     let cmd = shell
         .sidecar("ffprobe")
-        .map_err(|e| format!("Failed to initialize ffprobe sidecar configuration: {}", e))?
+        .map_err(|e| AppError::Sidecar(format!("Failed to initialize ffprobe sidecar configuration: {}", e)))?
         .args([
             "-v",
             "error",
@@ -129,7 +130,7 @@ pub async fn get_matching_subtitle_maps(
     let output = cmd
         .output()
         .await
-        .map_err(|e| format!("ffprobe execution error: {}", e))?;
+        .map_err(|e| AppError::Sidecar(format!("ffprobe execution error: {}", e)))?;
 
     if !output.status.success() {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
@@ -139,7 +140,7 @@ pub async fn get_matching_subtitle_maps(
             .filter(|l| !l.is_empty())
             .collect::<Vec<_>>()
             .join(" | ");
-        return Err(format!("ffprobe diagnostic failure: {}", stderr_sanitized));
+        return Err(AppError::FfprobeFailed(format!("ffprobe diagnostic failure: {}", stderr_sanitized)));
     }
 
     let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -211,18 +212,18 @@ pub async fn run_sidecar_command(
     state: &tauri::State<'_, AppState>,
     binary_name: &str,
     args: Vec<String>,
-) -> Result<(bool, Vec<String>), String> {
+) -> Result<(bool, Vec<String>), AppError> {
     let shell = app.shell();
     let is_mkvmerge = binary_name == "mkvmerge";
 
     let cmd = shell
         .sidecar(binary_name)
-        .map_err(|e| format!("Failed generating sidecar configurations: {e}"))?
+        .map_err(|e| AppError::Sidecar(format!("Failed generating sidecar configurations: {e}")))?
         .args(args);
 
     let (mut rx, child) = cmd
         .spawn()
-        .map_err(|e| format!("Failed allocating processing thread instance context: {e}"))?;
+        .map_err(|e| AppError::Sidecar(format!("Failed allocating processing thread instance context: {e}")))?;
 
     {
         let mut session = state.process.lock().await;
@@ -315,7 +316,7 @@ pub async fn run_sidecar_command(
     }
 
     if aborted_mid_stream || state.is_aborted.load(Ordering::SeqCst) {
-        return Err("Pipeline execution aborted by user Request.".to_string());
+        return Err(AppError::Aborted);
     }
 
     Ok((file_success, collected_stderr))

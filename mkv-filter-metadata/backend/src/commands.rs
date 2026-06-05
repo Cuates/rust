@@ -4,6 +4,7 @@ use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
+use crate::error::AppError;
 use crate::models::{AppState, DirectoryStats, FileStat, VideoPipelinePayload};
 use crate::process::{
     build_ffmpeg_args, get_ffmpeg_preset, get_matching_subtitle_maps, parse_comma_list,
@@ -14,7 +15,7 @@ use crate::process::{
 pub async fn get_directory_stats(
     dir_path: String,
     file_extensions: String,
-) -> Result<DirectoryStats, String> {
+) -> Result<DirectoryStats, AppError> {
     tokio::task::spawn_blocking(move || {
         let path = Path::new(&dir_path);
         if !path.exists() || !path.is_dir() {
@@ -61,7 +62,7 @@ pub async fn get_directory_stats(
         }
     })
     .await
-    .map_err(|e| format!("Task join error: {}", e))
+    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))
 }
 
 #[tauri::command]
@@ -69,7 +70,7 @@ pub async fn process_video_pipeline(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     payload: VideoPipelinePayload,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     state.is_aborted.store(false, Ordering::SeqCst);
     {
         let mut session = state.process.lock().await;
@@ -95,7 +96,7 @@ pub async fn process_video_pipeline(
 
         for dir_path in &input_directories {
             if state.is_aborted.load(Ordering::SeqCst) {
-                return Err("Pipeline execution aborted by user Request.".to_string());
+                return Err(AppError::Aborted);
             }
 
             for entry in walkdir::WalkDir::new(dir_path)
@@ -116,7 +117,7 @@ pub async fn process_video_pipeline(
         Ok(target_files)
     })
     .await
-    .map_err(|e| format!("Task join error: {}", e))??;
+    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))??;
 
     let total_files = target_files.len();
     let _ = app.emit(
@@ -136,7 +137,7 @@ pub async fn process_video_pipeline(
 
     for (index, (queue_dir, file_path)) in target_files.iter().enumerate() {
         if state.is_aborted.load(Ordering::SeqCst) {
-            return Err("Pipeline execution aborted by user Request.".to_string());
+            return Err(AppError::Aborted);
         }
 
         let file_name = file_path
@@ -167,12 +168,12 @@ pub async fn process_video_pipeline(
 
         let parent_dir = file_path
             .parent()
-            .ok_or("Unable to resolve parent path contextual tracking.")?;
+            .ok_or_else(|| AppError::Process("Unable to resolve parent path contextual tracking.".to_string()))?;
         let processed_dir_path = parent_dir.join("processed_files");
 
         if !processed_dir_path.exists() {
             std::fs::create_dir_all(&processed_dir_path).map_err(|e| {
-                format!("Failed to instantiate target subfolder workspace directory: {e}")
+                AppError::Process(format!("Failed to instantiate target subfolder workspace directory: {e}"))
             })?;
         }
 
@@ -412,7 +413,7 @@ pub async fn process_video_pipeline(
 }
 
 #[tauri::command]
-pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<String, String> {
+pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<String, AppError> {
     let shell = app.shell();
     let args = if binary_name == "mkvmerge" {
         vec!["--version".to_string()]
@@ -422,13 +423,13 @@ pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<
 
     let cmd = shell
         .sidecar(&binary_name)
-        .map_err(|e| format!("Failed to initialize sidecar configuration: {e}"))?
+        .map_err(|e| AppError::Sidecar(format!("Failed to initialize sidecar configuration: {e}")))?
         .args(args);
 
     let output = cmd
         .output()
         .await
-        .map_err(|e| format!("Binary execution error: {e}"))?;
+        .map_err(|e| AppError::Sidecar(format!("Binary execution error: {e}")))?;
 
     if output.status.success() {
         let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -438,7 +439,7 @@ pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<
         Ok(stdout_str.into_owned())
     } else {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Sidecar diagnostic failure: {}", stderr_str))
+        Err(AppError::Sidecar(format!("Sidecar diagnostic failure: {}", stderr_str)))
     }
 }
 
@@ -458,7 +459,7 @@ pub async fn check_nvenc_support(app: AppHandle) -> bool {
 pub async fn abort_video_pipeline(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     state.is_aborted.store(true, Ordering::SeqCst);
 
     let (opt_child, target_cleanup_path, files_to_delete, dirs_to_check) = {
@@ -532,6 +533,7 @@ pub async fn abort_video_pipeline(
 }
 
 #[tauri::command]
-pub fn save_log_file(content: String, path: String) -> Result<(), String> {
-    std::fs::write(&path, content).map_err(|e| format!("Failed to save log file {}: {}", path, e))
+pub fn save_log_file(content: String, path: String) -> Result<(), AppError> {
+    std::fs::write(&path, content)?;
+    Ok(())
 }
