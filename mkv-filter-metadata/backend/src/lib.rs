@@ -3,7 +3,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -37,23 +37,27 @@ async fn get_directory_stats(
     dir_path: String,
     file_extensions: String,
 ) -> Result<DirectoryStats, String> {
-    let path = Path::new(&dir_path);
-    if !path.exists() || !path.is_dir() {
-        return Ok(DirectoryStats {
-            exists: false,
-            file_count: 0,
-            total_size_bytes: 0,
-            files: Vec::new(),
-        });
-    }
+    tokio::task::spawn_blocking(move || {
+        let path = Path::new(&dir_path);
+        if !path.exists() || !path.is_dir() {
+            return DirectoryStats {
+                exists: false,
+                file_count: 0,
+                total_size_bytes: 0,
+                files: Vec::new(),
+            };
+        }
 
-    let extensions = parse_comma_list(&file_extensions);
-    let mut file_count = 0;
-    let mut total_size_bytes = 0;
-    let mut files = Vec::new();
+        let extensions = parse_comma_list(&file_extensions);
+        let mut file_count = 0;
+        let mut total_size_bytes = 0;
+        let mut files = Vec::new();
 
-    if let Ok(entries) = std::fs::read_dir(path) {
-        for entry in entries.flatten() {
+        for entry in walkdir::WalkDir::new(path)
+            .max_depth(1)
+            .into_iter()
+            .flatten()
+        {
             let p = entry.path();
             if p.is_file() {
                 if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
@@ -70,14 +74,16 @@ async fn get_directory_stats(
                 }
             }
         }
-    }
 
-    Ok(DirectoryStats {
-        exists: true,
-        file_count,
-        total_size_bytes,
-        files,
+        DirectoryStats {
+            exists: true,
+            file_count,
+            total_size_bytes,
+            files,
+        }
     })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))
 }
 
 #[derive(Default)]
@@ -604,26 +610,37 @@ async fn process_video_pipeline(
 
     let extensions = parse_comma_list(&payload.file_extensions);
     let sub_langs = parse_comma_list(&payload.subtitle_tracks);
-    let mut target_files = Vec::new();
+    let input_directories = payload.input_directories.clone();
+    let app_clone = app.clone();
 
-    for dir_path in &payload.input_directories {
-        if state.is_aborted.load(Ordering::SeqCst) {
-            return Err("Pipeline execution aborted by user Request.".to_string());
-        }
+    let target_files = tokio::task::spawn_blocking(move || {
+        let mut target_files = Vec::new();
+        let state = app_clone.state::<AppState>();
 
-        if let Ok(entries) = std::fs::read_dir(dir_path) {
-            for entry in entries.flatten() {
+        for dir_path in &input_directories {
+            if state.is_aborted.load(Ordering::SeqCst) {
+                return Err("Pipeline execution aborted by user Request.".to_string());
+            }
+
+            for entry in walkdir::WalkDir::new(dir_path)
+                .max_depth(1)
+                .into_iter()
+                .flatten()
+            {
                 let path = entry.path();
                 if path.is_file() {
                     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                         if extensions.contains(&ext.to_lowercase()) {
-                            target_files.push((dir_path.clone(), path));
+                            target_files.push((dir_path.clone(), path.to_path_buf()));
                         }
                     }
                 }
             }
         }
-    }
+        Ok(target_files)
+    })
+    .await
+    .map_err(|e| format!("Task join error: {}", e))??;
 
     let total_files = target_files.len();
     let _ = app.emit(
