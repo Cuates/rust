@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "MKV Filter Metadata",
+        "dragDropEnabled": true,
         "width": 850,
         "height": 1050,
         "resizable": true,
