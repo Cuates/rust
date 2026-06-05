@@ -14,7 +14,7 @@ export const pipeline = $state({
   runningTimeFormatted: '0ms',
 
   // Granular Status tracking
-  directoryStatuses: {} as Record<string, 'pending' | 'processing' | 'done' | 'error'>,
+  directoryStatuses: {} as Record<string, 'pending' | 'processing' | 'done' | 'error' | 'skipped'>,
   directoryErrors: {} as Record<string, boolean>,
   currentActiveDirectory: null as string | null,
   directoryStats: {} as Record<string, DirStats>,

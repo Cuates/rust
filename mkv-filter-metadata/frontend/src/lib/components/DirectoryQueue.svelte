@@ -238,7 +238,9 @@
             ? 'status-done'
             : ''} {pipeline.directoryStatuses[dir] === 'done' && pipeline.directoryErrors[dir]
             ? 'status-warning'
-            : ''}"
+            : ''} {pipeline.directoryStatuses[dir] === 'skipped'
+            ? 'status-skipped'
+            : ''} {pipeline.processingActive ? 'is-locked' : ''}"
           style={pointerDraggingIndex === i
             ? `transform: translateY(${
                 i === 0 && pointerCurrentY - pointerStartY < 0
@@ -297,6 +299,31 @@
                   >
                 </div>
               {/if}
+            {:else if pipeline.directoryStatuses[dir] === 'skipped'}
+              <div
+                class="status-indicator skipped"
+                title={pipeline.directoryStats[dir] && !pipeline.directoryStats[dir].exists
+                  ? 'Skipped (Directory does not exist)'
+                  : 'Skipped (Directory is empty)'}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><polygon points="5 4 15 12 5 20 5 4"></polygon><line
+                    x1="19"
+                    y1="5"
+                    x2="19"
+                    y2="19"
+                  ></line></svg
+                >
+              </div>
             {/if}
             <span class="queue-path" title={dir}>{dir}</span>
           </div>
@@ -341,6 +368,7 @@
               onclick={() => removeDirectory(i)}
               disabled={pipeline.processingActive}
               aria-label="Remove item from path processing queue"
+              title="Remove directory from processing queue"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -484,6 +512,12 @@
     &:active {
       cursor: grabbing;
     }
+    &.is-locked {
+      &:hover,
+      &:active {
+        cursor: default;
+      }
+    }
     &.dragging-item {
       opacity: 0.9;
       background-color: var(--border-color);
@@ -497,6 +531,9 @@
     }
     &.status-warning {
       border-color: #f59e0b;
+    }
+    &.status-skipped {
+      border-color: var(--text-secondary);
     }
   }
 
@@ -525,6 +562,7 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    cursor: default;
 
     &.done {
       color: #22c55e;
@@ -534,6 +572,9 @@
     }
     &.processing {
       color: var(--accent-color);
+    }
+    &.skipped {
+      color: var(--text-secondary);
     }
   }
 
@@ -582,7 +623,7 @@
     background: none !important;
     border: none !important;
     color: var(--danger-color) !important;
-    cursor: pointer;
+    cursor: default;
     padding: 0.25rem !important;
     border-radius: 4px;
     display: inline-flex !important;

@@ -258,6 +258,13 @@
         }
       }
       pipeline.directoryStats = tempDirStats;
+
+      for (const dir of config.input_directories) {
+        if (tempDirStats[dir].file_count === 0) {
+          pipeline.directoryStatuses[dir] = 'skipped';
+        }
+      }
+
       pipeline.hasProcessClicked = true;
 
       config.crf = String(config.crf);
@@ -457,12 +464,16 @@
 
   .action-row {
     display: flex;
-    justify-content: flex-end;
+    width: 100%;
     align-items: center;
     gap: 0.75rem;
   }
 
   .action-trigger-btn {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     background-color: var(--accent-color);
     color: white;
     border: none;
@@ -483,6 +494,10 @@
   }
 
   .action-abort-btn {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     background-color: var(--danger-color);
     color: white;
     border: none;
@@ -491,8 +506,6 @@
     font-size: 0.85rem;
     font-weight: 700;
     cursor: pointer;
-    display: inline-flex;
-    align-items: center;
     transition: background-color 0.15s;
 
     &:hover {
