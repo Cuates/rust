@@ -27,6 +27,8 @@
   let currentFileIndex = $state(0);
   let totalFilesCount = $state(0);
   let overallProgress = $state(0);
+  let intraFileProgress = $state(0);
+  let currentFilename = $state<string>('');
   let runningTimeFormatted = $state('0ms');
 
   let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
@@ -136,12 +138,18 @@
       });
 
       const unlistenProgressFn = await listen<{
-        progress: number;
+        progress?: number;
+        intra_progress?: number;
         current_index?: number;
         total_files?: number;
         active_directory?: string;
+        current_filename?: string;
       }>('process-progress', (event) => {
         if (event.payload.progress !== undefined) overallProgress = event.payload.progress;
+        if (event.payload.intra_progress !== undefined)
+          intraFileProgress = event.payload.intra_progress;
+        if (event.payload.current_filename !== undefined)
+          currentFilename = event.payload.current_filename;
         if (event.payload.current_index !== undefined)
           currentFileIndex = event.payload.current_index;
         if (event.payload.total_files !== undefined) totalFilesCount = event.payload.total_files;
@@ -276,6 +284,8 @@
     totalFilesCount = 0;
     currentFileIndex = 0;
     overallProgress = 0;
+    intraFileProgress = 0;
+    currentFilename = '';
     runningTimeFormatted = '0ms';
     showMetricsPanel = false;
     directoryStatuses = {};
@@ -480,6 +490,8 @@
     processingActive = true;
     showMetricsPanel = true;
     overallProgress = 0;
+    intraFileProgress = 0;
+    currentFilename = '';
     currentFileIndex = 0;
     totalFilesCount = 0;
 
@@ -523,6 +535,8 @@
       const summaryMessage: string = await invoke('process_video_pipeline', { payload: config });
 
       overallProgress = 100;
+      currentFilename = '';
+      intraFileProgress = 0;
       consoleLogs = [...consoleLogs, summaryMessage];
 
       // Mark any remaining processing/pending directories as done
@@ -999,6 +1013,26 @@
               >Overall Progress: <strong>{overallProgress}%</strong></span
             >
           </div>
+          {#if currentFilename}
+            <div class="progress-bar-track" style="margin-top: 4px; height: 4px;">
+              <div
+                class="progress-bar-fill"
+                style="width: {intraFileProgress}%; background-color: var(--metrics-time-color);"
+              ></div>
+            </div>
+            <div class="progress-labels-sub-row" style="gap: 1rem;">
+              <span
+                class="sub-metric-label"
+                style="font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;"
+                title={currentFilename}
+              >
+                Current File: <strong>{currentFilename}</strong>
+              </span>
+              <span class="sub-metric-label text-right" style="font-size: 0.75rem; flex-shrink: 0;">
+                <strong>{intraFileProgress.toFixed(1)}%</strong>
+              </span>
+            </div>
+          {/if}
         </div>
         <div class="time-container-block">
           <span class="total-time-title">Total Conversion Time:</span>
