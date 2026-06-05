@@ -39,6 +39,40 @@
   let directoryErrors = $state<Record<string, boolean>>({});
   let currentActiveDirectory = $state<string | null>(null);
 
+  type FileStat = {
+    name: string;
+    size_bytes: number;
+  };
+
+  type DirStats = {
+    exists: boolean;
+    file_count: number;
+    total_size_bytes: number;
+    files: FileStat[];
+  };
+  let directoryStats = $state<Record<string, DirStats>>({});
+  let hasProcessClicked = $state(false);
+
+  function buildTooltip(stats: DirStats) {
+    if (!stats.exists) return 'Issue: Directory was deleted or renamed before processing';
+    if (stats.files.length === 0) return '0 media files, 0 B';
+
+    let tooltip = '';
+    for (const file of stats.files) {
+      tooltip += `${file.name} (${formatBytes(file.size_bytes)})\n`;
+    }
+    tooltip += `\nTotal: ${stats.file_count} media files, ${formatBytes(stats.total_size_bytes)}`;
+    return tooltip;
+  }
+
+  function formatBytes(bytes: number) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
   onMount(() => {
     // 1. Synchronous UI initialization
     const savedTheme = localStorage.getItem('app-theme');
@@ -236,20 +270,27 @@
     }
   }
 
+  function clearAllDirectories() {
+    config.input_directories = [];
+    consoleLogs = [];
+    totalFilesCount = 0;
+    currentFileIndex = 0;
+    overallProgress = 0;
+    runningTimeFormatted = '0ms';
+    showMetricsPanel = false;
+    directoryStatuses = {};
+    directoryErrors = {};
+    currentActiveDirectory = null;
+    directoryStats = {};
+    hasProcessClicked = false;
+  }
+
   function removeDirectory(index: number) {
     const updatedDirs = [...config.input_directories];
     updatedDirs.splice(index, 1);
     config.input_directories = updatedDirs;
     if (config.input_directories.length === 0) {
-      consoleLogs = [];
-      totalFilesCount = 0;
-      currentFileIndex = 0;
-      overallProgress = 0;
-      runningTimeFormatted = '0ms';
-      showMetricsPanel = false;
-      directoryStatuses = {};
-      directoryErrors = {};
-      currentActiveDirectory = null;
+      clearAllDirectories();
     }
   }
 
@@ -463,6 +504,21 @@
     startTimer();
     await displaySidecarVersions();
     try {
+      const tempDirStats: Record<string, DirStats> = {};
+      for (const dir of config.input_directories) {
+        try {
+          const stats = await invoke<DirStats>('get_directory_stats', {
+            dirPath: dir,
+            fileExtensions: config.file_extensions
+          });
+          tempDirStats[dir] = stats;
+        } catch {
+          tempDirStats[dir] = { exists: false, file_count: 0, total_size_bytes: 0, files: [] };
+        }
+      }
+      directoryStats = tempDirStats;
+      hasProcessClicked = true;
+
       config.crf = String(config.crf);
       const summaryMessage: string = await invoke('process_video_pipeline', { payload: config });
 
@@ -625,9 +681,44 @@
     <div class="row">
       <div class="queue-header">
         <label for="queue-box">Target Processing Queue ({config.input_directories.length})</label>
-        <button class="add-folder-btn" onclick={handleDirectoryBrowse} disabled={processingActive}>
-          + Add Folder to Queue
-        </button>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          {#if config.input_directories.length > 0}
+            <button
+              class="clear-queue-btn"
+              onclick={clearAllDirectories}
+              disabled={processingActive}
+              title="Clear entire queue"
+              aria-label="Clear entire processing queue"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><polyline points="3 6 5 6 21 6"></polyline><path
+                  d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                ></path><line x1="10" y1="11" x2="10" y2="17"></line><line
+                  x1="14"
+                  y1="11"
+                  x2="14"
+                  y2="17"
+                ></line></svg
+              >
+            </button>
+          {/if}
+          <button
+            class="add-folder-btn"
+            onclick={handleDirectoryBrowse}
+            disabled={processingActive}
+          >
+            + Add Folder to Queue
+          </button>
+        </div>
       </div>
       <div
         id="queue-box"
@@ -711,26 +802,71 @@
                 {/if}
                 <span class="queue-path" title={dir}>{dir}</span>
               </div>
-              <button
-                class="remove-btn"
-                onclick={() => removeDirectory(i)}
-                disabled={processingActive}
-                aria-label="Remove item from path processing queue"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"
-                  ></line></svg
+              <div class="queue-actions" style="display: flex; align-items: center; gap: 0.25rem;">
+                {#if hasProcessClicked && directoryStats[dir]}
+                  {#if !directoryStats[dir].exists}
+                    <div class="info-circle issue" title={buildTooltip(directoryStats[dir])}>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><circle cx="12" cy="12" r="10"></circle><line
+                          x1="12"
+                          y1="8"
+                          x2="12"
+                          y2="12"
+                        ></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg
+                      >
+                    </div>
+                  {:else}
+                    <div class="info-circle" title={buildTooltip(directoryStats[dir])}>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        ><circle cx="12" cy="12" r="10"></circle><line
+                          x1="12"
+                          y1="16"
+                          x2="12"
+                          y2="12"
+                        ></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg
+                      >
+                    </div>
+                  {/if}
+                {/if}
+                <button
+                  class="remove-btn"
+                  onclick={() => removeDirectory(i)}
+                  disabled={processingActive}
+                  aria-label="Remove item from path processing queue"
                 >
-              </button>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"
+                    ></line></svg
+                  >
+                </button>
+              </div>
             </div>
           {/each}
         {/if}
@@ -1128,6 +1264,27 @@
     align-items: center;
     justify-content: center;
   }
+  .clear-queue-btn {
+    background-color: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .clear-queue-btn:hover:not(:disabled) {
+    background-color: #ff4d4d;
+    color: white;
+    border-color: #ff4d4d;
+  }
+  .clear-queue-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
   .add-folder-btn:hover:not(:disabled) {
     background-color: var(--accent-color);
     color: white;
@@ -1197,6 +1354,17 @@
   }
   .queue-item.status-warning {
     border-color: #f59e0b;
+  }
+  .info-circle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    cursor: help;
+    color: var(--text-secondary);
+  }
+  .info-circle.issue {
+    color: #ff4d4d;
   }
   .queue-path-wrapper {
     display: flex;
