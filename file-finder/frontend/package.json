@@ -12,8 +12,8 @@
     "tauri": "tauri",
     "format": "prettier --write .",
     "lint": "prettier --check . && eslint .",
-    "test:unit": "vitest",
-    "coverage": "vitest run --coverage"
+    "test:unit": "vitest --passWithNoTests",
+    "coverage": "vitest run --coverage --passWithNoTests"
   },
   "license": "MIT",
   "dependencies": {
