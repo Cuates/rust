@@ -8,7 +8,8 @@ use crate::error::AppError;
 use crate::models::{AppState, DirectoryStats, FileStat, VideoPipelinePayload};
 use crate::process::{
     append_log, build_ffmpeg_args, get_ffmpeg_preset, get_matching_subtitle_maps, parse_comma_list,
-    run_sidecar_command, stderr_indicates_subtitle_incompatibility, ConversionMode, FfmpegJobConfig, ReencodeConfig, SubtitleCodec,
+    run_sidecar_command, stderr_indicates_subtitle_incompatibility, ConversionMode,
+    FfmpegJobConfig, ReencodeConfig, SubtitleCodec,
 };
 
 #[tauri::command]

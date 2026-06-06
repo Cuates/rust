@@ -68,7 +68,7 @@
             pipeline.currentFileIndex = 0;
           }
         }
-        
+
         if (!pipeline._scrollTimeout) {
           pipeline._scrollTimeout = setTimeout(async () => {
             pipeline._scrollTimeout = null;
@@ -147,13 +147,13 @@
   function startTimer() {
     if (timerInterval) cancelAnimationFrame(timerInterval);
     startTime = Date.now();
-    
+
     function tickTime() {
       const elapsedMs = Date.now() - startTime;
       pipeline.runningTimeFormatted = formatDuration(elapsedMs);
       timerInterval = requestAnimationFrame(tickTime);
     }
-    
+
     timerInterval = requestAnimationFrame(tickTime);
   }
 
@@ -374,8 +374,7 @@
             width="16"
             height="16"
             viewBox="0 0 24 24"
-            fill="currentColor"
-            style="margin-right: 6px;"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
+            class="stop-icon"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
           > Stop Execution
         </button>
       {:else}
@@ -510,6 +509,11 @@
     &:hover {
       background-color: var(--danger-hover);
     }
+  }
+
+  .stop-icon {
+    margin-right: 6px;
+    fill: currentColor;
   }
 
   .output-workspace-area {

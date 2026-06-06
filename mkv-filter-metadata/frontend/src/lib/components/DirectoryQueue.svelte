@@ -176,7 +176,7 @@
 <div class="row queue-header-row">
   <div class="queue-header">
     <label for="queue-box">Target Processing Queue ({config.input_directories.length})</label>
-    <div style="display: flex; gap: 0.5rem; align-items: center;">
+    <div class="queue-header-actions">
       {#if config.input_directories.length > 0}
         <button
           class="clear-queue-btn"
@@ -345,7 +345,7 @@
             {/if}
             <span class="queue-path" title={dir}>{dir}</span>
           </div>
-          <div class="queue-actions" style="display: flex; align-items: center; gap: 0.25rem;">
+          <div class="queue-actions">
             {#if pipeline.hasProcessClicked && pipeline.directoryStats[dir]}
               {#if !pipeline.directoryStats[dir].exists}
                 <div class="info-circle issue" title={buildTooltip(pipeline.directoryStats[dir])}>
@@ -431,6 +431,12 @@
       white-space: nowrap;
       flex-grow: 1;
     }
+  }
+
+  .queue-header-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
   }
 
   .add-folder-btn {
@@ -573,6 +579,12 @@
     align-items: center;
     gap: 0.5rem;
     overflow: hidden;
+  }
+
+  .queue-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
   }
 
   .status-indicator {

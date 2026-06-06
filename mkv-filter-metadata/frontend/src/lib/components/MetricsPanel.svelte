@@ -16,21 +16,17 @@
       >
     </div>
     {#if pipeline.currentFilename}
-      <div class="progress-bar-track" style="margin-top: 4px; height: 4px;">
+      <div class="progress-bar-track intra-track">
         <div
-          class="progress-bar-fill"
-          style="width: {pipeline.intraFileProgress}%; background-color: var(--metrics-time-color);"
+          class="progress-bar-fill intra-fill"
+          style="width: {pipeline.intraFileProgress}%;"
         ></div>
       </div>
-      <div class="progress-labels-sub-row" style="gap: 1rem;">
-        <span
-          class="sub-metric-label"
-          style="font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80%;"
-          title={pipeline.currentFilename}
-        >
+      <div class="progress-labels-sub-row intra-row">
+        <span class="sub-metric-label intra-label" title={pipeline.currentFilename}>
           Current File: <strong>{pipeline.currentFilename}</strong>
         </span>
-        <span class="sub-metric-label text-right" style="font-size: 0.75rem; flex-shrink: 0;">
+        <span class="sub-metric-label text-right intra-value">
           <strong>{pipeline.intraFileProgress.toFixed(1)}%</strong>
         </span>
       </div>
@@ -102,5 +98,27 @@
     color: var(--metrics-time-color);
     font-weight: 700;
     font-family: monospace, system-ui;
+  }
+
+  .intra-track {
+    margin-top: 4px;
+    height: 4px;
+  }
+  .intra-fill {
+    background-color: var(--metrics-time-color);
+  }
+  .intra-row {
+    gap: 1rem;
+  }
+  .intra-label {
+    font-size: 0.75rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80%;
+  }
+  .intra-value {
+    font-size: 0.75rem;
+    flex-shrink: 0;
   }
 </style>
