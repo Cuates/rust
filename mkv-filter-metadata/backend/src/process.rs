@@ -69,6 +69,19 @@ impl VideoCodec {
         }
     }
 
+    pub fn get_hwaccel_api(&self) -> &'static str {
+        match self {
+            VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => "cuda",
+            VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => "d3d11va",
+            VideoCodec::HevcQsv | VideoCodec::H264Qsv | VideoCodec::Av1Qsv => "qsv",
+            VideoCodec::HevcVideotoolbox
+            | VideoCodec::H264Videotoolbox
+            | VideoCodec::Av1Videotoolbox => "videotoolbox",
+            // Software encoders don't strictly need hardware decode, but auto is a safe fallback
+            VideoCodec::Libx264 | VideoCodec::Libx265 => "auto",
+        }
+    }
+
     pub fn get_hardware_args(&self, preset: &str, crf: &str) -> Vec<String> {
         let mapped_preset = self.map_preset(preset);
         let mut args = vec!["-c:v".to_string(), self.as_str().to_string()];
@@ -174,8 +187,19 @@ pub struct FfmpegJobConfig<'a> {
 
 /// Builds the base ffmpeg arg list (maps + codec flags) for either reencode or remux mode.
 pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
-    let mut args = vec![
-        "-y".to_string(),
+    let mut args = vec!["-y".to_string()];
+
+    // Dynamically inject the exact hardware acceleration framework needed for decoding
+    if let ConversionMode::Reencode = config.mode {
+        if let Some(reencode) = &config.reencode {
+            args.extend([
+                "-hwaccel".to_string(),
+                reencode.video_codec.get_hwaccel_api().to_string(),
+            ]);
+        }
+    }
+
+    args.extend([
         "-i".to_string(),
         config.input.to_string_lossy().into_owned(),
         "-map".to_string(),
@@ -184,7 +208,7 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
         "0:a?".to_string(), // map all audio safely
         "-map".to_string(),
         "0:t?".to_string(), // Keep attachments (fonts)
-    ];
+    ]);
 
     // Explicitly map exactly the subtitle IDs discovered by ffprobe
     for map in config.subtitle_maps {
