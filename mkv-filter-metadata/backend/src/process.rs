@@ -1,10 +1,30 @@
 use std::path::Path;
 use std::sync::atomic::Ordering;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 use crate::error::AppError;
 use crate::models::AppState;
+
+/// Writes a log message to disk and emits it to the frontend.
+pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
+    let msg = message.as_ref();
+    let _ = app.emit("process-log", msg);
+    if let Ok(log_dir) = app.path().app_log_dir() {
+        if !log_dir.exists() {
+            let _ = std::fs::create_dir_all(&log_dir);
+        }
+        let log_file = log_dir.join("session.log");
+        if let Ok(mut file) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_file)
+        {
+            use std::io::Write;
+            let _ = writeln!(file, "{}", msg);
+        }
+    }
+}
 
 /// Maps generic presets to NVENC-specific hardware presets (p1-p7)
 pub fn get_ffmpeg_preset(codec: &str, preset: &str) -> String {
@@ -114,7 +134,12 @@ pub async fn get_matching_subtitle_maps(
     let shell = app.shell();
     let cmd = shell
         .sidecar("ffprobe")
-        .map_err(|e| AppError::Sidecar(format!("Failed to initialize ffprobe sidecar configuration: {}", e)))?
+        .map_err(|e| {
+            AppError::Sidecar(format!(
+                "Failed to initialize ffprobe sidecar configuration: {}",
+                e
+            ))
+        })?
         .args([
             "-v",
             "error",
@@ -140,7 +165,10 @@ pub async fn get_matching_subtitle_maps(
             .filter(|l| !l.is_empty())
             .collect::<Vec<_>>()
             .join(" | ");
-        return Err(AppError::FfprobeFailed(format!("ffprobe diagnostic failure: {}", stderr_sanitized)));
+        return Err(AppError::FfprobeFailed(format!(
+            "ffprobe diagnostic failure: {}",
+            stderr_sanitized
+        )));
     }
 
     let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -221,9 +249,11 @@ pub async fn run_sidecar_command(
         .map_err(|e| AppError::Sidecar(format!("Failed generating sidecar configurations: {e}")))?
         .args(args);
 
-    let (mut rx, child) = cmd
-        .spawn()
-        .map_err(|e| AppError::Sidecar(format!("Failed allocating processing thread instance context: {e}")))?;
+    let (mut rx, child) = cmd.spawn().map_err(|e| {
+        AppError::Sidecar(format!(
+            "Failed allocating processing thread instance context: {e}"
+        ))
+    })?;
 
     {
         let mut session = state.process.lock().await;
@@ -251,9 +281,9 @@ pub async fn run_sidecar_command(
                     let t = line.trim();
                     if !t.is_empty() {
                         if is_error_line(t) {
-                            let _ = app.emit("process-log", format!("  | [ERROR] {}", t));
+                            append_log(app, format!("  | [ERROR] {}", t));
                         } else {
-                            let _ = app.emit("process-log", format!("  | [INFO] {}", t));
+                            append_log(app, format!("  | [INFO] {}", t));
                         }
                     }
                 }
@@ -295,9 +325,9 @@ pub async fn run_sidecar_command(
                         }
 
                         if is_error_line(t) {
-                            let _ = app.emit("process-log", format!("  | [ERROR] {}", t));
+                            append_log(app, format!("  | [ERROR] {}", t));
                         } else {
-                            let _ = app.emit("process-log", format!("  | [INFO] {}", t));
+                            append_log(app, format!("  | [INFO] {}", t));
                         }
                     }
                 }
@@ -309,7 +339,7 @@ pub async fn run_sidecar_command(
                 }
             }
             tauri_plugin_shell::process::CommandEvent::Error(err) => {
-                let _ = app.emit("process-log", format!("  | [FATAL] {}", err));
+                append_log(app, format!("  | [FATAL] {}", err));
             }
             _ => {}
         }

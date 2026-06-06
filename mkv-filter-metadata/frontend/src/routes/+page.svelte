@@ -5,7 +5,8 @@
   import { onMount, tick } from 'svelte';
 
   import { config, appState } from '../lib/stores/config.svelte';
-  import { pipeline } from '../lib/stores/pipeline.svelte';
+  import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
+  import { addToast } from '../lib/stores/toast.svelte';
   import type { DirStats } from '../lib/types';
   import { formatRunningTime } from '../lib/utils/formatters';
 
@@ -13,6 +14,7 @@
   import ConfigPanel from '../lib/components/ConfigPanel.svelte';
   import MetricsPanel from '../lib/components/MetricsPanel.svelte';
   import TerminalLog from '../lib/components/TerminalLog.svelte';
+  import ToastContainer from '../lib/components/ToastContainer.svelte';
 
   let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
   let startTime = 0;
@@ -58,7 +60,7 @@
           }
         }
 
-        pipeline.consoleLogs = [...pipeline.consoleLogs, event.payload];
+        addLogs(event.payload);
         if (event.payload.includes('Scanned file total:')) {
           const match = event.payload.match(/Scanned file total:\s*(\d+)/);
           if (match) {
@@ -112,10 +114,8 @@
           if (isClosing) return;
           isClosing = true;
           (async () => {
-            pipeline.consoleLogs = [
-              ...pipeline.consoleLogs,
-              '⚠️ Window close requested mid-execution. Cleaning up...'
-            ];
+            addToast('Aborting execution and cleaning up...', 'warning');
+            emitLog('⚠️ Window close requested mid-execution. Cleaning up...');
             await abortPipeline();
             await appWindow.destroy();
           })();
@@ -177,39 +177,29 @@
   }
 
   async function displaySidecarVersions() {
-    pipeline.consoleLogs = [
-      ...pipeline.consoleLogs,
-      '--- Querying Embedded Sidecar Binary Configurations ---'
-    ];
+    emitLog('--- Querying Embedded Sidecar Binary Configurations ---');
     const tools = ['ffmpeg', 'mkvmerge'];
     for (const tool of tools) {
       try {
         const ver: string = await invoke('get_sidecar_version', { binaryName: tool });
-        pipeline.consoleLogs = [
-          ...pipeline.consoleLogs,
-          `[Sidecar Asset] ${tool.toUpperCase()}: ${ver.trim()}`
-        ];
+        emitLog(`[Sidecar Asset] ${tool.toUpperCase()}: ${ver.trim()}`);
       } catch {
-        pipeline.consoleLogs = [
-          ...pipeline.consoleLogs,
+        emitLog(
           `[Sidecar Asset] ${tool.toUpperCase()}: Verified embedded production binary instance asset active.`
-        ];
+        );
       }
     }
-    pipeline.consoleLogs = [
-      ...pipeline.consoleLogs,
-      '--------------------------------------------------------'
-    ];
+    emitLog('--------------------------------------------------------');
     await tick();
     if (terminalComponent) terminalComponent.scrollToBottom();
   }
 
   async function executePipeline() {
     if (config.input_directories.length === 0) {
-      pipeline.consoleLogs = [
-        ...pipeline.consoleLogs,
+      addToast('Please add at least one target directory.', 'warning');
+      emitLog(
         '❌ Error: Please add at least one target directory to the queue before running processing tasks.'
-      ];
+      );
       await tick();
       if (terminalComponent) terminalComponent.scrollToBottom();
       return;
@@ -224,10 +214,12 @@
     pipeline.totalFilesCount = 0;
 
     const startDate = new Date();
-    pipeline.consoleLogs = [
+    pipeline.consoleLogs = []; // Clear for new run
+    await invoke('initialize_session_log');
+    emitLog(
       'Pipeline initialization request authenticated...',
       `Session started at: ${startDate.toLocaleString()}`
-    ];
+    );
 
     const initialStatuses: Record<string, 'pending'> = {};
     for (const dir of config.input_directories) {
@@ -269,9 +261,10 @@
       const summaryMessage: string = await invoke('process_video_pipeline', { payload: config });
 
       pipeline.overallProgress = 100;
-      pipeline.consoleLogs = [...pipeline.consoleLogs, summaryMessage];
+      emitLog(summaryMessage);
     } catch (err: unknown) {
-      pipeline.consoleLogs = [...pipeline.consoleLogs, `❌ Pipeline execution failure: ${err}`];
+      addToast('Pipeline execution failed. Check logs.', 'error');
+      emitLog(`❌ Pipeline execution failure: ${err}`);
     } finally {
       pipeline.processingActive = false;
       stopTimer();
@@ -296,11 +289,11 @@
       const finalTimeStr = formatRunningTime(elapsedMs);
       pipeline.runningTimeFormatted = finalTimeStr;
 
-      pipeline.consoleLogs = [
-        ...pipeline.consoleLogs,
+      addToast(`Pipeline execution complete! (${finalTimeStr})`, 'success');
+      emitLog(
         `Session finished at: ${endDate.toLocaleString()}`,
         `Total Conversion Time: ${finalTimeStr}`
-      ];
+      );
 
       await tick();
       if (terminalComponent) terminalComponent.scrollToBottom();
@@ -309,20 +302,15 @@
 
   async function abortPipeline() {
     try {
-      pipeline.consoleLogs = [
-        ...pipeline.consoleLogs,
-        '⚠️ Halt instruction issued. Terminating processes and rolling back...'
-      ];
+      addToast('Halt instruction issued. Rolling back...', 'warning');
+      emitLog('⚠️ Halt instruction issued. Terminating processes and rolling back...');
       await tick();
       if (terminalComponent) terminalComponent.scrollToBottom();
 
       await invoke('abort_video_pipeline');
-      pipeline.consoleLogs = [
-        ...pipeline.consoleLogs,
-        '🛑 Processing execution stopped and partial files cleaned up.'
-      ];
+      emitLog('🛑 Processing execution stopped and partial files cleaned up.');
     } catch (err) {
-      pipeline.consoleLogs = [...pipeline.consoleLogs, `Error safely terminating workers: ${err}`];
+      emitLog(`Error safely terminating workers: ${err}`);
     } finally {
       pipeline.processingActive = false;
       stopTimer();
@@ -377,14 +365,15 @@
             style="margin-right: 6px;"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
           > Stop Execution
         </button>
+      {:else}
+        <button
+          class="action-trigger-btn"
+          onclick={executePipeline}
+          disabled={config.input_directories.length === 0}
+        >
+          Start Processing
+        </button>
       {/if}
-      <button
-        class="action-trigger-btn"
-        onclick={executePipeline}
-        disabled={pipeline.processingActive || config.input_directories.length === 0}
-      >
-        {pipeline.processingActive ? 'Processing Pipelines...' : 'Start Processing'}
-      </button>
     </div>
   </div>
 
@@ -395,6 +384,8 @@
     <TerminalLog bind:this={terminalComponent} />
   </div>
 </main>
+
+<ToastContainer />
 
 <style lang="scss">
   .app-container {

@@ -7,7 +7,7 @@ use tauri_plugin_shell::ShellExt;
 use crate::error::AppError;
 use crate::models::{AppState, DirectoryStats, FileStat, VideoPipelinePayload};
 use crate::process::{
-    build_ffmpeg_args, get_ffmpeg_preset, get_matching_subtitle_maps, parse_comma_list,
+    append_log, build_ffmpeg_args, get_ffmpeg_preset, get_matching_subtitle_maps, parse_comma_list,
     run_sidecar_command, stderr_indicates_subtitle_incompatibility,
 };
 
@@ -80,10 +80,7 @@ pub async fn process_video_pipeline(
         session.output_dirs.clear();
     }
 
-    let _ = app.emit(
-        "process-log",
-        "Analyzing targets and indexing directories...",
-    );
+    append_log(&app, "Analyzing targets and indexing directories...");
 
     let extensions = parse_comma_list(&payload.file_extensions);
     let sub_langs = parse_comma_list(&payload.subtitle_tracks);
@@ -120,10 +117,7 @@ pub async fn process_video_pipeline(
     .map_err(|e| AppError::Process(format!("Task join error: {}", e)))??;
 
     let total_files = target_files.len();
-    let _ = app.emit(
-        "process-log",
-        format!("Scanned file total: {}", total_files),
-    );
+    append_log(&app, format!("Scanned file total: {}", total_files));
 
     if total_files == 0 {
         return Ok("Pipeline terminated: No valid files matched filter parameters.".to_string());
@@ -146,8 +140,8 @@ pub async fn process_video_pipeline(
             .unwrap_or("Unknown");
         let current_index = index + 1;
 
-        let _ = app.emit(
-            "process-log",
+        append_log(
+            &app,
             format!(
                 "[{}/{}] Processing file: {}",
                 current_index, total_files, file_name
@@ -166,14 +160,16 @@ pub async fn process_video_pipeline(
             }),
         );
 
-        let parent_dir = file_path
-            .parent()
-            .ok_or_else(|| AppError::Process("Unable to resolve parent path contextual tracking.".to_string()))?;
+        let parent_dir = file_path.parent().ok_or_else(|| {
+            AppError::Process("Unable to resolve parent path contextual tracking.".to_string())
+        })?;
         let processed_dir_path = parent_dir.join("processed_files");
 
         if !processed_dir_path.exists() {
             std::fs::create_dir_all(&processed_dir_path).map_err(|e| {
-                AppError::Process(format!("Failed to instantiate target subfolder workspace directory: {e}"))
+                AppError::Process(format!(
+                    "Failed to instantiate target subfolder workspace directory: {e}"
+                ))
             })?;
         }
 
@@ -205,7 +201,7 @@ pub async fn process_video_pipeline(
 
         // Run ffprobe to get exact stream IDs for matching subtitles before building ffmpeg command
         let subtitle_maps = get_matching_subtitle_maps(&app, file_path, &sub_langs).await.unwrap_or_else(|e| {
-            let _ = app.emit("process-log", format!("  | [ERROR] ⚠️ FFprobe parsing error, defaulting to no subtitles. Error: {}", e));
+            append_log(&app, format!("  | [ERROR] ⚠️ FFprobe parsing error, defaulting to no subtitles. Error: {}", e));
             Vec::new()
         });
 
@@ -234,7 +230,7 @@ pub async fn process_video_pipeline(
             // retry automatically with ASS conversion. No codec list needed — FFmpeg tells us.
             if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
                 reencode_subtitle_retry_attempts += 1;
-                let _ = app.emit("process-log", "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
+                append_log(&app, "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
 
                 if output_file_path.exists() {
                     let _ = std::fs::remove_file(&output_file_path);
@@ -258,13 +254,13 @@ pub async fn process_video_pipeline(
                 if file_success {
                     reencode_subtitle_retry_successes += 1;
                 } else {
-                    let _ = app.emit("process-log", "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.");
+                    append_log(&app, "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.");
                 }
             }
         } else {
             // Remux protocol
-            let _ = app.emit(
-                "process-log",
+            append_log(
+                &app,
                 "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...",
             );
 
@@ -286,7 +282,7 @@ pub async fn process_video_pipeline(
 
             // Same subtitle incompatibility retry as reencode path
             if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
-                let _ = app.emit("process-log", "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
+                append_log(&app, "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
 
                 if output_file_path.exists() {
                     let _ = std::fs::remove_file(&output_file_path);
@@ -317,8 +313,8 @@ pub async fn process_video_pipeline(
             // If FFmpeg failed entirely (both copy and ASS retry), fall back to mkvmerge
             if !file_success {
                 ffmpeg_fallback_failures += 1; // Increment conversion failure count
-                let _ = app.emit(
-                    "process-log",
+                append_log(
+                    &app,
                     "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...",
                 );
 
@@ -377,8 +373,8 @@ pub async fn process_video_pipeline(
 
     // Explicitly output the total ffmpeg stream copy failures to the Real-time Log ONLY if failures exist
     if payload.conversion_mode != "reencode" && ffmpeg_fallback_failures > 0 {
-        let _ = app.emit(
-            "process-log",
+        append_log(
+            &app,
             format!("📊 Session Metrics -> Primary FFmpeg Stream Copy Failures resolved via fallback: {}", ffmpeg_fallback_failures)
         );
     }
@@ -386,8 +382,8 @@ pub async fn process_video_pipeline(
     if payload.conversion_mode == "reencode" && reencode_subtitle_retry_attempts > 0 {
         let reencode_subtitle_retry_failures =
             reencode_subtitle_retry_attempts - reencode_subtitle_retry_successes;
-        let _ = app.emit(
-            "process-log",
+        append_log(
+            &app,
             format!(
                 "📊 Session Metrics -> Reencode Subtitle Codec Retries: {} triggered, {} resolved via ASS conversion, {} still failed.",
                 reencode_subtitle_retry_attempts,
@@ -439,7 +435,10 @@ pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<
         Ok(stdout_str.into_owned())
     } else {
         let stderr_str = String::from_utf8_lossy(&output.stderr);
-        Err(AppError::Sidecar(format!("Sidecar diagnostic failure: {}", stderr_str)))
+        Err(AppError::Sidecar(format!(
+            "Sidecar diagnostic failure: {}",
+            stderr_str
+        )))
     }
 }
 
@@ -490,13 +489,13 @@ pub async fn abort_video_pipeline(
     for file in files_to_delete {
         if file.exists() {
             if let Err(e) = fs::remove_file(&file) {
-                let _ = app.emit(
-                    "process-log",
+                append_log(
+                    &app,
                     format!("❌ Failed to delete rollback file {:?}: {}", file, e),
                 );
             } else {
-                let _ = app.emit(
-                    "process-log",
+                append_log(
+                    &app,
                     format!(
                         "Cleaned up session file safely: \"{}\"",
                         file.to_string_lossy()
@@ -511,13 +510,13 @@ pub async fn abort_video_pipeline(
             if let Ok(mut entries) = fs::read_dir(&dir) {
                 if entries.next().is_none() {
                     if let Err(e) = fs::remove_dir(&dir) {
-                        let _ = app.emit(
-                            "process-log",
+                        append_log(
+                            &app,
                             format!("❌ Failed to remove empty processed_files directory: {}", e),
                         );
                     } else {
-                        let _ = app.emit(
-                            "process-log",
+                        append_log(
+                            &app,
                             format!(
                                 "Cleaned up empty workspace folder safely: \"{}\"",
                                 dir.to_string_lossy()
@@ -533,7 +532,61 @@ pub async fn abort_video_pipeline(
 }
 
 #[tauri::command]
-pub fn save_log_file(content: String, path: String) -> Result<(), AppError> {
-    std::fs::write(&path, content)?;
+pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
+    if let Ok(log_dir) = app.path().app_log_dir() {
+        let log_file = log_dir.join("session.log");
+        if log_file.exists() {
+            std::fs::copy(log_file, path)
+                .map_err(|e| AppError::Process(format!("Failed to copy log file: {}", e)))?;
+            return Ok(());
+        }
+    }
+    Err(AppError::Process(
+        "No active session log found to save.".to_string(),
+    ))
+}
+
+#[tauri::command]
+pub fn read_session_log(app: AppHandle) -> Result<String, AppError> {
+    if let Ok(log_dir) = app.path().app_log_dir() {
+        let log_file = log_dir.join("session.log");
+        if log_file.exists() {
+            let content = std::fs::read_to_string(log_file)
+                .map_err(|e| AppError::Process(format!("Failed to read log: {}", e)))?;
+            return Ok(content);
+        }
+    }
+    Ok(String::new())
+}
+
+#[tauri::command]
+pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
+    if let Ok(log_dir) = app.path().app_log_dir() {
+        if !log_dir.exists() {
+            let _ = std::fs::create_dir_all(&log_dir);
+        }
+        let log_file = log_dir.join("session.log");
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(log_file);
+    }
     Ok(())
+}
+
+#[tauri::command]
+pub fn log_message(app: AppHandle, message: String) {
+    crate::process::append_log(&app, message);
+}
+
+#[tauri::command]
+pub fn check_session_log(app: AppHandle) -> Result<bool, AppError> {
+    if let Ok(log_dir) = app.path().app_log_dir() {
+        let log_file = log_dir.join("session.log");
+        if let Ok(metadata) = std::fs::metadata(&log_file) {
+            return Ok(metadata.is_file() && metadata.len() > 0);
+        }
+    }
+    Ok(false)
 }

@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { save } from '@tauri-apps/plugin-dialog';
   import { pipeline } from '../stores/pipeline.svelte';
+  import { addToast } from '../stores/toast.svelte';
   import { getLogClass } from '../utils/logClassifier';
 
   let copiedStatus = $state(false);
@@ -17,22 +18,31 @@
   async function copyTerminalLogs() {
     if (pipeline.consoleLogs.length === 0) return;
 
-    const fullLogText = pipeline.consoleLogs.join('\n');
-
     try {
+      const fullLogText = await invoke<string>('read_session_log');
+      if (!fullLogText) {
+        addToast('No session log found on disk to copy.', 'error');
+        return;
+      }
       await navigator.clipboard.writeText(fullLogText);
       copiedStatus = true;
       setTimeout(() => {
         copiedStatus = false;
       }, 2000);
     } catch (err) {
-      console.error('Failed to copy pipeline terminal output logs: ', err);
+      addToast(`Failed to copy logs: ${err}`, 'error');
     }
   }
 
   async function saveTerminalLogs() {
     if (pipeline.consoleLogs.length === 0) return;
     try {
+      const logExists = await invoke<boolean>('check_session_log');
+      if (!logExists) {
+        addToast('No active session log found to save.', 'error');
+        return;
+      }
+
       const now = new Date();
       // Format: YYYYMMDD_HHMMSS
       const dateStr =
@@ -57,8 +67,7 @@
       });
 
       if (filePath) {
-        const plainTextLogs = pipeline.consoleLogs.join('\n');
-        await invoke('save_log_file', { content: plainTextLogs, path: filePath });
+        await invoke('save_log_file', { path: filePath });
 
         savedStatus = true;
         setTimeout(() => {
@@ -66,7 +75,7 @@
         }, 2000);
       }
     } catch (err) {
-      pipeline.consoleLogs = [...pipeline.consoleLogs, `  | [ERROR] Failed to save log: ${err}`];
+      addToast(`Failed to save log: ${err}`, 'error');
     }
   }
 </script>
@@ -143,7 +152,7 @@
     {/if}
   </div>
   <div bind:this={terminalEl} id="terminal-shell" class="terminal-shell">
-    {#each pipeline.consoleLogs as log, i (log + i)}
+    {#each pipeline.consoleLogs as log, i (i)}
       <div class="log-line {getLogClass(log)}">{log}</div>
     {:else}
       <div class="empty-log-msg">Logs will appear here once processing begins...</div>

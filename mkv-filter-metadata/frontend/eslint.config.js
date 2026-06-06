@@ -17,12 +17,19 @@ export default tseslint.config(
     }
   },
   {
-    // Fix: Parsing error: Unexpected token 'as'
+    // Fix: Parsing error: Unexpected token 'as' inside Svelte components
     files: ['**/*.svelte'],
     languageOptions: {
       parserOptions: {
         parser: tseslint.parser
       }
+    }
+  },
+  {
+    // Fix: Parsing error: Unexpected token in Svelte 5 state files
+    files: ['**/*.svelte.ts'],
+    languageOptions: {
+      parser: tseslint.parser
     }
   },
   {

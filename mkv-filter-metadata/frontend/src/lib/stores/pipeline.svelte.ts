@@ -20,3 +20,18 @@ export const pipeline = $state({
   directoryStats: {} as Record<string, DirStats>,
   hasProcessClicked: false
 });
+
+import { invoke } from '@tauri-apps/api/core';
+
+export async function emitLog(...logs: string[]) {
+  for (const log of logs) {
+    await invoke('log_message', { message: log });
+  }
+}
+
+export function addLogs(...logs: string[]) {
+  pipeline.consoleLogs.push(...logs);
+  if (pipeline.consoleLogs.length > 1000) {
+    pipeline.consoleLogs.splice(0, pipeline.consoleLogs.length - 1000);
+  }
+}

@@ -1,7 +1,8 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog';
   import { config } from '../stores/config.svelte';
-  import { pipeline } from '../stores/pipeline.svelte';
+  import { pipeline, emitLog } from '../stores/pipeline.svelte';
+  import { addToast } from '../stores/toast.svelte';
   import { buildTooltip } from '../utils/formatters';
 
   let isDragging = $state(false);
@@ -36,10 +37,8 @@
         }
       }
     } catch (err) {
-      pipeline.consoleLogs = [
-        ...pipeline.consoleLogs,
-        `❌ Directory browser access failure: ${err}`
-      ];
+      addToast('Failed to access directory browser.', 'error');
+      emitLog(`❌ Directory browser access failure: ${err}`);
     }
   }
 
@@ -300,30 +299,49 @@
                 </div>
               {/if}
             {:else if pipeline.directoryStatuses[dir] === 'skipped'}
-              <div
-                class="status-indicator skipped"
-                title={pipeline.directoryStats[dir] && !pipeline.directoryStats[dir].exists
-                  ? 'Skipped (Directory does not exist)'
-                  : 'Skipped (Directory is empty)'}
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  ><polygon points="5 4 15 12 5 20 5 4"></polygon><line
-                    x1="19"
-                    y1="5"
-                    x2="19"
-                    y2="19"
-                  ></line></svg
-                >
-              </div>
+              {#if pipeline.directoryStats[dir] && !pipeline.directoryStats[dir].exists}
+                <div class="status-indicator skipped" title="Skipped (Directory does not exist)">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path
+                      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                    ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
+                      x1="12"
+                      y1="17"
+                      x2="12.01"
+                      y2="17"
+                    ></line></svg
+                  >
+                </div>
+              {:else}
+                <div class="status-indicator skipped" title="Skipped (Directory is empty)">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><polygon points="5 4 15 12 5 20 5 4"></polygon><line
+                      x1="19"
+                      y1="5"
+                      x2="19"
+                      y2="19"
+                    ></line></svg
+                  >
+                </div>
+              {/if}
             {/if}
             <span class="queue-path" title={dir}>{dir}</span>
           </div>
@@ -623,7 +641,7 @@
     background: none !important;
     border: none !important;
     color: var(--danger-color) !important;
-    cursor: default;
+    cursor: pointer;
     padding: 0.25rem !important;
     border-radius: 4px;
     display: inline-flex !important;
