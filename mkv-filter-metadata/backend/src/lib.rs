@@ -13,7 +13,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             commands::abort_video_pipeline,
-            commands::check_nvenc_support,
+            commands::get_encoder_capabilities,
             commands::get_directory_stats,
             commands::get_sidecar_version,
             commands::process_video_pipeline,

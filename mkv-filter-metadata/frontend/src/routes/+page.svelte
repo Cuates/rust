@@ -34,7 +34,7 @@
 
     const init = async () => {
       try {
-        appState.hasNvidia = await invoke('check_nvenc_support');
+        appState.hardwareEncoders = await invoke('get_encoder_capabilities');
       } catch (err) {
         console.error('Diagnostic check failed:', err);
       }

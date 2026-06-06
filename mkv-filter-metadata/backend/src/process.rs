@@ -40,6 +40,13 @@ pub fn get_ffmpeg_preset(codec: &str, preset: &str) -> String {
             "veryslow" => "p7".to_string(),
             _ => "p4".to_string(), // Default safe fallback
         }
+    } else if codec.contains("amf") {
+        match preset {
+            "ultrafast" | "superfast" | "veryfast" | "faster" => "speed".to_string(),
+            "medium" | "fast" => "balanced".to_string(),
+            "slow" | "slower" | "veryslow" => "quality".to_string(),
+            _ => "balanced".to_string(),
+        }
     } else {
         preset.to_string()
     }
@@ -116,16 +123,51 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
     match config.mode {
         ConversionMode::Reencode => {
             if let Some(reencode) = &config.reencode {
-                args.extend([
-                    "-c:v".to_string(),
-                    reencode.video_codec.to_string(),
-                    "-preset".to_string(),
-                    reencode.preset.to_string(),
-                    "-crf".to_string(),
-                    reencode.crf.to_string(),
-                    "-c:a".to_string(),
-                    "copy".to_string(),
-                ]);
+                let mut reencode_args = vec!["-c:v".to_string(), reencode.video_codec.to_string()];
+
+                if reencode.video_codec.contains("nvenc") {
+                    reencode_args.extend([
+                        "-preset".to_string(),
+                        reencode.preset.to_string(),
+                        "-cq".to_string(),
+                        reencode.crf.to_string(),
+                        "-b:v".to_string(),
+                        "0".to_string(),
+                    ]);
+                } else if reencode.video_codec.contains("amf") {
+                    reencode_args.extend([
+                        "-usage".to_string(),
+                        "transcoding".to_string(),
+                        "-quality".to_string(),
+                        reencode.preset.to_string(),
+                        "-rc".to_string(),
+                        "cqp".to_string(),
+                        "-qp_i".to_string(),
+                        reencode.crf.to_string(),
+                        "-qp_p".to_string(),
+                        reencode.crf.to_string(),
+                    ]);
+                } else if reencode.video_codec.contains("qsv") {
+                    reencode_args.extend([
+                        "-preset".to_string(),
+                        reencode.preset.to_string(),
+                        "-q".to_string(),
+                        reencode.crf.to_string(),
+                    ]);
+                } else if reencode.video_codec.contains("videotoolbox") {
+                    reencode_args.extend(["-q:v".to_string(), reencode.crf.to_string()]);
+                } else {
+                    reencode_args.extend([
+                        "-preset".to_string(),
+                        reencode.preset.to_string(),
+                        "-crf".to_string(),
+                        reencode.crf.to_string(),
+                    ]);
+                }
+
+                reencode_args.extend(["-c:a".to_string(), "copy".to_string()]);
+
+                args.extend(reencode_args);
             }
         }
         ConversionMode::Remux => {
@@ -291,6 +333,7 @@ pub async fn run_sidecar_command(
     let mut file_success = false;
     let mut collected_stderr: Vec<String> = Vec::new();
     let mut total_duration_secs: Option<f64> = None;
+    let mut video_fps: Option<f64> = None;
 
     while let Some(event) = rx.recv().await {
         if state.is_aborted.load(Ordering::SeqCst) {
@@ -331,23 +374,58 @@ pub async fn run_sidecar_command(
                             {
                                 total_duration_secs = parse_ffmpeg_time(dur_str);
                             }
-                        } else if let Some(total_secs) = total_duration_secs {
+                        }
+
+                        if video_fps.is_none() && t.starts_with("Stream #") && t.contains("Video:")
+                        {
+                            if let Some(fps_idx) = t.find(" fps") {
+                                let substr = &t[..fps_idx];
+                                if let Some(fps_str) = substr.split(',').next_back().map(|s| s.trim()) {
+                                    if let Ok(fps) = fps_str.parse::<f64>() {
+                                        video_fps = Some(fps);
+                                    }
+                                }
+                            }
+                        }
+
+                        if let Some(total_secs) = total_duration_secs {
+                            let mut current_secs: Option<f64> = None;
+
                             if let Some(time_idx) = t.find("time=") {
                                 let time_sub = &t[time_idx + 5..];
                                 if let Some(time_str) = time_sub.split_whitespace().next() {
-                                    if let Some(current_secs) = parse_ffmpeg_time(time_str) {
-                                        let mut percent = (current_secs / total_secs) * 100.0;
-                                        if percent > 100.0 {
-                                            percent = 100.0;
-                                        }
-                                        let _ = app.emit(
-                                            "process-progress",
-                                            serde_json::json!({
-                                                "intra_progress": percent
-                                            }),
-                                        );
+                                    if time_str != "N/A" {
+                                        current_secs = parse_ffmpeg_time(time_str);
                                     }
                                 }
+                            }
+
+                            // Fallback to frame= if time=N/A
+                            if current_secs.is_none() {
+                                if let (Some(frame_idx), Some(fps)) = (t.find("frame="), video_fps)
+                                {
+                                    let frame_sub = &t[frame_idx + 6..];
+                                    if let Some(frame_str) = frame_sub.split_whitespace().next() {
+                                        if let Ok(frames) = frame_str.parse::<f64>() {
+                                            if fps > 0.0 {
+                                                current_secs = Some(frames / fps);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if let Some(secs) = current_secs {
+                                let mut percent = (secs / total_secs) * 100.0;
+                                if percent > 100.0 {
+                                    percent = 100.0;
+                                }
+                                let _ = app.emit(
+                                    "process-progress",
+                                    serde_json::json!({
+                                        "intra_progress": percent
+                                    }),
+                                );
                             }
                         }
 

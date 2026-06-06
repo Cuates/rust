@@ -54,9 +54,25 @@
         <select id="v-codec" bind:value={config.video_codec} disabled={pipeline.processingActive}>
           <option value="libx265">libx265 (CPU)</option>
           <option value="libx264">libx264 (CPU)</option>
-          {#if appState.hasNvidia}
+          {#if appState.hardwareEncoders.nvenc}
             <option value="hevc_nvenc">hevc_nvenc (NVIDIA)</option>
             <option value="h264_nvenc">h264_nvenc (NVIDIA)</option>
+            <option value="av1_nvenc">av1_nvenc (NVIDIA)</option>
+          {/if}
+          {#if appState.hardwareEncoders.amf}
+            <option value="hevc_amf">hevc_amf (AMD)</option>
+            <option value="h264_amf">h264_amf (AMD)</option>
+            <option value="av1_amf">av1_amf (AMD)</option>
+          {/if}
+          {#if appState.hardwareEncoders.videotoolbox}
+            <option value="hevc_videotoolbox">hevc_videotoolbox (Apple)</option>
+            <option value="h264_videotoolbox">h264_videotoolbox (Apple)</option>
+            <option value="av1_videotoolbox">av1_videotoolbox (Apple)</option>
+          {/if}
+          {#if appState.hardwareEncoders.qsv}
+            <option value="hevc_qsv">hevc_qsv (Intel)</option>
+            <option value="h264_qsv">h264_qsv (Intel)</option>
+            <option value="av1_qsv">av1_qsv (Intel)</option>
           {/if}
         </select>
       </div>

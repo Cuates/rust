@@ -15,6 +15,14 @@ pub struct VideoPipelinePayload {
 }
 
 #[derive(Serialize)]
+pub struct EncoderCapabilities {
+    pub nvenc: bool,
+    pub amf: bool,
+    pub videotoolbox: bool,
+    pub qsv: bool,
+}
+
+#[derive(Serialize)]
 pub struct FileStat {
     pub name: String,
     pub size_bytes: u64,

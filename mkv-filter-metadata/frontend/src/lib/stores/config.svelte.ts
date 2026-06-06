@@ -11,5 +11,10 @@ export const config = $state({
 
 export const appState = $state({
   isDarkMode: true,
-  hasNvidia: false
+  hardwareEncoders: {
+    nvenc: false,
+    amf: false,
+    videotoolbox: false,
+    qsv: false
+  }
 });

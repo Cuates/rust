@@ -444,15 +444,106 @@ pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<
 }
 
 #[tauri::command]
-pub async fn check_nvenc_support(app: AppHandle) -> bool {
+pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderCapabilities {
     let shell = app.shell();
+    let mut caps = crate::models::EncoderCapabilities {
+        nvenc: false,
+        amf: false,
+        videotoolbox: false,
+        qsv: false,
+    };
+
     if let Ok(cmd) = shell.sidecar("ffmpeg") {
         if let Ok(output) = cmd.args(["-encoders"]).output().await {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            return stdout.contains("hevc_nvenc");
+            // We just need to know if the hardware vendor's encoders are present in the binary
+            if stdout.contains("_nvenc") {
+                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
+                    if let Ok(test_out) = test_cmd
+                        .args([
+                            "-f",
+                            "lavfi",
+                            "-i",
+                            "nullsrc=s=256x256:d=0.1",
+                            "-c:v",
+                            "hevc_nvenc",
+                            "-f",
+                            "null",
+                            "-",
+                        ])
+                        .output()
+                        .await
+                    {
+                        caps.nvenc = test_out.status.success();
+                    }
+                }
+            }
+            if stdout.contains("_amf") {
+                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
+                    if let Ok(test_out) = test_cmd
+                        .args([
+                            "-f",
+                            "lavfi",
+                            "-i",
+                            "nullsrc=s=256x256:d=0.1",
+                            "-c:v",
+                            "hevc_amf",
+                            "-f",
+                            "null",
+                            "-",
+                        ])
+                        .output()
+                        .await
+                    {
+                        caps.amf = test_out.status.success();
+                    }
+                }
+            }
+            if stdout.contains("_videotoolbox") {
+                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
+                    if let Ok(test_out) = test_cmd
+                        .args([
+                            "-f",
+                            "lavfi",
+                            "-i",
+                            "nullsrc=s=256x256:d=0.1",
+                            "-c:v",
+                            "hevc_videotoolbox",
+                            "-f",
+                            "null",
+                            "-",
+                        ])
+                        .output()
+                        .await
+                    {
+                        caps.videotoolbox = test_out.status.success();
+                    }
+                }
+            }
+            if stdout.contains("_qsv") {
+                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
+                    if let Ok(test_out) = test_cmd
+                        .args([
+                            "-f",
+                            "lavfi",
+                            "-i",
+                            "nullsrc=s=256x256:d=0.1",
+                            "-c:v",
+                            "hevc_qsv",
+                            "-f",
+                            "null",
+                            "-",
+                        ])
+                        .output()
+                        .await
+                    {
+                        caps.qsv = test_out.status.success();
+                    }
+                }
+            }
         }
     }
-    false
+    caps
 }
 
 #[tauri::command]
