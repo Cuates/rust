@@ -410,7 +410,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    overflow: hidden !important;
+    overflow: hidden;
   }
 
   .navbar-layer {
@@ -419,7 +419,7 @@
     align-items: center;
     border-bottom: 1px solid var(--border-color);
     padding: 0.1rem 0 0.25rem 0;
-    margin-top: 0 !important;
+    margin-top: 0;
     flex-shrink: 0;
 
     h1 {
@@ -458,7 +458,7 @@
     gap: 0.5rem;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
     flex-shrink: 0;
-    margin-top: 0 !important;
+    margin-top: 0;
   }
 
   .action-row {

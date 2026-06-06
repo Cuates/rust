@@ -214,10 +214,10 @@
       border-color: var(--text-secondary);
     }
     svg {
-      display: block !important;
-      width: 14px !important;
-      height: 14px !important;
-      stroke: currentColor !important;
+      display: block;
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
     }
 
     &::before {

@@ -513,9 +513,9 @@
   }
 
   .queue-item {
-    display: grid !important;
-    grid-template-columns: 1fr auto !important;
-    align-items: center !important;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
     background-color: var(--bg-surface);
     padding: 0.35rem 0.6rem;
     border-radius: 4px;
@@ -631,30 +631,30 @@
   .queue-path {
     font-size: 0.85rem;
     color: var(--text-primary);
-    white-space: nowrap !important;
-    overflow: hidden !important;
-    text-overflow: ellipsis !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     padding-right: 0.5rem;
   }
 
   .remove-btn {
-    background: none !important;
-    border: none !important;
-    color: var(--danger-color) !important;
+    background: none;
+    border: none;
+    color: var(--danger-color);
     cursor: pointer;
-    padding: 0.25rem !important;
+    padding: 0.25rem;
     border-radius: 4px;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transition: background-color 0.15s;
     position: relative;
 
     &:hover:not(:disabled) {
-      background-color: rgba(239, 68, 68, 0.15) !important;
+      background-color: rgba(239, 68, 68, 0.15);
     }
     &:disabled {
-      cursor: not-allowed !important;
+      cursor: not-allowed;
       opacity: 0.5;
     }
   }
