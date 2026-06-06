@@ -20,17 +20,11 @@ export function buildTooltip(stats: DirStats) {
   return tooltip;
 }
 
-export function formatRunningTime(elapsedMs: number) {
-  const hours = Math.floor(elapsedMs / 3600000);
-  const minutes = Math.floor((elapsedMs % 3600000) / 60000);
-  const seconds = Math.floor((elapsedMs % 60000) / 1000);
-  const milliseconds = elapsedMs % 1000;
-
-  const outputSegments = [];
-  if (hours > 0) outputSegments.push(`${hours}h`);
-  if (minutes > 0) outputSegments.push(`${minutes}m`);
-  if (seconds > 0) outputSegments.push(`${seconds}s`);
-  outputSegments.push(`${milliseconds}ms`);
-
-  return outputSegments.join(' ');
+export function formatDuration(ms: number): string {
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const ms_ = ms % 1000;
+  return [h && `${h}h`, m && `${m}m`, s && `${s}s`, `${ms_}ms`]
+    .filter(Boolean).join(' ');
 }

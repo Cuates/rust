@@ -8,7 +8,7 @@
   import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
   import type { DirStats } from '../lib/types';
-  import { formatRunningTime } from '../lib/utils/formatters';
+  import { formatDuration } from '../lib/utils/formatters';
 
   import DirectoryQueue from '../lib/components/DirectoryQueue.svelte';
   import ConfigPanel from '../lib/components/ConfigPanel.svelte';
@@ -16,7 +16,7 @@
   import TerminalLog from '../lib/components/TerminalLog.svelte';
   import ToastContainer from '../lib/components/ToastContainer.svelte';
 
-  let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
+  let timerInterval: number | undefined = undefined;
   let startTime = 0;
   let queueComponent: ReturnType<typeof DirectoryQueue>;
   let terminalComponent: ReturnType<typeof TerminalLog>;
@@ -68,8 +68,14 @@
             pipeline.currentFileIndex = 0;
           }
         }
-        await tick();
-        if (terminalComponent) terminalComponent.scrollToBottom();
+        
+        if (!pipeline._scrollTimeout) {
+          pipeline._scrollTimeout = setTimeout(async () => {
+            pipeline._scrollTimeout = null;
+            await tick();
+            if (terminalComponent) terminalComponent.scrollToBottom();
+          }, 100);
+        }
       });
 
       const unlistenProgressFn = await listen<{
@@ -127,7 +133,7 @@
         unlistenProgressFn();
         unlistenCloseFn();
         unlistenDrop();
-        clearInterval(timerInterval);
+        if (timerInterval) cancelAnimationFrame(timerInterval);
       };
     };
 
@@ -139,16 +145,20 @@
   });
 
   function startTimer() {
-    clearInterval(timerInterval);
+    if (timerInterval) cancelAnimationFrame(timerInterval);
     startTime = Date.now();
-    timerInterval = setInterval(() => {
+    
+    function tickTime() {
       const elapsedMs = Date.now() - startTime;
-      pipeline.runningTimeFormatted = formatRunningTime(elapsedMs);
-    }, 33);
+      pipeline.runningTimeFormatted = formatDuration(elapsedMs);
+      timerInterval = requestAnimationFrame(tickTime);
+    }
+    
+    timerInterval = requestAnimationFrame(tickTime);
   }
 
   function stopTimer() {
-    clearInterval(timerInterval);
+    if (timerInterval) cancelAnimationFrame(timerInterval);
   }
 
   function toggleTheme() {
@@ -286,7 +296,7 @@
 
       const endDate = new Date();
       const elapsedMs = endDate.getTime() - startTime;
-      const finalTimeStr = formatRunningTime(elapsedMs);
+      const finalTimeStr = formatDuration(elapsedMs);
       pipeline.runningTimeFormatted = finalTimeStr;
 
       addToast(`Pipeline execution complete! (${finalTimeStr})`, 'success');
