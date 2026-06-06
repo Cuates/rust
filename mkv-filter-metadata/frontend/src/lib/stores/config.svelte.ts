@@ -6,7 +6,7 @@ export const config = $state({
   conversion_mode: 'remux',
   video_codec: 'libx265',
   preset: 'faster',
-  crf: '18'
+  crf: 18
 });
 
 export const appState = $state({

@@ -267,8 +267,11 @@
 
       pipeline.hasProcessClicked = true;
 
-      config.crf = String(config.crf);
-      const summaryMessage: string = await invoke('process_video_pipeline', { payload: config });
+      const payload = {
+        ...config,
+        crf: String(config.crf)
+      };
+      const summaryMessage: string = await invoke('process_video_pipeline', { payload });
 
       pipeline.overallProgress = 100;
       emitLog(summaryMessage);

@@ -79,8 +79,7 @@
         <input
           id="crf-val"
           type="number"
-          value={parseInt(config.crf)}
-          oninput={(e) => (config.crf = e.currentTarget.value)}
+          bind:value={config.crf}
           min="0"
           max="51"
           autocomplete="off"
