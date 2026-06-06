@@ -48,13 +48,13 @@ Before attempting to compile or run the application locally, ensure your develop
 
 ## 2. Tree Structure
 
-The architectural layout of this project relies on a highly decoupled **pnpm workspace split**. The web panel lives completely isolated from the system-level Rust compilation environment under the global `packages/` workspace scope.
+The architectural layout of this project relies on a highly decoupled **pnpm workspace split**. The web panel lives completely isolated from the system-level Rust compilation environment under the global `` workspace scope.
 
 ```text
 mkv-subtitle-converter/
 ├── package.json                   # Root package manager orchestration layout
 ├── pnpm-workspace.yaml            # PNPM monorepo multi-package descriptor
-├── packages/
+├── 
 │   ├── frontend/                  # Decoupled Webview Client (SvelteKit / Svelte 5)
 │   │   ├── package.json
 │   │   ├── svelte.config.js       # Outfitted with Adapter-Static constraints (outputs to dist/)
@@ -102,7 +102,7 @@ To prevent system module dependency leakage and to allow the root profile to man
 
 ```yaml
 packages:
-  - 'packages/*'
+  - '*'
 ```
 
 ### Root `package.json`
@@ -176,8 +176,8 @@ mkdir packages
 ```
 
 
-2. Move the entire SvelteKit structure into a new location under `packages/frontend/`.
-3. Relocate the native backend folder structure entirely under `packages/backend/`.
+2. Move the entire SvelteKit structure into a new location under `frontend/`.
+3. Relocate the native backend folder structure entirely under `backend/`.
 
 ---
 
@@ -185,7 +185,7 @@ mkdir packages
 
 Once the directory migration completes, configure the multi-package registry states. Create a root `pnpm-workspace.yaml` file using the code provided in Step 3. Next, update individual descriptor parameters so the package engine can build an unambiguous mapping index.
 
-Modify **`packages/frontend/package.json`**:
+Modify **`frontend/package.json`**:
 
 ```json
 {
@@ -196,7 +196,7 @@ Modify **`packages/frontend/package.json`**:
 
 ```
 
-Modify **`packages/backend/package.json`**:
+Modify **`backend/package.json`**:
 
 ```json
 {
@@ -236,7 +236,7 @@ This enables running commands like `pnpm dev` at the global root level, allowing
 The web panel layout layer requires dedicated API interfaces to talk through the Tauri system bridges safely. Navigate to your client layer and install the core framework interfaces and the static compilation adapter:
 
 ```bash
-cd packages/frontend
+cd frontend
 pnpm add @tauri-apps/api
 pnpm add -D @sveltejs/adapter-static
 pnpm add -D sass
@@ -249,7 +249,7 @@ pnpm add -D sass
 The desktop application utilizes modular plugin crates to implement system sandboxing. Navigate to the core compilation layer and inject the official system plugins alongside standard utility engines via Cargo:
 
 ```bash
-cd packages/backend
+cd backend
 cargo add tauri-plugin-fs
 cargo add tauri-plugin-dialog
 cargo add tauri-plugin-opener
@@ -263,7 +263,7 @@ cargo add indexmap serde serde_json chrono tokio regex
 
 Because we restructured the directory layout, the core Tauri orchestration configuration file must be modified to locate the static web panels.
 
-Update **`packages/backend/tauri.conf.json`**:
+Update **`backend/tauri.conf.json`**:
 
 ```json
 "build": {
@@ -276,7 +276,7 @@ Update **`packages/backend/tauri.conf.json`**:
 
 Simultaneously, enforce static generation rules on your client configuration so it produces individual asset documents instead of node system server scripts, routing the compiler output straight into the standard `dist` folder.
 
-Update **`packages/frontend/svelte.config.js`**:
+Update **`frontend/svelte.config.js`**:
 
 ```javascript
 import adapter from '@sveltejs/adapter-static';
@@ -359,7 +359,7 @@ async function triggerExtractionBatch(selectedFolders: string[]) {
 
 ## 15. Backend Native Layer (Tauri 2.0 & Rust)
 
-The file system processing pipeline logic is fully managed inside `packages/backend/src/lib.rs`. It provides multi-threaded processing optimizations, safe cancel state handling, and a custom raw-text SubRip to ASS transcoding layout engine.
+The file system processing pipeline logic is fully managed inside `backend/src/lib.rs`. It provides multi-threaded processing optimizations, safe cancel state handling, and a custom raw-text SubRip to ASS transcoding layout engine.
 
 ### Essential Operations Performed Natively
 
@@ -384,14 +384,14 @@ This triggers the production build across the SvelteKit frontend layout, compile
 
 Tauri automatically wraps your application inside standard OS installers (`.msi` / `.exe` on Windows, `.dmg` / `.app` on macOS, `.deb` / `.AppImage` on Linux).
 
-* **Location:** `packages/backend/target/release/bundle/`
+* **Location:** `backend/target/release/bundle/`
 * **Use Case:** Best for standard user distribution where the application needs to live in `Program Files` or the macOS `Applications` folder.
 
 ### Option B: Portable (No-Install) Application
 
 You can completely bypass the installer and provide a raw, portable folder that users can run instantly on any machine without needing administrator privileges.
 
-1. Navigate to the core compile directory: `packages/backend/target/release/`
+1. Navigate to the core compile directory: `backend/target/release/`
 2. Locate the raw, compiled executable: `mkv-subtitle-converter.exe`
 3. Locate the embedded host architecture sidecars that Tauri copied into this exact same folder (e.g., `ffmpeg-x86_64-pc-windows-msvc.exe`).
 4. Create a new folder (e.g., `MKV-Converter-Portable`).
@@ -417,7 +417,7 @@ You can completely bypass the installer and provide a raw, portable folder that 
 * **Cause:** Cargo optimizes compilation performance by aggressively caching system binary assets.
 * **Resolution:** Wipe the internal target cache cleanly before restarting your development environment:
 ```bash
-cd packages/backend
+cd backend
 cargo clean
 cd ../..
 pnpm dev
@@ -430,8 +430,8 @@ pnpm dev
 * **Cause:** Apple Gatekeeper automatically appends an extended quarantine metadata attribute flag (`com.apple.quarantine`) onto executables downloaded via browsers.
 * **Resolution:** Strip the security metadata quarantine flag manually via terminal:
 ```bash
-xattr -dr com.apple.quarantine packages/backend/binaries/ffmpeg-aarch64-apple-darwin
-xattr -dr com.apple.quarantine packages/backend/binaries/ffprobe-aarch64-apple-darwin
+xattr -dr com.apple.quarantine backend/sidecars/ffmpeg-aarch64-apple-darwin
+xattr -dr com.apple.quarantine backend/sidecars/ffprobe-aarch64-apple-darwin
 ```
 
 ---
