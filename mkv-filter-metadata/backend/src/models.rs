@@ -2,6 +2,38 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum VideoCodec {
+    #[serde(rename = "libx265")]
+    Libx265,
+    #[serde(rename = "libx264")]
+    Libx264,
+    #[serde(rename = "hevc_nvenc")]
+    HevcNvenc,
+    #[serde(rename = "h264_nvenc")]
+    H264Nvenc,
+    #[serde(rename = "av1_nvenc")]
+    Av1Nvenc,
+    #[serde(rename = "hevc_amf")]
+    HevcAmf,
+    #[serde(rename = "h264_amf")]
+    H264Amf,
+    #[serde(rename = "av1_amf")]
+    Av1Amf,
+    #[serde(rename = "hevc_qsv")]
+    HevcQsv,
+    #[serde(rename = "h264_qsv")]
+    H264Qsv,
+    #[serde(rename = "av1_qsv")]
+    Av1Qsv,
+    #[serde(rename = "hevc_videotoolbox")]
+    HevcVideotoolbox,
+    #[serde(rename = "h264_videotoolbox")]
+    H264Videotoolbox,
+    #[serde(rename = "av1_videotoolbox")]
+    Av1Videotoolbox,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoPipelinePayload {
     pub input_directories: Vec<String>,
@@ -9,7 +41,7 @@ pub struct VideoPipelinePayload {
     pub subtitle_tracks: String,
     pub output_extension: String,
     pub conversion_mode: String,
-    pub video_codec: String,
+    pub video_codec: VideoCodec,
     pub preset: String,
     pub crf: String,
 }

@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 use crate::error::AppError;
-use crate::models::AppState;
+use crate::models::{AppState, VideoCodec};
 
 /// Writes a log message to disk and emits it to the frontend.
 pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
@@ -26,29 +26,101 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     }
 }
 
-/// Maps generic presets to NVENC-specific hardware presets (p1-p7)
-pub fn get_ffmpeg_preset(codec: &str, preset: &str) -> String {
-    if codec.contains("nvenc") {
-        match preset {
-            "ultrafast" => "p1".to_string(),
-            "veryfast" => "p2".to_string(),
-            "fast" => "p3".to_string(),
-            "faster" => "p4".to_string(),
-            "medium" => "p4".to_string(),
-            "slow" => "p5".to_string(),
-            "slower" => "p6".to_string(),
-            "veryslow" => "p7".to_string(),
-            _ => "p4".to_string(), // Default safe fallback
+impl VideoCodec {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            VideoCodec::Libx265 => "libx265",
+            VideoCodec::Libx264 => "libx264",
+            VideoCodec::HevcNvenc => "hevc_nvenc",
+            VideoCodec::H264Nvenc => "h264_nvenc",
+            VideoCodec::Av1Nvenc => "av1_nvenc",
+            VideoCodec::HevcAmf => "hevc_amf",
+            VideoCodec::H264Amf => "h264_amf",
+            VideoCodec::Av1Amf => "av1_amf",
+            VideoCodec::HevcQsv => "hevc_qsv",
+            VideoCodec::H264Qsv => "h264_qsv",
+            VideoCodec::Av1Qsv => "av1_qsv",
+            VideoCodec::HevcVideotoolbox => "hevc_videotoolbox",
+            VideoCodec::H264Videotoolbox => "h264_videotoolbox",
+            VideoCodec::Av1Videotoolbox => "av1_videotoolbox",
         }
-    } else if codec.contains("amf") {
-        match preset {
-            "ultrafast" | "superfast" | "veryfast" | "faster" => "speed".to_string(),
-            "medium" | "fast" => "balanced".to_string(),
-            "slow" | "slower" | "veryslow" => "quality".to_string(),
-            _ => "balanced".to_string(),
+    }
+
+    pub fn map_preset(&self, preset: &str) -> String {
+        match self {
+            VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => match preset {
+                "ultrafast" => "p1".to_string(),
+                "veryfast" => "p2".to_string(),
+                "fast" => "p3".to_string(),
+                "faster" => "p4".to_string(),
+                "medium" => "p4".to_string(),
+                "slow" => "p5".to_string(),
+                "slower" => "p6".to_string(),
+                "veryslow" => "p7".to_string(),
+                _ => "p4".to_string(),
+            },
+            VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => match preset {
+                "ultrafast" | "superfast" | "veryfast" | "faster" => "speed".to_string(),
+                "medium" | "fast" => "balanced".to_string(),
+                "slow" | "slower" | "veryslow" => "quality".to_string(),
+                _ => "balanced".to_string(),
+            },
+            _ => preset.to_string(),
         }
-    } else {
-        preset.to_string()
+    }
+
+    pub fn get_hardware_args(&self, preset: &str, crf: &str) -> Vec<String> {
+        let mapped_preset = self.map_preset(preset);
+        let mut args = vec!["-c:v".to_string(), self.as_str().to_string()];
+
+        match self {
+            VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => {
+                args.extend([
+                    "-preset".to_string(),
+                    mapped_preset,
+                    "-cq".to_string(),
+                    crf.to_string(),
+                    "-b:v".to_string(),
+                    "0".to_string(),
+                ]);
+            }
+            VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => {
+                args.extend([
+                    "-usage".to_string(),
+                    "transcoding".to_string(),
+                    "-quality".to_string(),
+                    mapped_preset,
+                    "-rc".to_string(),
+                    "cqp".to_string(),
+                    "-qp_i".to_string(),
+                    crf.to_string(),
+                    "-qp_p".to_string(),
+                    crf.to_string(),
+                ]);
+            }
+            VideoCodec::HevcQsv | VideoCodec::H264Qsv | VideoCodec::Av1Qsv => {
+                args.extend([
+                    "-preset".to_string(),
+                    mapped_preset,
+                    "-q".to_string(),
+                    crf.to_string(),
+                ]);
+            }
+            VideoCodec::HevcVideotoolbox
+            | VideoCodec::H264Videotoolbox
+            | VideoCodec::Av1Videotoolbox => {
+                args.extend(["-q:v".to_string(), crf.to_string()]);
+            }
+            VideoCodec::Libx264 | VideoCodec::Libx265 => {
+                args.extend([
+                    "-preset".to_string(),
+                    mapped_preset,
+                    "-crf".to_string(),
+                    crf.to_string(),
+                ]);
+            }
+        }
+        args
     }
 }
 
@@ -85,7 +157,7 @@ pub enum SubtitleCodec {
 
 #[derive(Debug)]
 pub struct ReencodeConfig<'a> {
-    pub video_codec: &'a str,
+    pub video_codec: &'a VideoCodec,
     pub preset: &'a str,
     pub crf: &'a str,
 }
@@ -123,50 +195,10 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
     match config.mode {
         ConversionMode::Reencode => {
             if let Some(reencode) = &config.reencode {
-                let mut reencode_args = vec!["-c:v".to_string(), reencode.video_codec.to_string()];
-
-                if reencode.video_codec.contains("nvenc") {
-                    reencode_args.extend([
-                        "-preset".to_string(),
-                        reencode.preset.to_string(),
-                        "-cq".to_string(),
-                        reencode.crf.to_string(),
-                        "-b:v".to_string(),
-                        "0".to_string(),
-                    ]);
-                } else if reencode.video_codec.contains("amf") {
-                    reencode_args.extend([
-                        "-usage".to_string(),
-                        "transcoding".to_string(),
-                        "-quality".to_string(),
-                        reencode.preset.to_string(),
-                        "-rc".to_string(),
-                        "cqp".to_string(),
-                        "-qp_i".to_string(),
-                        reencode.crf.to_string(),
-                        "-qp_p".to_string(),
-                        reencode.crf.to_string(),
-                    ]);
-                } else if reencode.video_codec.contains("qsv") {
-                    reencode_args.extend([
-                        "-preset".to_string(),
-                        reencode.preset.to_string(),
-                        "-q".to_string(),
-                        reencode.crf.to_string(),
-                    ]);
-                } else if reencode.video_codec.contains("videotoolbox") {
-                    reencode_args.extend(["-q:v".to_string(), reencode.crf.to_string()]);
-                } else {
-                    reencode_args.extend([
-                        "-preset".to_string(),
-                        reencode.preset.to_string(),
-                        "-crf".to_string(),
-                        reencode.crf.to_string(),
-                    ]);
-                }
-
+                let mut reencode_args = reencode
+                    .video_codec
+                    .get_hardware_args(reencode.preset, reencode.crf);
                 reencode_args.extend(["-c:a".to_string(), "copy".to_string()]);
-
                 args.extend(reencode_args);
             }
         }
@@ -380,7 +412,9 @@ pub async fn run_sidecar_command(
                         {
                             if let Some(fps_idx) = t.find(" fps") {
                                 let substr = &t[..fps_idx];
-                                if let Some(fps_str) = substr.split(',').next_back().map(|s| s.trim()) {
+                                if let Some(fps_str) =
+                                    substr.split(',').next_back().map(|s| s.trim())
+                                {
                                     if let Ok(fps) = fps_str.parse::<f64>() {
                                         video_fps = Some(fps);
                                     }

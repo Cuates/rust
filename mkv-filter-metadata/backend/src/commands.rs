@@ -7,7 +7,7 @@ use tauri_plugin_shell::ShellExt;
 use crate::error::AppError;
 use crate::models::{AppState, DirectoryStats, FileStat, VideoPipelinePayload};
 use crate::process::{
-    append_log, build_ffmpeg_args, get_ffmpeg_preset, get_matching_subtitle_maps, parse_comma_list,
+    append_log, build_ffmpeg_args, get_matching_subtitle_maps, parse_comma_list,
     run_sidecar_command, stderr_indicates_subtitle_incompatibility, ConversionMode,
     FfmpegJobConfig, ReencodeConfig, SubtitleCodec,
 };
@@ -206,7 +206,6 @@ pub async fn process_video_pipeline(
             Vec::new()
         });
 
-        let mapped_preset = get_ffmpeg_preset(&payload.video_codec, &payload.preset);
         let mut file_success;
 
         // Routing Logic: Reencode vs Remux Fallback Protocol
@@ -220,7 +219,7 @@ pub async fn process_video_pipeline(
                 subtitle_codec: SubtitleCodec::Copy,
                 reencode: Some(ReencodeConfig {
                     video_codec: &payload.video_codec,
-                    preset: &mapped_preset,
+                    preset: &payload.preset,
                     crf: &payload.crf,
                 }),
             });
@@ -247,7 +246,7 @@ pub async fn process_video_pipeline(
                     subtitle_codec: SubtitleCodec::Ass,
                     reencode: Some(ReencodeConfig {
                         video_codec: &payload.video_codec,
-                        preset: &mapped_preset,
+                        preset: &payload.preset,
                         crf: &payload.crf,
                     }),
                 });
