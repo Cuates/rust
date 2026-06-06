@@ -1,4 +1,8 @@
 packages:
-  - '.'
+  - 'frontend'
+  - 'backend'
 allowBuilds:
+  '@parcel/watcher': true
   esbuild: true
+overrides:
+  cookie: '>=0.7.0'
