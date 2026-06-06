@@ -64,23 +64,41 @@ pub fn stderr_indicates_subtitle_incompatibility(logs: &[String]) -> bool {
     })
 }
 
-/// Builds the base ffmpeg arg list (maps + codec flags) for either reencode or remux mode,
-/// with a caller-supplied subtitle codec string ("copy" or "ass").
-#[allow(clippy::too_many_arguments)]
-pub fn build_ffmpeg_args(
-    file_path: &Path,
-    output_path: &Path,
-    subtitle_maps: &[String],
-    video_codec: &str,
-    preset: &str,
-    crf: &str,
-    mode: &str,
-    subtitle_codec: &str,
-) -> Vec<String> {
+#[derive(Debug, PartialEq)]
+pub enum ConversionMode {
+    Remux,
+    Reencode,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum SubtitleCodec {
+    Copy,
+    Ass,
+}
+
+#[derive(Debug)]
+pub struct ReencodeConfig<'a> {
+    pub video_codec: &'a str,
+    pub preset: &'a str,
+    pub crf: &'a str,
+}
+
+#[derive(Debug)]
+pub struct FfmpegJobConfig<'a> {
+    pub input: &'a Path,
+    pub output: &'a Path,
+    pub subtitle_maps: &'a [String],
+    pub mode: ConversionMode,
+    pub subtitle_codec: SubtitleCodec,
+    pub reencode: Option<ReencodeConfig<'a>>,
+}
+
+/// Builds the base ffmpeg arg list (maps + codec flags) for either reencode or remux mode.
+pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
     let mut args = vec![
         "-y".to_string(),
         "-i".to_string(),
-        file_path.to_string_lossy().into_owned(),
+        config.input.to_string_lossy().into_owned(),
         "-map".to_string(),
         "0:V?".to_string(), // map all video safely (Capital V ignores cover arts)
         "-map".to_string(),
@@ -90,38 +108,47 @@ pub fn build_ffmpeg_args(
     ];
 
     // Explicitly map exactly the subtitle IDs discovered by ffprobe
-    for map in subtitle_maps {
+    for map in config.subtitle_maps {
         args.push("-map".to_string());
         args.push(map.clone());
     }
 
-    if mode == "reencode" {
-        args.extend([
-            "-c:v".to_string(),
-            video_codec.to_string(),
-            "-preset".to_string(),
-            preset.to_string(),
-            "-crf".to_string(),
-            crf.to_string(),
-            "-c:a".to_string(),
-            "copy".to_string(),
-        ]);
-    } else {
-        // Remux: explicitly copy video and audio streams only.
-        args.extend([
-            "-c:v".to_string(),
-            "copy".to_string(),
-            "-c:a".to_string(),
-            "copy".to_string(),
-        ]);
+    match config.mode {
+        ConversionMode::Reencode => {
+            if let Some(reencode) = &config.reencode {
+                args.extend([
+                    "-c:v".to_string(),
+                    reencode.video_codec.to_string(),
+                    "-preset".to_string(),
+                    reencode.preset.to_string(),
+                    "-crf".to_string(),
+                    reencode.crf.to_string(),
+                    "-c:a".to_string(),
+                    "copy".to_string(),
+                ]);
+            }
+        }
+        ConversionMode::Remux => {
+            // Remux: explicitly copy video and audio streams only.
+            args.extend([
+                "-c:v".to_string(),
+                "copy".to_string(),
+                "-c:a".to_string(),
+                "copy".to_string(),
+            ]);
+        }
     }
 
-    args.extend(["-c:s".to_string(), subtitle_codec.to_string()]);
+    let sub_codec_str = match config.subtitle_codec {
+        SubtitleCodec::Copy => "copy",
+        SubtitleCodec::Ass => "ass",
+    };
+    args.extend(["-c:s".to_string(), sub_codec_str.to_string()]);
 
     // Clear the title metadata from the output file, matching the Python script's
     args.extend(["-metadata".to_string(), "title=".to_string()]);
 
-    args.push(output_path.to_string_lossy().into_owned());
+    args.push(config.output.to_string_lossy().into_owned());
     args
 }
 

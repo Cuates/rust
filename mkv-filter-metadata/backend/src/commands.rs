@@ -8,7 +8,7 @@ use crate::error::AppError;
 use crate::models::{AppState, DirectoryStats, FileStat, VideoPipelinePayload};
 use crate::process::{
     append_log, build_ffmpeg_args, get_ffmpeg_preset, get_matching_subtitle_maps, parse_comma_list,
-    run_sidecar_command, stderr_indicates_subtitle_incompatibility,
+    run_sidecar_command, stderr_indicates_subtitle_incompatibility, ConversionMode, FfmpegJobConfig, ReencodeConfig, SubtitleCodec,
 };
 
 #[tauri::command]
@@ -211,16 +211,18 @@ pub async fn process_video_pipeline(
         // Routing Logic: Reencode vs Remux Fallback Protocol
         if payload.conversion_mode == "reencode" {
             // First attempt: try copying subtitles as-is
-            let ffmpeg_args = build_ffmpeg_args(
-                file_path,
-                &output_file_path,
-                &subtitle_maps,
-                &payload.video_codec,
-                &mapped_preset,
-                &payload.crf,
-                "reencode",
-                "copy",
-            );
+            let ffmpeg_args = build_ffmpeg_args(&FfmpegJobConfig {
+                input: file_path,
+                output: &output_file_path,
+                subtitle_maps: &subtitle_maps,
+                mode: ConversionMode::Reencode,
+                subtitle_codec: SubtitleCodec::Copy,
+                reencode: Some(ReencodeConfig {
+                    video_codec: &payload.video_codec,
+                    preset: &mapped_preset,
+                    crf: &payload.crf,
+                }),
+            });
 
             let (success, stderr_lines) =
                 run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_args).await?;
@@ -236,16 +238,18 @@ pub async fn process_video_pipeline(
                     let _ = std::fs::remove_file(&output_file_path);
                 }
 
-                let retry_args = build_ffmpeg_args(
-                    file_path,
-                    &output_file_path,
-                    &subtitle_maps,
-                    &payload.video_codec,
-                    &mapped_preset,
-                    &payload.crf,
-                    "reencode",
-                    "ass",
-                );
+                let retry_args = build_ffmpeg_args(&FfmpegJobConfig {
+                    input: file_path,
+                    output: &output_file_path,
+                    subtitle_maps: &subtitle_maps,
+                    mode: ConversionMode::Reencode,
+                    subtitle_codec: SubtitleCodec::Ass,
+                    reencode: Some(ReencodeConfig {
+                        video_codec: &payload.video_codec,
+                        preset: &mapped_preset,
+                        crf: &payload.crf,
+                    }),
+                });
 
                 let (retry_success, _) =
                     run_sidecar_command(&app, &state, "ffmpeg", retry_args).await?;
@@ -265,16 +269,14 @@ pub async fn process_video_pipeline(
             );
 
             // First attempt: try copying subtitles as-is
-            let ffmpeg_copy_args = build_ffmpeg_args(
-                file_path,
-                &output_file_path,
-                &subtitle_maps,
-                "",
-                "",
-                "",
-                "remux",
-                "copy",
-            );
+            let ffmpeg_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
+                input: file_path,
+                output: &output_file_path,
+                subtitle_maps: &subtitle_maps,
+                mode: ConversionMode::Remux,
+                subtitle_codec: SubtitleCodec::Copy,
+                reencode: None,
+            });
 
             let (success, stderr_lines) =
                 run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_copy_args).await?;
@@ -288,16 +290,14 @@ pub async fn process_video_pipeline(
                     let _ = std::fs::remove_file(&output_file_path);
                 }
 
-                let retry_copy_args = build_ffmpeg_args(
-                    file_path,
-                    &output_file_path,
-                    &subtitle_maps,
-                    "",
-                    "",
-                    "",
-                    "remux",
-                    "ass",
-                );
+                let retry_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
+                    input: file_path,
+                    output: &output_file_path,
+                    subtitle_maps: &subtitle_maps,
+                    mode: ConversionMode::Remux,
+                    subtitle_codec: SubtitleCodec::Ass,
+                    reencode: None,
+                });
 
                 let (retry_success, retry_stderr) =
                     run_sidecar_command(&app, &state, "ffmpeg", retry_copy_args).await?;
