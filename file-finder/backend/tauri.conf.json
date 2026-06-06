@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.cuates.file-finder-rust",
   "build": {
-    "beforeDevCommand": "pnpm --dir ../frontend dev",
+    "beforeDevCommand": "pnpm -F frontend dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm --dir ../frontend build",
+    "beforeBuildCommand": "pnpm -F frontend build",
     "frontendDist": "../frontend/build"
   },
   "app": {

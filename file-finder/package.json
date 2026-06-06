@@ -6,10 +6,11 @@
     "check": "pnpm --filter frontend check && cargo check --manifest-path backend/Cargo.toml",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && pnpm install",
     "dev": "pnpm -F backend exec tauri dev",
-    "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix -- -D warnings",
+    "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
     "app-info": "pnpm -F backend exec tauri info",
     "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
-    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml"
+    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
+    "test:coverage": "pnpm -F frontend coverage && cargo tarpaulin --manifest-path backend/Cargo.toml --out Html"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2"

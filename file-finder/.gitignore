@@ -17,3 +17,8 @@ backend/gen/schemas
 
 # Workspace Root
 node_modules/
+
+# Testing & Coverage
+coverage/
+tarpaulin-report.html
+cobertura.xml
