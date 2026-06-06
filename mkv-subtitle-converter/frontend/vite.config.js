@@ -1,6 +1,19 @@
 import { defineConfig } from 'vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 
+// Suppress SvelteKit warning about Vite config overrides (often triggered by external CLIs)
+const originalError = console.error;
+console.error = (...args) => {
+	if (
+		args[0] &&
+		typeof args[0] === 'string' &&
+		args[0].includes('The following Vite config options will be overridden by SvelteKit')
+	) {
+		return;
+	}
+	originalError(...args);
+};
+
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
