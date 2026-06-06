@@ -9,10 +9,11 @@
     "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && pnpm install",
     "dev": "tauri dev",
-    "format": "pnpm -F frontend format && cargo fmt --manifest-path backend/Cargo.toml",
+    "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
     "app-info": "tauri info",
-    "lint": "pnpm -F frontend lint && cargo clippy --manifest-path backend/Cargo.toml -- -D warnings",
-    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml"
+    "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
+    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
+    "test:coverage": "pnpm -F frontend coverage && cargo tarpaulin --manifest-path backend/Cargo.toml --out Html"
   },
   "license": "MIT",
   "devDependencies": {
