@@ -10,3 +10,7 @@ package/
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 backend/sidecars/
+
+# Coverage
+coverage/
+tarpaulin-report.html
