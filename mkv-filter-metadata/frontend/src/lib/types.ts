@@ -1,11 +1,24 @@
-export type FileStat = {
-  name: string;
-  size_bytes: number;
-};
+import { z } from 'zod';
 
-export type DirStats = {
-  exists: boolean;
-  file_count: number;
-  total_size_bytes: number;
-  files: FileStat[];
-};
+export const FileStatSchema = z.object({
+  name: z.string(),
+  size_bytes: z.number(),
+});
+
+export const DirStatsSchema = z.object({
+  exists: z.boolean(),
+  file_count: z.number(),
+  total_size_bytes: z.number(),
+  files: z.array(FileStatSchema),
+});
+
+export const EncoderCapabilitiesSchema = z.object({
+  nvenc: z.boolean(),
+  amf: z.boolean(),
+  qsv: z.boolean(),
+  videotoolbox: z.boolean(),
+});
+
+export type FileStat = z.infer<typeof FileStatSchema>;
+export type DirStats = z.infer<typeof DirStatsSchema>;
+export type EncoderCapabilities = z.infer<typeof EncoderCapabilitiesSchema>;

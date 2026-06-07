@@ -1,6 +1,24 @@
 <script lang="ts">
   import { config, appState } from '../stores/config.svelte';
   import { pipeline } from '../stores/pipeline.svelte';
+
+  $effect(() => {
+    // Reactively update the preset if the current preset is incompatible with the new video_codec
+    if (config.video_codec.includes('nvenc') && !config.preset.match(/^p[1-7]$/)) {
+      config.preset = 'p4';
+    } else if (config.video_codec.includes('amf') && !['speed', 'balanced', 'quality'].includes(config.preset)) {
+      config.preset = 'balanced';
+    } else if (config.video_codec.includes('videotoolbox') && config.preset !== 'default') {
+      config.preset = 'default';
+    } else if (
+      !config.video_codec.includes('nvenc') && 
+      !config.video_codec.includes('amf') && 
+      !config.video_codec.includes('videotoolbox') && 
+      !['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'].includes(config.preset)
+    ) {
+      config.preset = 'faster';
+    }
+  });
 </script>
 
 <div class="grid-layout-2">
@@ -78,16 +96,32 @@
       </div>
       <div class="row">
         <label for="preset-val">Encoder Preset</label>
-        <select id="preset-val" bind:value={config.preset} disabled={pipeline.processingActive}>
-          <option value="ultrafast">ultrafast</option>
-          <option value="superfast">superfast</option>
-          <option value="veryfast">veryfast</option>
-          <option value="faster">faster</option>
-          <option value="fast">fast</option>
-          <option value="medium">medium</option>
-          <option value="slow">slow</option>
-          <option value="slower">slower</option>
-          <option value="veryslow">veryslow</option>
+        <select id="preset-val" bind:value={config.preset} disabled={pipeline.processingActive || config.video_codec.includes('videotoolbox')}>
+          {#if config.video_codec.includes('nvenc')}
+            <option value="p1">p1 (Fastest)</option>
+            <option value="p2">p2</option>
+            <option value="p3">p3</option>
+            <option value="p4">p4 (Medium)</option>
+            <option value="p5">p5</option>
+            <option value="p6">p6</option>
+            <option value="p7">p7 (Slowest)</option>
+          {:else if config.video_codec.includes('amf')}
+            <option value="speed">speed</option>
+            <option value="balanced">balanced</option>
+            <option value="quality">quality</option>
+          {:else if config.video_codec.includes('videotoolbox')}
+            <option value="default">default</option>
+          {:else}
+            <option value="ultrafast">ultrafast</option>
+            <option value="superfast">superfast</option>
+            <option value="veryfast">veryfast</option>
+            <option value="faster">faster</option>
+            <option value="fast">fast</option>
+            <option value="medium">medium</option>
+            <option value="slow">slow</option>
+            <option value="slower">slower</option>
+            <option value="veryslow">veryslow</option>
+          {/if}
         </select>
       </div>
       <div class="row">

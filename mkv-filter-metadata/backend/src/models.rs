@@ -44,12 +44,46 @@ pub enum ConversionMode {
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum Preset {
+    #[serde(rename = "ultrafast")]
+    Ultrafast,
+    #[serde(rename = "superfast")]
+    Superfast,
+    #[serde(rename = "veryfast")]
+    Veryfast,
+    #[serde(rename = "faster")]
+    Faster,
     #[serde(rename = "fast")]
     Fast,
     #[serde(rename = "medium")]
     Medium,
     #[serde(rename = "slow")]
     Slow,
+    #[serde(rename = "slower")]
+    Slower,
+    #[serde(rename = "veryslow")]
+    Veryslow,
+    #[serde(rename = "p1")]
+    P1,
+    #[serde(rename = "p2")]
+    P2,
+    #[serde(rename = "p3")]
+    P3,
+    #[serde(rename = "p4")]
+    P4,
+    #[serde(rename = "p5")]
+    P5,
+    #[serde(rename = "p6")]
+    P6,
+    #[serde(rename = "p7")]
+    P7,
+    #[serde(rename = "speed")]
+    Speed,
+    #[serde(rename = "balanced")]
+    Balanced,
+    #[serde(rename = "quality")]
+    Quality,
+    #[serde(rename = "default")]
+    Default,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

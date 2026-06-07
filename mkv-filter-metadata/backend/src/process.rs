@@ -10,6 +10,7 @@ use crate::models::{AppState, ConversionMode, VideoCodec};
 /// The writer must be initialized via `initialize_session_log` before disk writes take effect.
 pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     let msg = message.as_ref();
+    tracing::info!("{}", msg);
     let _ = app.emit("process-log", msg);
     let state = app.state::<AppState>();
     if let Ok(mut guard) = state.log_writer.lock() {
@@ -63,25 +64,27 @@ impl VideoCodec {
     }
 
     pub fn map_preset(&self, preset: &crate::models::Preset) -> String {
-        let preset_str = match preset {
-            crate::models::Preset::Fast => "fast",
-            crate::models::Preset::Medium => "medium",
-            crate::models::Preset::Slow => "slow",
-        };
-        match self {
-            VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => match preset_str {
-                "fast" => "p3".to_string(),
-                "medium" => "p4".to_string(),
-                "slow" => "p5".to_string(),
-                _ => "p4".to_string(),
-            },
-            VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => match preset_str {
-                "fast" => "speed".to_string(),
-                "medium" => "balanced".to_string(),
-                "slow" => "quality".to_string(),
-                _ => "balanced".to_string(),
-            },
-            _ => preset_str.to_string(),
+        match preset {
+            crate::models::Preset::Ultrafast => "ultrafast".to_string(),
+            crate::models::Preset::Superfast => "superfast".to_string(),
+            crate::models::Preset::Veryfast => "veryfast".to_string(),
+            crate::models::Preset::Faster => "faster".to_string(),
+            crate::models::Preset::Fast => "fast".to_string(),
+            crate::models::Preset::Medium => "medium".to_string(),
+            crate::models::Preset::Slow => "slow".to_string(),
+            crate::models::Preset::Slower => "slower".to_string(),
+            crate::models::Preset::Veryslow => "veryslow".to_string(),
+            crate::models::Preset::P1 => "p1".to_string(),
+            crate::models::Preset::P2 => "p2".to_string(),
+            crate::models::Preset::P3 => "p3".to_string(),
+            crate::models::Preset::P4 => "p4".to_string(),
+            crate::models::Preset::P5 => "p5".to_string(),
+            crate::models::Preset::P6 => "p6".to_string(),
+            crate::models::Preset::P7 => "p7".to_string(),
+            crate::models::Preset::Speed => "speed".to_string(),
+            crate::models::Preset::Balanced => "balanced".to_string(),
+            crate::models::Preset::Quality => "quality".to_string(),
+            crate::models::Preset::Default => "default".to_string(),
         }
     }
 
@@ -523,4 +526,36 @@ pub async fn run_sidecar_command(
     }
 
     Ok((file_success, collected_stderr))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_comma_list() {
+        assert_eq!(parse_comma_list("mkv, mp4, avi"), vec!["mkv", "mp4", "avi"]);
+        assert_eq!(parse_comma_list(""), Vec::<String>::new());
+        assert_eq!(parse_comma_list("MKV,,mp4"), vec!["mkv", "mp4"]);
+    }
+
+    #[test]
+    fn test_parse_ffmpeg_time() {
+        assert_eq!(parse_ffmpeg_time("00:00:00.00"), Some(0.0));
+        assert_eq!(parse_ffmpeg_time("01:00:00.00"), Some(3600.0));
+        assert_eq!(parse_ffmpeg_time("00:01:30.50"), Some(90.5));
+        assert_eq!(parse_ffmpeg_time("invalid"), None);
+    }
+
+    #[test]
+    fn test_stderr_indicates_subtitle_incompatibility() {
+        let logs_ok = vec!["frame=123 fps=30".to_string()];
+        assert!(!stderr_indicates_subtitle_incompatibility(&logs_ok));
+
+        let logs_err = vec!["Subtitle codec not supported".to_string()];
+        assert!(stderr_indicates_subtitle_incompatibility(&logs_err));
+        
+        let logs_err2 = vec!["could not write header".to_string()];
+        assert!(stderr_indicates_subtitle_incompatibility(&logs_err2));
+    }
 }

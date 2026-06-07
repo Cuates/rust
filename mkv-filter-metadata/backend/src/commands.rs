@@ -214,7 +214,8 @@ pub async fn process_video_pipeline(
 
             // Deduplicate output filenames to prevent silent overwrites when multiple
             // input files map to the same output name (e.g., movie.mkv and movie.avi → movie.mkv)
-            let mut candidate = processed_dir_path.join(format!("{}{}", file_stub, formatted_ext));
+            let base_candidate = processed_dir_path.join(format!("{}{}", file_stub, formatted_ext));
+            let mut candidate = base_candidate.clone();
             let mut dedup_counter = 1u32;
             while session.output_files.contains(&candidate) {
                 candidate = processed_dir_path.join(format!("{}_{}{}", file_stub, dedup_counter, formatted_ext));
@@ -224,6 +225,14 @@ pub async fn process_video_pipeline(
 
             session.output_path = Some(output_file_path.clone());
             session.output_files.push(output_file_path.clone());
+        }
+
+        // M9: Session Resumption logic
+        // If the file already exists on disk, assume it was successfully completed in a prior aborted run and skip.
+        if output_file_path.exists() {
+            append_log(&app, format!("  | [INFO] ⏭️ Skipping file - output already exists: {}", output_file_path.display()));
+            successful_files += 1;
+            continue;
         }
 
         // Run ffprobe to get exact stream IDs for matching subtitles before building ffmpeg command

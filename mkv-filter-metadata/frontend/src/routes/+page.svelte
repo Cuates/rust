@@ -7,7 +7,9 @@
   import { config, appState } from '../lib/stores/config.svelte';
   import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
-  import type { DirStats } from '../lib/types';
+  import type { DirStats, EncoderCapabilities } from '$lib/types';
+  import { DirStatsSchema, EncoderCapabilitiesSchema } from '$lib/types';
+  import { z } from 'zod';
   import { formatDuration } from '../lib/utils/formatters';
 
   import DirectoryQueue from '../lib/components/DirectoryQueue.svelte';
@@ -35,9 +37,10 @@
 
     const init = async () => {
       try {
-        appState.hardwareEncoders = await invoke('get_encoder_capabilities');
-      } catch (err) {
-        console.error('Diagnostic check failed:', err);
+        const rawEncoders = await invoke('get_encoder_capabilities');
+        appState.hardwareEncoders = EncoderCapabilitiesSchema.parse(rawEncoders);
+      } catch (e) {
+        emitLog(`[ERROR] Failed querying hardware encoder API integrations: ${e}`);
       }
 
       const unlistenDrop = await listen<{ paths: string[] }>('tauri://drag-drop', (event) => {
@@ -192,7 +195,8 @@
     const tools = ['ffmpeg', 'mkvmerge'];
     for (const tool of tools) {
       try {
-        const ver: string = await invoke('get_sidecar_version', { binaryName: tool });
+        const rawVer = await invoke('get_sidecar_version', { binaryName: tool });
+        const ver = z.string().parse(rawVer);
         emitLog(`[Sidecar Asset] ${tool.toUpperCase()}: ${ver.trim()}`);
       } catch {
         emitLog(
@@ -249,10 +253,11 @@
       const tempDirStats: Record<string, DirStats> = {};
       for (const dir of config.input_directories) {
         try {
-          const stats = await invoke<DirStats>('get_directory_stats', {
+          const rawStats = await invoke('get_directory_stats', {
             dirPath: dir,
             fileExtensions: config.file_extensions
           });
+          const stats = DirStatsSchema.parse(rawStats);
           tempDirStats[dir] = stats;
         } catch {
           tempDirStats[dir] = { exists: false, file_count: 0, total_size_bytes: 0, files: [] };
@@ -272,7 +277,8 @@
         ...config,
         crf: String(config.crf)
       };
-      const summaryMessage: string = await invoke('process_video_pipeline', { payload });
+      const rawSummary = await invoke('process_video_pipeline', { payload });
+      const summaryMessage = z.string().parse(rawSummary);
 
       pipeline.overallProgress = 100;
       emitLog(summaryMessage);
