@@ -62,26 +62,26 @@ impl VideoCodec {
         }
     }
 
-    pub fn map_preset(&self, preset: &str) -> String {
+    pub fn map_preset(&self, preset: &crate::models::Preset) -> String {
+        let preset_str = match preset {
+            crate::models::Preset::Fast => "fast",
+            crate::models::Preset::Medium => "medium",
+            crate::models::Preset::Slow => "slow",
+        };
         match self {
-            VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => match preset {
-                "ultrafast" => "p1".to_string(),
-                "veryfast" => "p2".to_string(),
+            VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => match preset_str {
                 "fast" => "p3".to_string(),
-                "faster" => "p4".to_string(),
                 "medium" => "p4".to_string(),
                 "slow" => "p5".to_string(),
-                "slower" => "p6".to_string(),
-                "veryslow" => "p7".to_string(),
                 _ => "p4".to_string(),
             },
-            VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => match preset {
-                "ultrafast" | "superfast" | "veryfast" | "faster" => "speed".to_string(),
-                "medium" | "fast" => "balanced".to_string(),
-                "slow" | "slower" | "veryslow" => "quality".to_string(),
+            VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => match preset_str {
+                "fast" => "speed".to_string(),
+                "medium" => "balanced".to_string(),
+                "slow" => "quality".to_string(),
                 _ => "balanced".to_string(),
             },
-            _ => preset.to_string(),
+            _ => preset_str.to_string(),
         }
     }
 
@@ -98,7 +98,7 @@ impl VideoCodec {
         }
     }
 
-    pub fn get_hardware_args(&self, preset: &str, crf: &str) -> Vec<String> {
+    pub fn get_hardware_args(&self, preset: &crate::models::Preset, crf: &str) -> Vec<String> {
         let mapped_preset = self.map_preset(preset);
         let mut args = vec!["-c:v".to_string(), self.as_str().to_string()];
 
@@ -181,7 +181,7 @@ pub enum SubtitleCodec {
 #[derive(Debug)]
 pub struct ReencodeConfig<'a> {
     pub video_codec: &'a VideoCodec,
-    pub preset: &'a str,
+    pub preset: &'a crate::models::Preset,
     pub crf: &'a str,
 }
 

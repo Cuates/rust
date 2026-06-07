@@ -42,6 +42,16 @@ pub enum ConversionMode {
     Reencode,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum Preset {
+    #[serde(rename = "fast")]
+    Fast,
+    #[serde(rename = "medium")]
+    Medium,
+    #[serde(rename = "slow")]
+    Slow,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoPipelinePayload {
     pub input_directories: Vec<String>,
@@ -50,7 +60,7 @@ pub struct VideoPipelinePayload {
     pub output_extension: String,
     pub conversion_mode: ConversionMode,
     pub video_codec: VideoCodec,
-    pub preset: String,
+    pub preset: Preset,
     pub crf: String,
 }
 
