@@ -76,10 +76,15 @@ pub struct DirectoryStats {
     pub files: Vec<FileStat>,
 }
 
+pub struct SessionLog {
+    pub writer: std::io::BufWriter<std::fs::File>,
+    pub bytes_written: usize,
+}
+
 pub struct AppState {
     pub is_aborted: AtomicBool,
     pub process: tokio::sync::Mutex<ProcessSession>,
-    pub log_writer: std::sync::Mutex<Option<std::io::BufWriter<std::fs::File>>>,
+    pub log_writer: std::sync::Mutex<Option<SessionLog>>,
 }
 
 #[derive(Default)]

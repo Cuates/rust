@@ -152,8 +152,8 @@
     {/if}
   </div>
   <div bind:this={terminalEl} id="terminal-shell" class="terminal-shell">
-    {#each pipeline.consoleLogs as log, i (i)}
-      <div class="log-line {getLogClass(log)}">{log}</div>
+    {#each pipeline.consoleLogs as log (log.id)}
+      <div class="log-line {getLogClass(log.text)}">{log.text}</div>
     {:else}
       <div class="empty-log-msg">Logs will appear here once processing begins...</div>
     {/each}

@@ -31,6 +31,7 @@
     applyThemeBody();
 
     let cleanup: (() => void) | undefined;
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const init = async () => {
       try {
@@ -69,9 +70,9 @@
           }
         }
 
-        if (!pipeline._scrollTimeout) {
-          pipeline._scrollTimeout = setTimeout(async () => {
-            pipeline._scrollTimeout = null;
+        if (!scrollTimeout) {
+          scrollTimeout = setTimeout(async () => {
+            scrollTimeout = null;
             await tick();
             if (terminalComponent) terminalComponent.scrollToBottom();
           }, 100);

@@ -66,12 +66,32 @@ pub async fn get_directory_stats(
     .map_err(|e| AppError::Process(format!("Task join error: {}", e)))
 }
 
+fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
+    if payload.conversion_mode == crate::models::ConversionMode::Reencode {
+        let crf: u32 = payload.crf.parse().map_err(|_| AppError::Process("Invalid CRF value. Must be a number.".into()))?;
+        if crf > 51 {
+            return Err(AppError::Process("CRF must be between 0 and 51".into()));
+        }
+    }
+    
+    if payload.output_extension.is_empty() {
+        return Err(AppError::Process("Output extension is required".into()));
+    }
+    if payload.output_extension.contains('/') || payload.output_extension.contains('\\') {
+        return Err(AppError::Process("Invalid output extension: Path separators not allowed".into()));
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn process_video_pipeline(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     payload: VideoPipelinePayload,
 ) -> Result<String, AppError> {
+    validate_payload(&payload)?;
+
     state.is_aborted.store(false, Ordering::SeqCst);
     {
         let mut session = state.process.lock().await;
@@ -451,99 +471,35 @@ pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<
 
 #[tauri::command]
 pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderCapabilities {
-    let shell = app.shell();
     let mut caps = crate::models::EncoderCapabilities {
         nvenc: false,
         amf: false,
-        videotoolbox: false,
         qsv: false,
+        videotoolbox: false,
     };
 
+    let shell = app.shell();
     if let Ok(cmd) = shell.sidecar("ffmpeg") {
         if let Ok(output) = cmd.args(["-encoders"]).output().await {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            // We just need to know if the hardware vendor's encoders are present in the binary
-            if stdout.contains("_nvenc") {
-                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
-                    if let Ok(test_out) = test_cmd
-                        .args([
-                            "-f",
-                            "lavfi",
-                            "-i",
-                            "nullsrc=s=256x256:d=0.1",
-                            "-c:v",
-                            "hevc_nvenc",
-                            "-f",
-                            "null",
-                            "-",
-                        ])
-                        .output()
-                        .await
-                    {
-                        caps.nvenc = test_out.status.success();
-                    }
-                }
-            }
-            if stdout.contains("_amf") {
-                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
-                    if let Ok(test_out) = test_cmd
-                        .args([
-                            "-f",
-                            "lavfi",
-                            "-i",
-                            "nullsrc=s=256x256:d=0.1",
-                            "-c:v",
-                            "hevc_amf",
-                            "-f",
-                            "null",
-                            "-",
-                        ])
-                        .output()
-                        .await
-                    {
-                        caps.amf = test_out.status.success();
-                    }
-                }
-            }
-            if stdout.contains("_videotoolbox") {
-                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
-                    if let Ok(test_out) = test_cmd
-                        .args([
-                            "-f",
-                            "lavfi",
-                            "-i",
-                            "nullsrc=s=256x256:d=0.1",
-                            "-c:v",
-                            "hevc_videotoolbox",
-                            "-f",
-                            "null",
-                            "-",
-                        ])
-                        .output()
-                        .await
-                    {
-                        caps.videotoolbox = test_out.status.success();
-                    }
-                }
-            }
-            if stdout.contains("_qsv") {
-                if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
-                    if let Ok(test_out) = test_cmd
-                        .args([
-                            "-f",
-                            "lavfi",
-                            "-i",
-                            "nullsrc=s=256x256:d=0.1",
-                            "-c:v",
-                            "hevc_qsv",
-                            "-f",
-                            "null",
-                            "-",
-                        ])
-                        .output()
-                        .await
-                    {
-                        caps.qsv = test_out.status.success();
+            
+            let tests = [
+                ("_nvenc", "hevc_nvenc", &mut caps.nvenc),
+                ("_amf", "hevc_amf", &mut caps.amf),
+                ("_qsv", "hevc_qsv", &mut caps.qsv),
+                ("_videotoolbox", "hevc_videotoolbox", &mut caps.videotoolbox),
+            ];
+
+            for (pattern, codec, flag) in tests {
+                if stdout.contains(pattern) {
+                    if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
+                        if let Ok(test_out) = test_cmd
+                            .args(["-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.1", "-c:v", codec, "-f", "null", "-"])
+                            .output()
+                            .await
+                        {
+                            *flag = test_out.status.success();
+                        }
                     }
                 }
             }
@@ -707,7 +663,10 @@ pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
             .map_err(|e| AppError::Process(format!("Failed to initialize session log: {}", e)))?;
         
         if let Ok(mut guard) = state.log_writer.lock() {
-            *guard = Some(std::io::BufWriter::new(file));
+            *guard = Some(crate::models::SessionLog {
+                writer: std::io::BufWriter::new(file),
+                bytes_written: 0,
+            });
         };
     }
     Ok(())

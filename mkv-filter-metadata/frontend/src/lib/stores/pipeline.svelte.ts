@@ -1,7 +1,7 @@
 import type { DirStats } from '../types';
 
 export const pipeline = $state({
-  consoleLogs: [] as string[],
+  consoleLogs: [] as { id: number, text: string }[],
   processingActive: false,
   showMetricsPanel: false,
 
@@ -18,8 +18,7 @@ export const pipeline = $state({
   directoryErrors: {} as Record<string, boolean>,
   currentActiveDirectory: null as string | null,
   directoryStats: {} as Record<string, DirStats>,
-  hasProcessClicked: false,
-  _scrollTimeout: null as ReturnType<typeof setTimeout> | null
+  hasProcessClicked: false
 });
 
 import { invoke } from '@tauri-apps/api/core';
@@ -30,11 +29,14 @@ export async function emitLog(...logs: string[]) {
   }
 }
 
-let logBuffer: string[] = [];
+let logBuffer: { id: number, text: string }[] = [];
 let flushTimeout: ReturnType<typeof setTimeout> | null = null;
+let logIdCounter = 0;
 
 export function addLogs(...logs: string[]) {
-  logBuffer.push(...logs);
+  for (const text of logs) {
+    logBuffer.push({ id: logIdCounter++, text });
+  }
   if (!flushTimeout) {
     flushTimeout = setTimeout(() => {
       pipeline.consoleLogs.push(...logBuffer);

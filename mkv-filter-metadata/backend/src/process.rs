@@ -13,9 +13,19 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     let _ = app.emit("process-log", msg);
     let state = app.state::<AppState>();
     if let Ok(mut guard) = state.log_writer.lock() {
-        if let Some(writer) = guard.as_mut() {
-            use std::io::Write;
-            let _ = writeln!(writer, "{}", msg);
+        if let Some(log) = guard.as_mut() {
+            use std::io::{Write, Seek, SeekFrom};
+            let line_len = msg.len() + 1; // +1 for \n
+            if log.bytes_written + line_len > 10 * 1024 * 1024 {
+                let _ = log.writer.flush();
+                let _ = log.writer.get_ref().set_len(0);
+                let _ = log.writer.seek(SeekFrom::Start(0));
+                log.bytes_written = 0;
+                let _ = writeln!(log.writer, "--- LOG ROTATED DUE TO SIZE LIMIT ---");
+                log.bytes_written += 38;
+            }
+            let _ = writeln!(log.writer, "{}", msg);
+            log.bytes_written += line_len;
         }
     };
 }
@@ -25,9 +35,9 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
 pub fn flush_log_writer(app: &AppHandle) {
     let state = app.state::<AppState>();
     if let Ok(mut guard) = state.log_writer.lock() {
-        if let Some(writer) = guard.as_mut() {
+        if let Some(log) = guard.as_mut() {
             use std::io::Write;
-            let _ = writer.flush();
+            let _ = log.writer.flush();
         }
     };
 }
