@@ -4,26 +4,32 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 use crate::error::AppError;
-use crate::models::{AppState, VideoCodec};
+use crate::models::{AppState, ConversionMode, VideoCodec};
 
-/// Writes a log message to disk and emits it to the frontend.
+/// Writes a log message to the cached writer and emits it to the frontend.
+/// The writer must be initialized via `initialize_session_log` before disk writes take effect.
 pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     let msg = message.as_ref();
     let _ = app.emit("process-log", msg);
-    if let Ok(log_dir) = app.path().app_log_dir() {
-        if !log_dir.exists() {
-            let _ = std::fs::create_dir_all(&log_dir);
-        }
-        let log_file = log_dir.join("session.log");
-        if let Ok(mut file) = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(log_file)
-        {
+    let state = app.state::<AppState>();
+    if let Ok(mut guard) = state.log_writer.lock() {
+        if let Some(writer) = guard.as_mut() {
             use std::io::Write;
-            let _ = writeln!(file, "{}", msg);
+            let _ = writeln!(writer, "{}", msg);
         }
-    }
+    };
+}
+
+/// Flushes the cached log writer to ensure all buffered data is written to disk.
+/// Must be called before reading the log file directly.
+pub fn flush_log_writer(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    if let Ok(mut guard) = state.log_writer.lock() {
+        if let Some(writer) = guard.as_mut() {
+            use std::io::Write;
+            let _ = writer.flush();
+        }
+    };
 }
 
 impl VideoCodec {
@@ -154,12 +160,6 @@ pub fn stderr_indicates_subtitle_incompatibility(logs: &[String]) -> bool {
             || l.contains("could not write header")
             || (l.contains("function not implemented") && !l.contains("vf#"))
     })
-}
-
-#[derive(Debug, PartialEq)]
-pub enum ConversionMode {
-    Remux,
-    Reencode,
 }
 
 #[derive(Debug, PartialEq)]

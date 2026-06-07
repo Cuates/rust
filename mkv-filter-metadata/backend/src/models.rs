@@ -34,13 +34,21 @@ pub enum VideoCodec {
     Av1Videotoolbox,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum ConversionMode {
+    #[serde(rename = "remux")]
+    Remux,
+    #[serde(rename = "reencode")]
+    Reencode,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoPipelinePayload {
     pub input_directories: Vec<String>,
     pub file_extensions: String,
     pub subtitle_tracks: String,
     pub output_extension: String,
-    pub conversion_mode: String,
+    pub conversion_mode: ConversionMode,
     pub video_codec: VideoCodec,
     pub preset: String,
     pub crf: String,
@@ -71,6 +79,7 @@ pub struct DirectoryStats {
 pub struct AppState {
     pub is_aborted: AtomicBool,
     pub process: tokio::sync::Mutex<ProcessSession>,
+    pub log_writer: std::sync::Mutex<Option<std::io::BufWriter<std::fs::File>>>,
 }
 
 #[derive(Default)]
@@ -86,6 +95,7 @@ impl Default for AppState {
         Self {
             is_aborted: AtomicBool::new(false),
             process: tokio::sync::Mutex::new(ProcessSession::default()),
+            log_writer: std::sync::Mutex::new(None),
         }
     }
 }

@@ -5,11 +5,11 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
 use crate::error::AppError;
-use crate::models::{AppState, DirectoryStats, FileStat, VideoPipelinePayload};
+use crate::models::{AppState, ConversionMode, DirectoryStats, FileStat, VideoPipelinePayload};
 use crate::process::{
-    append_log, build_ffmpeg_args, get_matching_subtitle_maps, parse_comma_list,
-    run_sidecar_command, stderr_indicates_subtitle_incompatibility, ConversionMode,
-    FfmpegJobConfig, ReencodeConfig, SubtitleCodec,
+    append_log, build_ffmpeg_args, flush_log_writer, get_matching_subtitle_maps, parse_comma_list,
+    run_sidecar_command, stderr_indicates_subtitle_incompatibility, FfmpegJobConfig, ReencodeConfig,
+    SubtitleCodec,
 };
 
 #[tauri::command]
@@ -174,13 +174,6 @@ pub async fn process_video_pipeline(
             })?;
         }
 
-        {
-            let mut session = state.process.lock().await;
-            if !session.output_dirs.contains(&processed_dir_path) {
-                session.output_dirs.push(processed_dir_path.clone());
-            }
-        }
-
         let file_stub = file_path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -191,11 +184,24 @@ pub async fn process_video_pipeline(
             format!(".{}", payload.output_extension)
         };
 
-        let clean_output_filename = format!("{}{}", file_stub, formatted_ext);
-        let output_file_path = processed_dir_path.join(clean_output_filename);
-
+        let output_file_path;
         {
             let mut session = state.process.lock().await;
+            // Track the output directory for cleanup on abort
+            if !session.output_dirs.contains(&processed_dir_path) {
+                session.output_dirs.push(processed_dir_path.clone());
+            }
+
+            // Deduplicate output filenames to prevent silent overwrites when multiple
+            // input files map to the same output name (e.g., movie.mkv and movie.avi → movie.mkv)
+            let mut candidate = processed_dir_path.join(format!("{}{}", file_stub, formatted_ext));
+            let mut dedup_counter = 1u32;
+            while session.output_files.contains(&candidate) {
+                candidate = processed_dir_path.join(format!("{}_{}{}", file_stub, dedup_counter, formatted_ext));
+                dedup_counter += 1;
+            }
+            output_file_path = candidate;
+
             session.output_path = Some(output_file_path.clone());
             session.output_files.push(output_file_path.clone());
         }
@@ -209,7 +215,7 @@ pub async fn process_video_pipeline(
         let mut file_success;
 
         // Routing Logic: Reencode vs Remux Fallback Protocol
-        if payload.conversion_mode == "reencode" {
+        if payload.conversion_mode == ConversionMode::Reencode {
             // First attempt: try copying subtitles as-is
             let ffmpeg_args = build_ffmpeg_args(&FfmpegJobConfig {
                 input: file_path,
@@ -372,14 +378,14 @@ pub async fn process_video_pipeline(
     );
 
     // Explicitly output the total ffmpeg stream copy failures to the Real-time Log ONLY if failures exist
-    if payload.conversion_mode != "reencode" && ffmpeg_fallback_failures > 0 {
+    if payload.conversion_mode != ConversionMode::Reencode && ffmpeg_fallback_failures > 0 {
         append_log(
             &app,
             format!("📊 Session Metrics -> Primary FFmpeg Stream Copy Failures resolved via fallback: {}", ffmpeg_fallback_failures)
         );
     }
 
-    if payload.conversion_mode == "reencode" && reencode_subtitle_retry_attempts > 0 {
+    if payload.conversion_mode == ConversionMode::Reencode && reencode_subtitle_retry_attempts > 0 {
         let reencode_subtitle_retry_failures =
             reencode_subtitle_retry_attempts - reencode_subtitle_retry_successes;
         append_log(
@@ -405,6 +411,7 @@ pub async fn process_video_pipeline(
         )
     };
 
+    flush_log_writer(&app);
     Ok(final_summary)
 }
 
@@ -545,6 +552,24 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
     caps
 }
 
+/// Retries file deletion with backoff to handle Windows process exit delays
+/// where killed child processes may still hold file locks briefly.
+async fn retry_remove_file(path: &std::path::Path) -> std::io::Result<()> {
+    let mut last_err = std::io::Error::other("no attempts made");
+    for attempt in 0..8u32 {
+        match std::fs::remove_file(path) {
+            Ok(_) => return Ok(()),
+            Err(e) => {
+                last_err = e;
+                if attempt < 7 {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+                }
+            }
+        }
+    }
+    Err(last_err)
+}
+
 #[tauri::command]
 pub async fn abort_video_pipeline(
     app: AppHandle,
@@ -568,30 +593,37 @@ pub async fn abort_video_pipeline(
 
     if let Some(child) = opt_child {
         let _ = child.kill();
-        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+        // On Windows, process termination after kill() is asynchronous.
+        // Wait long enough for the child to fully exit and release file handles.
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     }
 
+    // Use retry logic for all file deletions to handle Windows file locking
+    // where killed processes may briefly retain write locks on output files.
     if let Some(path) = target_cleanup_path {
         if path.exists() {
-            let _ = fs::remove_file(&path);
+            let _ = retry_remove_file(&path).await;
         }
     }
 
     for file in files_to_delete {
         if file.exists() {
-            if let Err(e) = fs::remove_file(&file) {
-                append_log(
-                    &app,
-                    format!("❌ Failed to delete rollback file {:?}: {}", file, e),
-                );
-            } else {
-                append_log(
-                    &app,
-                    format!(
-                        "Cleaned up session file safely: \"{}\"",
-                        file.to_string_lossy()
-                    ),
-                );
+            match retry_remove_file(&file).await {
+                Ok(_) => {
+                    append_log(
+                        &app,
+                        format!(
+                            "Cleaned up session file safely: \"{}\"",
+                            file.to_string_lossy()
+                        ),
+                    );
+                }
+                Err(e) => {
+                    append_log(
+                        &app,
+                        format!("❌ Failed to delete rollback file {:?}: {}", file, e),
+                    );
+                }
             }
         }
     }
@@ -619,11 +651,13 @@ pub async fn abort_video_pipeline(
         }
     }
 
+    flush_log_writer(&app);
     Ok(())
 }
 
 #[tauri::command]
 pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
+    flush_log_writer(&app);
     if let Ok(log_dir) = app.path().app_log_dir() {
         let log_file = log_dir.join("session.log");
         if log_file.exists() {
@@ -639,6 +673,7 @@ pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
 
 #[tauri::command]
 pub fn read_session_log(app: AppHandle) -> Result<String, AppError> {
+    flush_log_writer(&app);
     if let Ok(log_dir) = app.path().app_log_dir() {
         let log_file = log_dir.join("session.log");
         if log_file.exists() {
@@ -657,11 +692,23 @@ pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
             let _ = std::fs::create_dir_all(&log_dir);
         }
         let log_file = log_dir.join("session.log");
-        let _ = std::fs::OpenOptions::new()
+        
+        // Release the file lock from the previous session before truncating
+        let state = app.state::<AppState>();
+        if let Ok(mut guard) = state.log_writer.lock() {
+            *guard = None;
+        }
+
+        let file = std::fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .open(log_file);
+            .open(log_file)
+            .map_err(|e| AppError::Process(format!("Failed to initialize session log: {}", e)))?;
+        
+        if let Ok(mut guard) = state.log_writer.lock() {
+            *guard = Some(std::io::BufWriter::new(file));
+        };
     }
     Ok(())
 }
@@ -669,10 +716,12 @@ pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
 #[tauri::command]
 pub fn log_message(app: AppHandle, message: String) {
     crate::process::append_log(&app, message);
+    flush_log_writer(&app);
 }
 
 #[tauri::command]
 pub fn check_session_log(app: AppHandle) -> Result<bool, AppError> {
+    flush_log_writer(&app);
     if let Ok(log_dir) = app.path().app_log_dir() {
         let log_file = log_dir.join("session.log");
         if let Ok(metadata) = std::fs::metadata(&log_file) {
