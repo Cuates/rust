@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { open } from '@tauri-apps/plugin-dialog';
+  import { open as openDialog } from '@tauri-apps/plugin-dialog';
+  import { invoke } from '@tauri-apps/api/core';
+  import { join } from '@tauri-apps/api/path';
   import { config } from '../stores/config.svelte';
   import { pipeline, emitLog } from '../stores/pipeline.svelte';
   import { addToast } from '../stores/toast.svelte';
@@ -21,7 +23,7 @@
 
   async function handleDirectoryBrowse() {
     try {
-      const selectedPath = await open({
+      const selectedPath = await openDialog({
         directory: true,
         multiple: true,
         title: 'Select Input Video Processing Directory'
@@ -70,11 +72,20 @@
 
   function handlePointerDown(e: PointerEvent, index: number) {
     if (pipeline.processingActive) return;
-    if ((e.target as HTMLElement).closest('.remove-btn')) return;
+    if ((e.target as HTMLElement).closest('.remove-btn') || (e.target as HTMLElement).closest('.open-folder-btn')) return;
     e.preventDefault();
     pointerDraggingIndex = index;
     pointerStartY = e.clientY;
     pointerCurrentY = e.clientY;
+  }
+
+  async function openOutputFolder(dir: string) {
+    try {
+      const targetPath = await join(dir, 'processed_files');
+      await invoke('open_folder', { path: targetPath });
+    } catch (err) {
+      addToast(`Failed to open folder: ${err}`, 'error');
+    }
   }
 
   function startAutoScroll() {
@@ -210,6 +221,7 @@
         class="add-folder-btn"
         onclick={handleDirectoryBrowse}
         disabled={pipeline.processingActive}
+        aria-label="Add folder to processing queue"
       >
         + Add Folder to Queue
       </button>
@@ -222,8 +234,8 @@
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
     ondrop={handleDragLeave}
-    role="button"
-    tabindex="0"
+    role="list"
+    aria-label="Processing Queue List"
   >
     {#if config.input_directories.length === 0}
       <div class="empty-queue-msg">Drag & drop video folders here or click Add Folder...</div>
@@ -380,6 +392,28 @@
                   >
                 </div>
               {/if}
+            {/if}
+            {#if pipeline.directoryStatuses[dir] === 'done'}
+              <button
+                class="open-folder-btn"
+                onclick={() => openOutputFolder(dir)}
+                aria-label="Open processed files folder"
+                title="Open processed files folder"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path>
+                </svg>
+              </button>
             {/if}
             <button
               class="remove-btn"
@@ -649,25 +683,37 @@
     padding-right: 0.5rem;
   }
 
-  .remove-btn {
+  .remove-btn,
+  .open-folder-btn {
     background: none;
     border: none;
-    color: var(--danger-color);
     cursor: pointer;
-    padding: 0.25rem;
-    border-radius: 4px;
-    display: inline-flex;
+    display: flex;
     align-items: center;
     justify-content: center;
-    transition: background-color 0.15s;
-    position: relative;
+    padding: 0.2rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
 
-    &:hover:not(:disabled) {
-      background-color: rgba(239, 68, 68, 0.15);
-    }
-    &:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
+  .remove-btn {
+    color: var(--text-secondary);
+  }
+  .remove-btn:hover:not(:disabled) {
+    color: var(--danger-color);
+    background-color: rgba(239, 68, 68, 0.1);
+  }
+
+  .open-folder-btn {
+    color: var(--text-secondary);
+  }
+  .open-folder-btn:hover:not(:disabled) {
+    color: var(--accent-color);
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+
+  .remove-btn:disabled, .open-folder-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>

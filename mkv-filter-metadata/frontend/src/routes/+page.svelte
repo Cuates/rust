@@ -95,8 +95,12 @@
           pipeline.intraFileProgress = event.payload.intra_progress;
         if (event.payload.current_filename !== undefined)
           pipeline.currentFilename = event.payload.current_filename;
-        if (event.payload.current_index !== undefined)
+        if (event.payload.current_index !== undefined) {
+          if (pipeline.currentFileIndex !== event.payload.current_index) {
+            pipeline.intraFileProgress = 0;
+          }
           pipeline.currentFileIndex = event.payload.current_index;
+        }
         if (event.payload.total_files !== undefined)
           pipeline.totalFilesCount = event.payload.total_files;
 
@@ -155,6 +159,20 @@
     function tickTime() {
       const elapsedMs = Date.now() - startTime;
       pipeline.runningTimeFormatted = formatDuration(elapsedMs);
+      
+      const completedFraction = Math.max(0, pipeline.currentFileIndex - 1) + (pipeline.intraFileProgress / 100);
+
+      if (pipeline.totalFilesCount > 0 && completedFraction > 0.05 && completedFraction < pipeline.totalFilesCount) {
+        const msPerFile = elapsedMs / completedFraction;
+        const remainingFraction = pipeline.totalFilesCount - completedFraction;
+        const remainingMs = remainingFraction * msPerFile;
+        pipeline.etaFormatted = formatDuration(remainingMs);
+      } else if (pipeline.totalFilesCount > 0 && completedFraction >= pipeline.totalFilesCount) {
+        pipeline.etaFormatted = '0ms';
+      } else {
+        pipeline.etaFormatted = '--';
+      }
+
       timerInterval = requestAnimationFrame(tickTime);
     }
 
@@ -227,6 +245,8 @@
     pipeline.currentFilename = '';
     pipeline.currentFileIndex = 0;
     pipeline.totalFilesCount = 0;
+    pipeline.storageOriginalBytes = 0;
+    pipeline.storageOutputBytes = 0;
 
     const startDate = new Date();
     pipeline.consoleLogs = []; // Clear for new run
@@ -273,15 +293,41 @@
 
       pipeline.hasProcessClicked = true;
 
+      const PipelineSummarySchema = z.object({
+        message: z.string(),
+        original_size_bytes: z.number(),
+        output_size_bytes: z.number()
+      });
+
       const payload = {
         ...config,
         crf: String(config.crf)
       };
       const rawSummary = await invoke('process_video_pipeline', { payload });
-      const summaryMessage = z.string().parse(rawSummary);
+      const summary = PipelineSummarySchema.parse(rawSummary);
+
+      pipeline.storageOriginalBytes = summary.original_size_bytes;
+      pipeline.storageOutputBytes = summary.output_size_bytes;
 
       pipeline.overallProgress = 100;
-      emitLog(summaryMessage);
+      emitLog(summary.message);
+
+      try {
+        const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
+        let permissionGranted = await isPermissionGranted();
+        if (!permissionGranted) {
+          const permission = await requestPermission();
+          permissionGranted = permission === 'granted';
+        }
+        if (permissionGranted) {
+          sendNotification({
+            title: 'MKV Filter Metadata',
+            body: `Pipeline completed processing files.`
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to send desktop notification', e);
+      }
     } catch (err: unknown) {
       addToast('Pipeline execution failed. Check logs.', 'error');
       emitLog(`❌ Pipeline execution failure: ${err}`);

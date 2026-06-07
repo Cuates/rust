@@ -1,23 +1,24 @@
-import { defineConfig } from 'vite';
+import { defineConfig, createLogger } from 'vite';
 import { sveltekit } from '@sveltejs/kit/vite';
-
-// Suppress SvelteKit warning about Vite config overrides (often triggered by external CLIs)
-const originalError = console.error;
-console.error = (...args) => {
-  if (
-    args[0] &&
-    typeof args[0] === 'string' &&
-    args[0].includes('The following Vite config options will be overridden by SvelteKit')
-  ) {
-    return;
-  }
-  originalError(...args);
-};
 
 const host = process.env.TAURI_DEV_HOST;
 
+const customLogger = createLogger();
+const originalError = customLogger.error;
+/**
+ * @param {string} msg
+ * @param {import('vite').LogOptions} options
+ */
+customLogger.error = (msg, options) => {
+  if (msg.includes('The following Vite config options will be overridden by SvelteKit')) {
+    return;
+  }
+  originalError(msg, options);
+};
+
 // https://vite.dev/config/
 export default defineConfig(async () => ({
+  customLogger,
   plugins: [sveltekit()],
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`

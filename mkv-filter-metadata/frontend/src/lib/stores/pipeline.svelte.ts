@@ -12,6 +12,9 @@ export const pipeline = $state({
   intraFileProgress: 0,
   currentFilename: '',
   runningTimeFormatted: '0ms',
+  etaFormatted: '--',
+  storageOriginalBytes: 0,
+  storageOutputBytes: 0,
 
   // Granular Status tracking
   directoryStatuses: {} as Record<string, 'pending' | 'processing' | 'done' | 'error' | 'skipped'>,

@@ -11,9 +11,16 @@
     "shell:allow-execute",
     "core:window:allow-close",
     "core:window:allow-destroy",
-    "core:window:allow-set-theme"
+    "core:window:allow-set-theme",
+    "opener:allow-open-path",
+    "notification:default"
   ],
   "scopes": {
+    "opener": [
+      {
+        "path": "**"
+      }
+    ],
     "shell": [
       {
         "sidecar": "ffmpeg"

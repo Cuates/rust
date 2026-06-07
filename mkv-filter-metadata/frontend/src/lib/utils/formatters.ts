@@ -24,6 +24,6 @@ export function formatDuration(ms: number): string {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   const s = Math.floor((ms % 60000) / 1000);
-  const ms_ = ms % 1000;
+  const ms_ = Math.floor(ms % 1000);
   return [h && `${h}h`, m && `${m}m`, s && `${s}s`, `${ms_}ms`].filter(Boolean).join(' ');
 }

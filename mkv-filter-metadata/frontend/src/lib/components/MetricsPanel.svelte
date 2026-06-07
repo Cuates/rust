@@ -1,8 +1,19 @@
 <script lang="ts">
   import { pipeline } from '../stores/pipeline.svelte';
+  import { formatBytes } from '../utils/formatters';
+
+  let storageSavedPercent = $derived(() => {
+    if (pipeline.storageOriginalBytes === 0) return 0;
+    return Math.max(
+      0,
+      ((pipeline.storageOriginalBytes - pipeline.storageOutputBytes) /
+        pipeline.storageOriginalBytes) *
+        100
+    );
+  });
 </script>
 
-<div class="metrics-panel-row">
+<div class="metrics-panel-row" aria-live="polite" aria-atomic="false">
   <div class="progress-container-block">
     <div class="progress-bar-track">
       <div class="progress-bar-fill" style="width: {pipeline.overallProgress}%"></div>
@@ -35,7 +46,19 @@
   <div class="time-container-block">
     <span class="total-time-title">Total Conversion Time:</span>
     <span class="total-time-value">{pipeline.runningTimeFormatted}</span>
+    {#if pipeline.processingActive}
+      <span class="total-time-title" style="margin-left: 1rem;">ETA:</span>
+      <span class="total-time-value">{pipeline.etaFormatted}</span>
+    {/if}
   </div>
+  {#if pipeline.overallProgress === 100 && pipeline.storageOriginalBytes > 0}
+    <div class="time-container-block">
+      <span class="total-time-title">Storage Saved:</span>
+      <span class="total-time-value" style="color: var(--success-color);">
+        {storageSavedPercent().toFixed(2)}% ({formatBytes(pipeline.storageOriginalBytes)} -> {formatBytes(pipeline.storageOutputBytes)})
+      </span>
+    </div>
+  {/if}
 </div>
 
 <style lang="scss">
@@ -84,7 +107,7 @@
 
   .time-container-block {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: 0.4rem;
     border-top: 1px solid var(--border-color);
     padding-top: 0.35rem;
@@ -98,6 +121,9 @@
     color: var(--metrics-time-color);
     font-weight: 700;
     font-family: monospace, system-ui;
+    font-variant-numeric: tabular-nums;
+    min-width: 125px;
+    display: inline-block;
   }
 
   .intra-track {

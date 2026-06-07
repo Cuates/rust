@@ -1,0 +1,242 @@
+$ svelte-kit sync && svelte-check --tsconfig ./tsconfig.json
+The following Vite config options will be overridden by SvelteKit:
+  - root
+Loading svelte-check in workspace: c:\Users\cuates\Desktop\rust_projects\rust\mkv-filter-metadata\frontend
+Getting Svelte diagnostics...
+
+c:\Users\cuates\Desktop\rust_projects\rust\mkv-filter-metadata\frontend\[32mvite.config.js[39m:8:23
+[31mError[39m: Parameter 'msg' implicitly has an 'any' type. 
+[36mconst originalError = customLogger.error;
+customLogger.error = ([35mmsg[36m, options) => {
+  if (msg.includes('The following Vite config options will be overridden by SvelteKit')) {[39m
+
+c:\Users\cuates\Desktop\rust_projects\rust\mkv-filter-metadata\frontend\[32mvite.config.js[39m:8:28
+[31mError[39m: Parameter 'options' implicitly has an 'any' type. 
+[36mconst originalError = customLogger.error;
+customLogger.error = (msg, [35moptions[36m) => {
+  if (msg.includes('The following Vite config options will be overridden by SvelteKit')) {[39m
+
+c:\Users\cuates\Desktop\rust_projects\rust\mkv-filter-metadata\frontend\[32msrc\lib\components\DirectoryQueue.svelte[39m:230:3
+[33mWarn[39m: noninteractive element cannot have nonnegative tabIndex value
+https://svelte.dev/e/a11y_no_noninteractive_tabindex (svelte)
+[36m  </div>
+  [35m<div
+    bind:this={queueBoxEl}
+    id="queue-box"
+    class="queue-container {isDragging ? 'dragging' : ''}"
+    ondragover={handleDragOver}
+    ondragleave={handleDragLeave}
+    ondrop={handleDragLeave}
+    role="list"
+    aria-label="Processing Queue List"
+    tabindex="0"
+  >
+    {#if config.input_directories.length === 0}
+      <div class="empty-queue-msg">Drag & drop video folders here or click Add Folder...</div>
+    {:else}
+      {#each config.input_directories as dir, i (dir)}
+        <div
+          class="queue-item {pointerDraggingIndex === i ? 'dragging-item' : ''} {pipeline
+            .directoryStatuses[dir] === 'processing'
+            ? 'status-processing'
+            : ''} {pipeline.directoryStatuses[dir] === 'done' && !pipeline.directoryErrors[dir]
+            ? 'status-done'
+            : ''} {pipeline.directoryStatuses[dir] === 'done' && pipeline.directoryErrors[dir]
+            ? 'status-warning'
+            : ''} {pipeline.directoryStatuses[dir] === 'skipped'
+            ? 'status-skipped'
+            : ''} {pipeline.processingActive ? 'is-locked' : ''}"
+          style={pointerDraggingIndex === i
+            ? `transform: translateY(${
+                i === 0 && pointerCurrentY - pointerStartY < 0
+                  ? Math.max(pointerCurrentY - pointerStartY, -20)
+                  : i === config.input_directories.length - 1 && pointerCurrentY - pointerStartY > 0
+                    ? Math.min(pointerCurrentY - pointerStartY, 20)
+                    : pointerCurrentY - pointerStartY
+              }px); z-index: 10; position: relative;`
+            : ''}
+          onpointerdown={(e) => handlePointerDown(e, i)}
+          role="listitem"
+        >
+          <div class="queue-path-wrapper">
+            {#if pipeline.directoryStatuses[dir] === 'processing'}
+              <div class="status-indicator processing" title="Processing...">
+                <svg class="spinner" viewBox="0 0 50 50"
+                  ><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"
+                  ></circle></svg
+                >
+              </div>
+            {:else if pipeline.directoryStatuses[dir] === 'done'}
+              {#if pipeline.directoryErrors[dir]}
+                <div class="status-indicator warning" title="Finished with warnings or errors">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path
+                      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                    ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
+                      x1="12"
+                      y1="17"
+                      x2="12.01"
+                      y2="17"
+                    ></line></svg
+                  >
+                </div>
+              {:else}
+                <div class="status-indicator done" title="Finished successfully">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg
+                  >
+                </div>
+              {/if}
+            {:else if pipeline.directoryStatuses[dir] === 'skipped'}
+              {#if pipeline.directoryStats[dir] && !pipeline.directoryStats[dir].exists}
+                <div class="status-indicator skipped" title="Skipped (Directory does not exist)">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><path
+                      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                    ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
+                      x1="12"
+                      y1="17"
+                      x2="12.01"
+                      y2="17"
+                    ></line></svg
+                  >
+                </div>
+              {:else}
+                <div class="status-indicator skipped" title="Skipped (Directory is empty)">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><polygon points="5 4 15 12 5 20 5 4"></polygon><line
+                      x1="19"
+                      y1="5"
+                      x2="19"
+                      y2="19"
+                    ></line></svg
+                  >
+                </div>
+              {/if}
+            {/if}
+            <span class="queue-path" title={dir}>{dir}</span>
+          </div>
+          <div class="queue-actions">
+            {#if pipeline.hasProcessClicked && pipeline.directoryStats[dir]}
+              {#if !pipeline.directoryStats[dir].exists}
+                <div class="info-circle issue" title={buildTooltip(pipeline.directoryStats[dir])}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"
+                    ></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg
+                  >
+                </div>
+              {:else}
+                <div class="info-circle" title={buildTooltip(pipeline.directoryStats[dir])}>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    ><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"
+                    ></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg
+                  >
+                </div>
+              {/if}
+            {/if}
+            {#if pipeline.directoryStatuses[dir] === 'done'}
+              <button
+                class="open-folder-btn"
+                onclick={() => openOutputFolder(dir)}
+                aria-label="Open processed files folder"
+                title="Open processed files folder"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path>
+                </svg>
+              </button>
+            {/if}
+            <button
+              class="remove-btn"
+              onclick={() => removeDirectory(i)}
+              disabled={pipeline.processingActive}
+              aria-label="Remove item from path processing queue"
+              title="Remove directory from processing queue"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"
+                ></line></svg
+              >
+            </button>
+          </div>
+        </div>
+      {/each}
+    {/if}
+  </div[36m>
+</div>[39m
+
+====================================
+[31msvelte-check found 2 errors and 1 warning in 2 files
+[39m[ELIFECYCLE] Command failed with exit code 1.

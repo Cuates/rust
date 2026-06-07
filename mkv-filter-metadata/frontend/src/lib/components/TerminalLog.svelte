@@ -151,7 +151,7 @@
       </div>
     {/if}
   </div>
-  <div bind:this={terminalEl} id="terminal-shell" class="terminal-shell">
+  <div bind:this={terminalEl} id="terminal-shell" class="terminal-shell" aria-live="polite" aria-atomic="false">
     {#each pipeline.consoleLogs as log (log.id)}
       <div class="log-line {getLogClass(log.text)}">{log.text}</div>
     {:else}

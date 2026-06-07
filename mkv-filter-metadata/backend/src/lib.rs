@@ -18,6 +18,8 @@ pub fn run() {
         .manage(AppState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::abort_video_pipeline,
             commands::get_encoder_capabilities,
@@ -28,7 +30,8 @@ pub fn run() {
             commands::read_session_log,
             commands::check_session_log,
             commands::initialize_session_log,
-            commands::log_message
+            commands::log_message,
+            commands::open_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

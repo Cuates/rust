@@ -84,12 +84,19 @@ fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+pub struct PipelineSummary {
+    pub message: String,
+    pub original_size_bytes: u64,
+    pub output_size_bytes: u64,
+}
+
 #[tauri::command]
 pub async fn process_video_pipeline(
     app: AppHandle,
     state: tauri::State<'_, AppState>,
     payload: VideoPipelinePayload,
-) -> Result<String, AppError> {
+) -> Result<PipelineSummary, AppError> {
     validate_payload(&payload)?;
 
     state.is_aborted.store(false, Ordering::SeqCst);
@@ -141,7 +148,11 @@ pub async fn process_video_pipeline(
     append_log(&app, format!("Scanned file total: {}", total_files));
 
     if total_files == 0 {
-        return Ok("Pipeline terminated: No valid files matched filter parameters.".to_string());
+        return Ok(PipelineSummary {
+            message: "Pipeline terminated: No valid files matched filter parameters.".to_string(),
+            original_size_bytes: 0,
+            output_size_bytes: 0,
+        });
     }
 
     let mut successful_files = 0;
@@ -149,6 +160,8 @@ pub async fn process_video_pipeline(
     let mut ffmpeg_fallback_failures = 0;
     let mut reencode_subtitle_retry_attempts = 0;
     let mut reencode_subtitle_retry_successes = 0;
+    let mut total_original_bytes: u64 = 0;
+    let mut total_output_bytes: u64 = 0;
 
     for (index, (queue_dir, file_path)) in target_files.iter().enumerate() {
         if state.is_aborted.load(Ordering::SeqCst) {
@@ -384,9 +397,17 @@ pub async fn process_video_pipeline(
             }
         }
 
-        // Tally results
+        // Tally results and sizes
         if file_success {
             successful_files += 1;
+            // Get original size
+            if let Ok(metadata) = std::fs::metadata(&file_path) {
+                total_original_bytes += metadata.len();
+            }
+            // Get output size
+            if let Ok(metadata) = std::fs::metadata(&output_file_path) {
+                total_output_bytes += metadata.len();
+            }
         } else {
             failed_files += 1;
         }
@@ -441,7 +462,11 @@ pub async fn process_video_pipeline(
     };
 
     flush_log_writer(&app);
-    Ok(final_summary)
+    Ok(PipelineSummary {
+        message: final_summary,
+        original_size_bytes: total_original_bytes,
+        output_size_bytes: total_output_bytes,
+    })
 }
 
 #[tauri::command]
@@ -697,4 +722,23 @@ pub fn check_session_log(app: AppHandle) -> Result<bool, AppError> {
         }
     }
     Ok(false)
+}
+
+#[tauri::command]
+pub fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
