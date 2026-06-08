@@ -1,7 +1,7 @@
 import type { DirStats } from '../types';
 
 export const pipeline = $state({
-  consoleLogs: [] as { id: number, text: string }[],
+  consoleLogs: [] as { id: number; text: string }[],
   processingActive: false,
   showMetricsPanel: false,
 
@@ -32,7 +32,7 @@ export async function emitLog(...logs: string[]) {
   }
 }
 
-let logBuffer: { id: number, text: string }[] = [];
+let logBuffer: { id: number; text: string }[] = [];
 let flushTimeout: ReturnType<typeof setTimeout> | null = null;
 let logIdCounter = 0;
 

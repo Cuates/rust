@@ -7,9 +7,9 @@ use tauri_plugin_shell::ShellExt;
 use crate::error::AppError;
 use crate::models::{AppState, ConversionMode, DirectoryStats, FileStat, VideoPipelinePayload};
 use crate::process::{
-    append_log, build_ffmpeg_args, flush_log_writer, get_matching_subtitle_maps, parse_comma_list,
-    run_sidecar_command, stderr_indicates_subtitle_incompatibility, FfmpegJobConfig, ReencodeConfig,
-    SubtitleCodec,
+    FfmpegJobConfig, ReencodeConfig, SubtitleCodec, append_log, build_ffmpeg_args,
+    flush_log_writer, get_matching_subtitle_maps, parse_comma_list, run_sidecar_command,
+    stderr_indicates_subtitle_incompatibility,
 };
 
 #[tauri::command]
@@ -39,19 +39,18 @@ pub async fn get_directory_stats(
             .flatten()
         {
             let p = entry.path();
-            if p.is_file() {
-                if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
-                    if extensions.contains(&ext.to_lowercase()) {
-                        file_count += 1;
-                        let mut size_bytes = 0;
-                        if let Ok(meta) = entry.metadata() {
-                            size_bytes = meta.len();
-                            total_size_bytes += size_bytes;
-                        }
-                        let name = entry.file_name().to_string_lossy().into_owned();
-                        files.push(FileStat { name, size_bytes });
-                    }
+            if p.is_file()
+                && let Some(ext) = p.extension().and_then(|e| e.to_str())
+                && extensions.contains(&ext.to_lowercase())
+            {
+                file_count += 1;
+                let mut size_bytes = 0;
+                if let Ok(meta) = entry.metadata() {
+                    size_bytes = meta.len();
+                    total_size_bytes += size_bytes;
                 }
+                let name = entry.file_name().to_string_lossy().into_owned();
+                files.push(FileStat { name, size_bytes });
             }
         }
 
@@ -68,17 +67,22 @@ pub async fn get_directory_stats(
 
 fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
     if payload.conversion_mode == crate::models::ConversionMode::Reencode {
-        let crf: u32 = payload.crf.parse().map_err(|_| AppError::Process("Invalid CRF value. Must be a number.".into()))?;
+        let crf: u32 = payload
+            .crf
+            .parse()
+            .map_err(|_| AppError::Process("Invalid CRF value. Must be a number.".into()))?;
         if crf > 51 {
             return Err(AppError::Process("CRF must be between 0 and 51".into()));
         }
     }
-    
+
     if payload.output_extension.is_empty() {
         return Err(AppError::Process("Output extension is required".into()));
     }
     if payload.output_extension.contains('/') || payload.output_extension.contains('\\') {
-        return Err(AppError::Process("Invalid output extension: Path separators not allowed".into()));
+        return Err(AppError::Process(
+            "Invalid output extension: Path separators not allowed".into(),
+        ));
     }
 
     Ok(())
@@ -130,12 +134,11 @@ pub async fn process_video_pipeline(
                 .flatten()
             {
                 let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                        if extensions.contains(&ext.to_lowercase()) {
-                            target_files.push((dir_path.clone(), path.to_path_buf()));
-                        }
-                    }
+                if path.is_file()
+                    && let Some(ext) = path.extension().and_then(|e| e.to_str())
+                    && extensions.contains(&ext.to_lowercase())
+                {
+                    target_files.push((dir_path.clone(), path.to_path_buf()));
                 }
             }
         }
@@ -231,7 +234,8 @@ pub async fn process_video_pipeline(
             let mut candidate = base_candidate.clone();
             let mut dedup_counter = 1u32;
             while session.output_files.contains(&candidate) {
-                candidate = processed_dir_path.join(format!("{}_{}{}", file_stub, dedup_counter, formatted_ext));
+                candidate = processed_dir_path
+                    .join(format!("{}_{}{}", file_stub, dedup_counter, formatted_ext));
                 dedup_counter += 1;
             }
             output_file_path = candidate;
@@ -243,7 +247,13 @@ pub async fn process_video_pipeline(
         // M9: Session Resumption logic
         // If the file already exists on disk, assume it was successfully completed in a prior aborted run and skip.
         if output_file_path.exists() {
-            append_log(&app, format!("  | [INFO] ⏭️ Skipping file - output already exists: {}", output_file_path.display()));
+            append_log(
+                &app,
+                format!(
+                    "  | [INFO] ⏭️ Skipping file - output already exists: {}",
+                    output_file_path.display()
+                ),
+            );
             successful_files += 1;
             continue;
         }
@@ -280,7 +290,10 @@ pub async fn process_video_pipeline(
             // retry automatically with ASS conversion. No codec list needed — FFmpeg tells us.
             if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
                 reencode_subtitle_retry_attempts += 1;
-                append_log(&app, "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
+                append_log(
+                    &app,
+                    "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
+                );
 
                 if output_file_path.exists() {
                     let _ = std::fs::remove_file(&output_file_path);
@@ -306,7 +319,10 @@ pub async fn process_video_pipeline(
                 if file_success {
                     reencode_subtitle_retry_successes += 1;
                 } else {
-                    append_log(&app, "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.");
+                    append_log(
+                        &app,
+                        "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.",
+                    );
                 }
             }
         } else {
@@ -332,7 +348,10 @@ pub async fn process_video_pipeline(
 
             // Same subtitle incompatibility retry as reencode path
             if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
-                append_log(&app, "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...");
+                append_log(
+                    &app,
+                    "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
+                );
 
                 if output_file_path.exists() {
                     let _ = std::fs::remove_file(&output_file_path);
@@ -401,7 +420,7 @@ pub async fn process_video_pipeline(
         if file_success {
             successful_files += 1;
             // Get original size
-            if let Ok(metadata) = std::fs::metadata(&file_path) {
+            if let Ok(metadata) = std::fs::metadata(file_path) {
                 total_original_bytes += metadata.len();
             }
             // Get output size
@@ -431,7 +450,10 @@ pub async fn process_video_pipeline(
     if payload.conversion_mode != ConversionMode::Reencode && ffmpeg_fallback_failures > 0 {
         append_log(
             &app,
-            format!("📊 Session Metrics -> Primary FFmpeg Stream Copy Failures resolved via fallback: {}", ffmpeg_fallback_failures)
+            format!(
+                "📊 Session Metrics -> Primary FFmpeg Stream Copy Failures resolved via fallback: {}",
+                ffmpeg_fallback_failures
+            ),
         );
     }
 
@@ -445,7 +467,7 @@ pub async fn process_video_pipeline(
                 reencode_subtitle_retry_attempts,
                 reencode_subtitle_retry_successes,
                 reencode_subtitle_retry_failures,
-            )
+            ),
         );
     }
 
@@ -513,29 +535,37 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
     };
 
     let shell = app.shell();
-    if let Ok(cmd) = shell.sidecar("ffmpeg") {
-        if let Ok(output) = cmd.args(["-encoders"]).output().await {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            
-            let tests = [
-                ("_nvenc", "hevc_nvenc", &mut caps.nvenc),
-                ("_amf", "hevc_amf", &mut caps.amf),
-                ("_qsv", "hevc_qsv", &mut caps.qsv),
-                ("_videotoolbox", "hevc_videotoolbox", &mut caps.videotoolbox),
-            ];
+    if let Ok(cmd) = shell.sidecar("ffmpeg")
+        && let Ok(output) = cmd.args(["-encoders"]).output().await
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
 
-            for (pattern, codec, flag) in tests {
-                if stdout.contains(pattern) {
-                    if let Ok(test_cmd) = shell.sidecar("ffmpeg") {
-                        if let Ok(test_out) = test_cmd
-                            .args(["-f", "lavfi", "-i", "nullsrc=s=256x256:d=0.1", "-c:v", codec, "-f", "null", "-"])
-                            .output()
-                            .await
-                        {
-                            *flag = test_out.status.success();
-                        }
-                    }
-                }
+        let tests = [
+            ("_nvenc", "hevc_nvenc", &mut caps.nvenc),
+            ("_amf", "hevc_amf", &mut caps.amf),
+            ("_qsv", "hevc_qsv", &mut caps.qsv),
+            ("_videotoolbox", "hevc_videotoolbox", &mut caps.videotoolbox),
+        ];
+
+        for (pattern, codec, flag) in tests {
+            if stdout.contains(pattern)
+                && let Ok(test_cmd) = shell.sidecar("ffmpeg")
+                && let Ok(test_out) = test_cmd
+                    .args([
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        "nullsrc=s=256x256:d=0.1",
+                        "-c:v",
+                        codec,
+                        "-f",
+                        "null",
+                        "-",
+                    ])
+                    .output()
+                    .await
+            {
+                *flag = test_out.status.success();
             }
         }
     }
@@ -590,10 +620,10 @@ pub async fn abort_video_pipeline(
 
     // Use retry logic for all file deletions to handle Windows file locking
     // where killed processes may briefly retain write locks on output files.
-    if let Some(path) = target_cleanup_path {
-        if path.exists() {
-            let _ = retry_remove_file(&path).await;
-        }
+    if let Some(path) = target_cleanup_path
+        && path.exists()
+    {
+        let _ = retry_remove_file(&path).await;
     }
 
     for file in files_to_delete {
@@ -619,24 +649,24 @@ pub async fn abort_video_pipeline(
     }
 
     for dir in dirs_to_check {
-        if dir.exists() && dir.is_dir() {
-            if let Ok(mut entries) = fs::read_dir(&dir) {
-                if entries.next().is_none() {
-                    if let Err(e) = fs::remove_dir(&dir) {
-                        append_log(
-                            &app,
-                            format!("❌ Failed to remove empty processed_files directory: {}", e),
-                        );
-                    } else {
-                        append_log(
-                            &app,
-                            format!(
-                                "Cleaned up empty workspace folder safely: \"{}\"",
-                                dir.to_string_lossy()
-                            ),
-                        );
-                    }
-                }
+        if dir.exists()
+            && dir.is_dir()
+            && let Ok(mut entries) = fs::read_dir(&dir)
+            && entries.next().is_none()
+        {
+            if let Err(e) = fs::remove_dir(&dir) {
+                append_log(
+                    &app,
+                    format!("❌ Failed to remove empty processed_files directory: {}", e),
+                );
+            } else {
+                append_log(
+                    &app,
+                    format!(
+                        "Cleaned up empty workspace folder safely: \"{}\"",
+                        dir.to_string_lossy()
+                    ),
+                );
             }
         }
     }
@@ -682,7 +712,7 @@ pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
             let _ = std::fs::create_dir_all(&log_dir);
         }
         let log_file = log_dir.join("session.log");
-        
+
         // Release the file lock from the previous session before truncating
         let state = app.state::<AppState>();
         if let Ok(mut guard) = state.log_writer.lock() {
@@ -695,7 +725,7 @@ pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
             .truncate(true)
             .open(log_file)
             .map_err(|e| AppError::Process(format!("Failed to initialize session log: {}", e)))?;
-        
+
         if let Ok(mut guard) = state.log_writer.lock() {
             *guard = Some(crate::models::SessionLog {
                 writer: std::io::BufWriter::new(file),

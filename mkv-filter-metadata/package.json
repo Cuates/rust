@@ -7,7 +7,7 @@
     "prebuild": "node scripts/download-sidecars.mjs",
     "build": "tauri build",
     "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
-    "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })\" && pnpm install",
+    "clean": "cargo clean --manifest-path backend/Cargo.toml && npx --yes rimraf node_modules frontend/node_modules && pnpm install",
     "dev": "tauri dev",
     "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
     "app-info": "tauri info",

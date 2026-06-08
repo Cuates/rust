@@ -72,7 +72,11 @@
 
   function handlePointerDown(e: PointerEvent, index: number) {
     if (pipeline.processingActive) return;
-    if ((e.target as HTMLElement).closest('.remove-btn') || (e.target as HTMLElement).closest('.open-folder-btn')) return;
+    if (
+      (e.target as HTMLElement).closest('.remove-btn') ||
+      (e.target as HTMLElement).closest('.open-folder-btn')
+    )
+      return;
     e.preventDefault();
     pointerDraggingIndex = index;
     pointerStartY = e.clientY;
@@ -411,7 +415,9 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path>
+                  <path
+                    d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"
+                  ></path>
                 </svg>
               </button>
             {/if}
@@ -712,7 +718,8 @@
     background-color: rgba(59, 130, 246, 0.1);
   }
 
-  .remove-btn:disabled, .open-folder-btn:disabled {
+  .remove-btn:disabled,
+  .open-folder-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }

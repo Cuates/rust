@@ -13,21 +13,21 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     tracing::info!("{}", msg);
     let _ = app.emit("process-log", msg);
     let state = app.state::<AppState>();
-    if let Ok(mut guard) = state.log_writer.lock() {
-        if let Some(log) = guard.as_mut() {
-            use std::io::{Write, Seek, SeekFrom};
-            let line_len = msg.len() + 1; // +1 for \n
-            if log.bytes_written + line_len > 10 * 1024 * 1024 {
-                let _ = log.writer.flush();
-                let _ = log.writer.get_ref().set_len(0);
-                let _ = log.writer.seek(SeekFrom::Start(0));
-                log.bytes_written = 0;
-                let _ = writeln!(log.writer, "--- LOG ROTATED DUE TO SIZE LIMIT ---");
-                log.bytes_written += 38;
-            }
-            let _ = writeln!(log.writer, "{}", msg);
-            log.bytes_written += line_len;
+    if let Ok(mut guard) = state.log_writer.lock()
+        && let Some(log) = guard.as_mut()
+    {
+        use std::io::{Seek, SeekFrom, Write};
+        let line_len = msg.len() + 1; // +1 for \n
+        if log.bytes_written + line_len > 10 * 1024 * 1024 {
+            let _ = log.writer.flush();
+            let _ = log.writer.get_ref().set_len(0);
+            let _ = log.writer.seek(SeekFrom::Start(0));
+            log.bytes_written = 0;
+            let _ = writeln!(log.writer, "--- LOG ROTATED DUE TO SIZE LIMIT ---");
+            log.bytes_written += 38;
         }
+        let _ = writeln!(log.writer, "{}", msg);
+        log.bytes_written += line_len;
     };
 }
 
@@ -35,11 +35,11 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
 /// Must be called before reading the log file directly.
 pub fn flush_log_writer(app: &AppHandle) {
     let state = app.state::<AppState>();
-    if let Ok(mut guard) = state.log_writer.lock() {
-        if let Some(log) = guard.as_mut() {
-            use std::io::Write;
-            let _ = log.writer.flush();
-        }
+    if let Ok(mut guard) = state.log_writer.lock()
+        && let Some(log) = guard.as_mut()
+    {
+        use std::io::Write;
+        let _ = log.writer.flush();
     };
 }
 
@@ -203,13 +203,13 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
     let mut args = vec!["-y".to_string()];
 
     // Dynamically inject the exact hardware acceleration framework needed for decoding
-    if let ConversionMode::Reencode = config.mode {
-        if let Some(reencode) = &config.reencode {
-            args.extend([
-                "-hwaccel".to_string(),
-                reencode.video_codec.get_hwaccel_api().to_string(),
-            ]);
-        }
+    if let ConversionMode::Reencode = config.mode
+        && let Some(reencode) = &config.reencode
+    {
+        args.extend([
+            "-hwaccel".to_string(),
+            reencode.video_codec.get_hwaccel_api().to_string(),
+        ]);
     }
 
     args.extend([
@@ -435,27 +435,26 @@ pub async fn run_sidecar_command(
                     if !t.is_empty() {
                         collected_stderr.push(t.to_string());
 
-                        if total_duration_secs.is_none() && t.starts_with("Duration:") {
-                            if let Some(dur_str) = t
+                        if total_duration_secs.is_none()
+                            && t.starts_with("Duration:")
+                            && let Some(dur_str) = t
                                 .strip_prefix("Duration:")
                                 .map(|s| s.trim())
                                 .and_then(|s| s.split(',').next())
-                            {
-                                total_duration_secs = parse_ffmpeg_time(dur_str);
-                            }
+                        {
+                            total_duration_secs = parse_ffmpeg_time(dur_str);
                         }
 
-                        if video_fps.is_none() && t.starts_with("Stream #") && t.contains("Video:")
+                        if video_fps.is_none()
+                            && t.starts_with("Stream #")
+                            && t.contains("Video:")
+                            && let Some(fps_idx) = t.find(" fps")
                         {
-                            if let Some(fps_idx) = t.find(" fps") {
-                                let substr = &t[..fps_idx];
-                                if let Some(fps_str) =
-                                    substr.split(',').next_back().map(|s| s.trim())
-                                {
-                                    if let Ok(fps) = fps_str.parse::<f64>() {
-                                        video_fps = Some(fps);
-                                    }
-                                }
+                            let substr = &t[..fps_idx];
+                            if let Some(fps_str) = substr.split(',').next_back().map(|s| s.trim())
+                                && let Ok(fps) = fps_str.parse::<f64>()
+                            {
+                                video_fps = Some(fps);
                             }
                         }
 
@@ -464,25 +463,23 @@ pub async fn run_sidecar_command(
 
                             if let Some(time_idx) = t.find("time=") {
                                 let time_sub = &t[time_idx + 5..];
-                                if let Some(time_str) = time_sub.split_whitespace().next() {
-                                    if time_str != "N/A" {
-                                        current_secs = parse_ffmpeg_time(time_str);
-                                    }
+                                if let Some(time_str) = time_sub.split_whitespace().next()
+                                    && time_str != "N/A"
+                                {
+                                    current_secs = parse_ffmpeg_time(time_str);
                                 }
                             }
 
                             // Fallback to frame= if time=N/A
-                            if current_secs.is_none() {
-                                if let (Some(frame_idx), Some(fps)) = (t.find("frame="), video_fps)
+                            if current_secs.is_none()
+                                && let (Some(frame_idx), Some(fps)) = (t.find("frame="), video_fps)
+                            {
+                                let frame_sub = &t[frame_idx + 6..];
+                                if let Some(frame_str) = frame_sub.split_whitespace().next()
+                                    && let Ok(frames) = frame_str.parse::<f64>()
+                                    && fps > 0.0
                                 {
-                                    let frame_sub = &t[frame_idx + 6..];
-                                    if let Some(frame_str) = frame_sub.split_whitespace().next() {
-                                        if let Ok(frames) = frame_str.parse::<f64>() {
-                                            if fps > 0.0 {
-                                                current_secs = Some(frames / fps);
-                                            }
-                                        }
-                                    }
+                                    current_secs = Some(frames / fps);
                                 }
                             }
 
@@ -554,7 +551,7 @@ mod tests {
 
         let logs_err = vec!["Subtitle codec not supported".to_string()];
         assert!(stderr_indicates_subtitle_incompatibility(&logs_err));
-        
+
         let logs_err2 = vec!["could not write header".to_string()];
         assert!(stderr_indicates_subtitle_incompatibility(&logs_err2));
     }

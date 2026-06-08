@@ -55,7 +55,9 @@
     <div class="time-container-block">
       <span class="total-time-title">Storage Saved:</span>
       <span class="total-time-value" style="color: var(--success-color);">
-        {storageSavedPercent().toFixed(2)}% ({formatBytes(pipeline.storageOriginalBytes)} -> {formatBytes(pipeline.storageOutputBytes)})
+        {storageSavedPercent().toFixed(2)}% ({formatBytes(pipeline.storageOriginalBytes)} -> {formatBytes(
+          pipeline.storageOutputBytes
+        )})
       </span>
     </div>
   {/if}

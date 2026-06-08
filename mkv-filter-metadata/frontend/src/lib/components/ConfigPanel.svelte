@@ -6,15 +6,28 @@
     // Reactively update the preset if the current preset is incompatible with the new video_codec
     if (config.video_codec.includes('nvenc') && !config.preset.match(/^p[1-7]$/)) {
       config.preset = 'p4';
-    } else if (config.video_codec.includes('amf') && !['speed', 'balanced', 'quality'].includes(config.preset)) {
+    } else if (
+      config.video_codec.includes('amf') &&
+      !['speed', 'balanced', 'quality'].includes(config.preset)
+    ) {
       config.preset = 'balanced';
     } else if (config.video_codec.includes('videotoolbox') && config.preset !== 'default') {
       config.preset = 'default';
     } else if (
-      !config.video_codec.includes('nvenc') && 
-      !config.video_codec.includes('amf') && 
-      !config.video_codec.includes('videotoolbox') && 
-      !['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow', 'slower', 'veryslow'].includes(config.preset)
+      !config.video_codec.includes('nvenc') &&
+      !config.video_codec.includes('amf') &&
+      !config.video_codec.includes('videotoolbox') &&
+      ![
+        'ultrafast',
+        'superfast',
+        'veryfast',
+        'faster',
+        'fast',
+        'medium',
+        'slow',
+        'slower',
+        'veryslow'
+      ].includes(config.preset)
     ) {
       config.preset = 'faster';
     }
@@ -96,7 +109,11 @@
       </div>
       <div class="row">
         <label for="preset-val">Encoder Preset</label>
-        <select id="preset-val" bind:value={config.preset} disabled={pipeline.processingActive || config.video_codec.includes('videotoolbox')}>
+        <select
+          id="preset-val"
+          bind:value={config.preset}
+          disabled={pipeline.processingActive || config.video_codec.includes('videotoolbox')}
+        >
           {#if config.video_codec.includes('nvenc')}
             <option value="p1">p1 (Fastest)</option>
             <option value="p2">p2</option>

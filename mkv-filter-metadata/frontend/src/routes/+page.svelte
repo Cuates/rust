@@ -7,7 +7,7 @@
   import { config, appState } from '../lib/stores/config.svelte';
   import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
-  import type { DirStats, EncoderCapabilities } from '$lib/types';
+  import type { DirStats } from '$lib/types';
   import { DirStatsSchema, EncoderCapabilitiesSchema } from '$lib/types';
   import { z } from 'zod';
   import { formatDuration } from '../lib/utils/formatters';
@@ -159,10 +159,15 @@
     function tickTime() {
       const elapsedMs = Date.now() - startTime;
       pipeline.runningTimeFormatted = formatDuration(elapsedMs);
-      
-      const completedFraction = Math.max(0, pipeline.currentFileIndex - 1) + (pipeline.intraFileProgress / 100);
 
-      if (pipeline.totalFilesCount > 0 && completedFraction > 0.05 && completedFraction < pipeline.totalFilesCount) {
+      const completedFraction =
+        Math.max(0, pipeline.currentFileIndex - 1) + pipeline.intraFileProgress / 100;
+
+      if (
+        pipeline.totalFilesCount > 0 &&
+        completedFraction > 0.05 &&
+        completedFraction < pipeline.totalFilesCount
+      ) {
         const msPerFile = elapsedMs / completedFraction;
         const remainingFraction = pipeline.totalFilesCount - completedFraction;
         const remainingMs = remainingFraction * msPerFile;
@@ -313,7 +318,8 @@
       emitLog(summary.message);
 
       try {
-        const { isPermissionGranted, requestPermission, sendNotification } = await import('@tauri-apps/plugin-notification');
+        const { isPermissionGranted, requestPermission, sendNotification } =
+          await import('@tauri-apps/plugin-notification');
         let permissionGranted = await isPermissionGranted();
         if (!permissionGranted) {
           const permission = await requestPermission();

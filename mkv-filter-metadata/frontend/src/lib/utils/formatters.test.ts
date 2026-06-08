@@ -54,7 +54,7 @@ describe('formatters', () => {
           { name: 'video2.mkv', size_bytes: 2048 }
         ]
       };
-      
+
       const tooltip = buildTooltip(stats);
       expect(tooltip).toContain('video1.mkv (1 KB)');
       expect(tooltip).toContain('video2.mkv (2 KB)');
