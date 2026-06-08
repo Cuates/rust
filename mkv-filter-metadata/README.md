@@ -1,343 +1,333 @@
+# MKV Filter Metadata
+
+A powerful batch-processing desktop application for filtering MKV metadata, stripping unwanted subtitle/audio tracks, and optionally re-encoding video files with hardware-accelerated codecs. Built with **Tauri v2**, **Svelte 5**, and **Rust**.
+
+---
+
 ## Table of Contents
 
-1. [Prerequisites](#1-prerequisites)
-2. [Tree Structure](#2-tree-structure)
-3. [Monorepo Root Configurations](#3-monorepo-root-configurations)
-4. [Developer Commands](#4-developer-commands)
-5. [Base Directory Configuration](#5-base-directory-configuration)
-6. [Running the Scaffolder](#6-running-the-scaffolder)
-7. [Rearranging into a Monorepo Workspace Split](#7-rearranging-into-a-monorepo-workspace-split)
-8. [Embedding Native Sidecars (FFmpeg, FFprobe & MKVMerge)](#8-embedding-native-sidecars-ffmpeg-ffprobe--mkvmerge)
-9. [Initializing the Root Workspace Files](#9-initializing-the-root-workspace-files)
-10. [Unified Workflow Orchestration](#10-unified-workflow-orchestration)
-11. [Injecting the Global Tauri CLI](#11-injecting-the-global-tauri-cli)
-12. [Injecting Quality Tooling & Code Verification](#12-injecting-quality-tooling--code-verification)
-13. [Frontend Layout & Strict Typing Standards](#13-frontend-layout--strict-typing-standards)
-14. [Backend Native Layer & Self-Healing Workflows](#14-backend-native-layer--self-healing-workflows)
-15. [Update Project Build Paths](#15-update-project-build-paths)
-16. [Building for Production / Distribution](#16-building-for-production--distribution)
-17. [Troubleshooting & Common Pitfalls](#17-troubleshooting--common-pitfalls)
-18. [Run the Clean Suite](#18-run-the-clean-suite)
+1. [Features](#features)
+2. [Architecture Overview](#architecture-overview)
+3. [Prerequisites](#prerequisites)
+4. [Getting Started](#getting-started)
+5. [Tree Structure](#tree-structure)
+6. [Developer Commands](#developer-commands)
+7. [Application Usage](#application-usage)
+8. [Backend Pipeline Details](#backend-pipeline-details)
+9. [Frontend Component Architecture](#frontend-component-architecture)
+10. [Configuration & Capabilities](#configuration--capabilities)
+11. [Building for Production](#building-for-production)
+12. [Troubleshooting & Common Pitfalls](#troubleshooting--common-pitfalls)
 
 ---
 
-## 1. Prerequisites
+## Features
 
-Before beginning, ensure your system has the required tooling installed:
+### Processing Engine
+- **Dual Conversion Modes:** Remux (stream copy — fast, lossless) or Reencode (full transcode with codec/preset/CRF control).
+- **Hardware-Accelerated Encoding:** Auto-detects NVENC (NVIDIA), AMF (AMD), QSV (Intel), and VideoToolbox (macOS) at startup. The UI dynamically shows only available encoders.
+- **Dynamic Encoder Presets:** Preset dropdowns adapt per-encoder (e.g., `p1`–`p7` for NVENC, `speed`/`balanced`/`quality` for AMF, `ultrafast`–`veryslow` for software x264/x265).
+- **Subtitle Track Filtering:** Keep only specified subtitle languages (BCP-47 codes). FFprobe inspects each file's streams and maps only matching tracks.
+- **Self-Healing Fallback:** If FFmpeg rejects subtitle codecs for a target container, the pipeline automatically retries with ASS subtitle conversion — no user intervention needed.
+- **Output Deduplication:** Prevents silent overwrites when multiple input files would produce the same output filename.
 
-* **Node.js** (v18+ recommended)
-* **pnpm** (Required package manager for this workspace)
-* **Rust & Cargo** (Installed via `rustup`)
-* **Rust Components**: Ensure `clippy` and `rustfmt` are active:
-  ```bash
-  rustup component add clippy rustfmt
-```
+### User Interface
+- **Multi-Directory Processing Queue:** Drag-and-drop or browse to add multiple directories. Reorder via drag. Per-row status indicators (pending → processing → done/error).
+- **Real-Time Pipeline Telemetry:** Live progress bars (overall + per-file), running timer, and ETA estimation.
+- **Storage Savings Metrics:** After completion, displays original vs. output size with percentage saved.
+- **Streaming Terminal Log:** Real-time FFmpeg output with auto-scroll, copy-to-clipboard, and save-to-file.
+- **Session Resumption:** Skips files whose output already exists from a prior aborted run.
+- **Dark/Light Theme Toggle:** Smooth CSS transitions with system preference detection and localStorage persistence.
+- **Per-Row Open Output Folder:** One-click button to open the `processed_files` directory in your file explorer after processing.
+- **OS Notifications:** Native desktop notification when the entire pipeline completes.
+- **Toast Notification System:** In-app toast messages with auto-dismiss and severity levels (success, warning, error, info).
+- **Abort & Cleanup:** Stop execution mid-pipeline. The backend kills active FFmpeg processes and scrubs partially written output files and empty directories.
+- **Directory Stats Tooltips:** Hover over queued directories to see file counts, names, and total sizes.
 
-* **OS-Specific Build Tools**:
-* *Windows*: Visual Studio C++ Build Tools.
-* *macOS*: Xcode Command Line Tools.
-* *Linux*: `build-essential`, `curl`, `wget`, `file`, `libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`
+### Code Quality
+- **Type-Safe End-to-End:** Rust enums for `VideoCodec`, `ConversionMode`, and `Preset` serialize directly into Svelte via Zod runtime validation schemas.
+- **Svelte 5 Runes:** Modern reactive state management with `$state`, `$derived`, and `$effect` — no legacy stores.
+- **Structured Logging:** Rust `tracing` integration with environment-configurable log levels.
+- **Session Logging:** All pipeline output is persisted to a structured log file for post-run analysis.
+- **ARIA Accessibility:** Screen reader support with `aria-live` regions on the terminal and metrics panels.
 
-## 2. Tree Structure
+---
 
-This project strictly adheres to the following architecture based on our specific integrations:
+## Architecture Overview
 
 ```text
-mkv-filter-metadata-rust/
-├── package.json             # Root workspace engine commands
-├── pnpm-workspace.yaml      # Monorepo boundary definition (Frontend UI only)
-├── README.md                # Project documentation
-├── frontend/                # Svelte 5 + Vite Web UI Layer
-│   ├── package.json         # UI scripts, dependencies, testing/lint configs
-│   ├── eslint.config.js     # Linter flat-config rules (Svelte + Node integrations)
-│   ├── .prettierrc          # Formatter configurations
-│   ├── vite.config.js       # Vite bundler configuration
-│   ├── svelte.config.js     # SvelteKit framework configurations
-│   ├── tsconfig.json        # TypeScript compiler options
+┌────────────────────────────────────────────────────────────┐
+│                    Tauri v2 Runtime                         │
+│                                                            │
+│  ┌─────────────────────┐    ┌────────────────────────────┐ │
+│  │   Frontend (Svelte) │    │    Backend (Rust)           │ │
+│  │                     │    │                            │ │
+│  │  +page.svelte       │◄──►│  commands.rs (IPC handlers)│ │
+│  │  DirectoryQueue     │    │  process.rs  (FFmpeg logic) │ │
+│  │  ConfigPanel        │    │  models.rs   (Type defs)   │ │
+│  │  MetricsPanel       │    │  error.rs    (Error types)  │ │
+│  │  TerminalLog        │    │  lib.rs      (Plugin init) │ │
+│  │  ToastContainer     │    │                            │ │
+│  │                     │    │  Sidecars:                  │ │
+│  │  Stores:            │    │    ffmpeg, ffprobe,         │ │
+│  │    config.svelte.ts │    │    mkvmerge                 │ │
+│  │    pipeline.svelte  │    │                            │ │
+│  │    toast.svelte.ts  │    │  Capabilities:             │ │
+│  │                     │    │    default.json             │ │
+│  └─────────────────────┘    └────────────────────────────┘ │
+└────────────────────────────────────────────────────────────┘
+```
+
+The frontend communicates with the backend exclusively through Tauri's `invoke` (request/response) and `emit`/`listen` (event streaming) IPC bridges. There are no HTTP APIs or WebSocket servers.
+
+---
+
+## Prerequisites
+
+| Tool | Version | Notes |
+|------|---------|-------|
+| **Node.js** | v18+ | Required for Vite/SvelteKit |
+| **pnpm** | v9+ | Workspace package manager |
+| **Rust** | 1.85+ (Edition 2024) | Via `rustup` |
+| **Rust Components** | `clippy`, `rustfmt` | `rustup component add clippy rustfmt` |
+| **OS Build Tools** | — | See below |
+
+**OS-Specific Build Tools:**
+- **Windows:** Visual Studio C++ Build Tools
+- **macOS:** Xcode Command Line Tools
+- **Linux:** `build-essential`, `curl`, `wget`, `file`, `libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`
+
+---
+
+## Getting Started
+
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd mkv-filter-metadata
+
+# 2. Install Node dependencies
+pnpm install
+
+# 3. Download sidecar binaries (FFmpeg, FFprobe, MKVMerge)
+pnpm prebuild
+
+# 4. Launch the development environment
+pnpm dev
+```
+
+This starts Vite's dev server on `http://localhost:1420` and compiles + launches the Tauri native window simultaneously.
+
+---
+
+## Tree Structure
+
+```text
+mkv-filter-metadata/
+├── package.json                  # Root workspace orchestrator scripts
+├── pnpm-workspace.yaml           # Monorepo boundary (frontend only)
+├── README.md                     # This file
+├── CHANGELOG.md                  # Version history
+├── CONTRIBUTING.md               # Contribution guidelines
+├── LICENSE                       # MIT License
+├── scripts/                      # Build helper scripts (sidecar download)
+│
+├── frontend/                     # Svelte 5 + SvelteKit + Vite UI Layer
+│   ├── package.json              # UI deps, test/lint/format scripts
+│   ├── svelte.config.js          # SvelteKit adapter configuration
+│   ├── vite.config.js            # Vite bundler with custom logger
+│   ├── tsconfig.json             # TypeScript compiler options
+│   ├── eslint.config.js          # ESLint flat config (Svelte + TS)
+│   ├── .prettierrc               # Prettier formatting rules
 │   └── src/
-│       └── routes/
-│           └── +page.svelte # Main UI view and Svelte reactivity logic
-└── backend/                 # Rust + Tauri Native System Layer
-    ├── sidecars/            # Target-suffixed Sidecar Binaries (FFmpeg/FFprobe/MKVMerge)
-    ├── Cargo.toml           # Native Rust dependencies and definitions
-    ├── tauri.conf.json      # Window, shell permissions, pathing parameters
+│       ├── routes/
+│       │   └── +page.svelte      # Main application view & event orchestration
+│       ├── lib/
+│       │   ├── types.ts          # Zod schemas & TypeScript type definitions
+│       │   ├── components/
+│       │   │   ├── DirectoryQueue.svelte   # Multi-dir queue with drag-reorder
+│       │   │   ├── ConfigPanel.svelte      # Encoder/preset/CRF controls
+│       │   │   ├── MetricsPanel.svelte     # Progress bars, timer, ETA, storage
+│       │   │   ├── TerminalLog.svelte      # Streaming FFmpeg output log
+│       │   │   └── ToastContainer.svelte   # Toast notification system
+│       │   ├── stores/
+│       │   │   ├── config.svelte.ts        # App config & UI state (runes)
+│       │   │   ├── pipeline.svelte.ts      # Pipeline telemetry state (runes)
+│       │   │   └── toast.svelte.ts         # Toast queue state (runes)
+│       │   └── utils/
+│       │       └── formatters.ts           # Byte/duration formatting utilities
+│       └── styles/
+│           └── app.scss          # Global styles, theming, CSS variables
+│
+└── backend/                      # Rust + Tauri v2 Native System Layer
+    ├── Cargo.toml                # Rust dependencies
+    ├── tauri.conf.json           # Window, plugins, bundle, security config
+    ├── capabilities/
+    │   └── default.json          # Tauri v2 permission scopes
+    ├── sidecars/                 # Target-suffixed binaries (FFmpeg/FFprobe/MKVMerge)
     └── src/
-        ├── lib.rs           # Core Rust backend logic, hardware checks, and rollback ledgers
-        └── main.rs          # Tauri application entry point
-```
-
-## 3. Monorepo Root Configurations
-
-The root directory acts purely as an orchestrator. It does not contain application code. It holds the workspace boundaries (`pnpm-workspace.yaml`) and a root `package.json` that provides unified developer commands to lint, typecheck, format, test, and spin up both environments simultaneously.
-
-## 4. Developer Commands
-
-The entire system stack can be managed using these high-level script controls from the workspace root:
-
-* `pnpm dev` - Parallel execution spinning up Vite's server alongside Tauri's system window.
-* `pnpm build` - Bundles production-optimized Svelte client assets and builds optimized binaries.
-* `pnpm clean` - Cross-platform wipeout of local Cargo caches and node dependency trees.
-* `pnpm check` - Full type safety verification across both Svelte and native Rust.
-* `pnpm lint` - Evaluates code safety using ESLint and enforces strict Rust code standards.
-* `pnpm format` - Auto-aligns all JS/TS/Svelte styling (Prettier) and Rust formatting standards (`cargo fmt`).
-* `pnpm test` - Headless UI assertion runtime (Vitest) grouped with unit/integration tests (`cargo test`).
-* `pnpm app-info` - Diagnostic telemetry reporting OS environment states and toolchain versions (renamed from `info` to avoid pnpm internal command conflicts).
-
-## 5. Base Directory Configuration
-
-Start by creating the shell for the project:
-
-```bash
-mkdir mkv-filter-metadata-rust
-cd mkv-filter-metadata-rust
-git init
-```
-
-## 6. Running the Scaffolder
-
-Rather than building everything from zero, we generate the base boilerplate. (Note: We will deconstruct this immediately after).
-
-```bash
-pnpm create tauri-app@latest
-# Follow the prompts:
-# - Choose your frontend (Svelte/SvelteKit)
-# - Choose your package manager (pnpm)
-```
-
-## 7. Rearranging into a Monorepo Workspace Split
-
-The default Tauri scaffolder mixes frontend and backend folders. We want a strict separation of concerns.
-
-1. Create two folders in your root: `frontend` and `backend`.
-2. Move all SvelteKit/Vite files (e.g., `src/`, `static/`, `vite.config.ts`, `svelte.config.js`) into the `frontend/` directory.
-3. Move the `src-tauri/` folder contents entirely into the `backend/` directory.
-
----
-
-## 8. Embedding Native Sidecars (FFmpeg, FFprobe & MKVMerge)
-
-Because this application relies on external video processing tools, we must bundle them as "Sidecars" so the end-user does not have to install them globally.
-
-### A. Sourcing and Naming the Binaries
-
-1. Create a `sidecars/` directory inside your `backend/` folder (`backend/sidecars/`).
-2. Download the standalone executables for FFmpeg, FFprobe, and MKVMerge.
-3. **CRITICAL:** Tauri requires sidecar binaries to be suffixed with the **Target Triple** of the host architecture. You cannot simply name the file `ffmpeg.exe`.
-* *Windows Example:* Rename `ffmpeg.exe` to `ffmpeg-x86_64-pc-windows-msvc.exe`.
-* *Windows Example:* Rename `mkvmerge.exe` to `mkvmerge-x86_64-pc-windows-msvc.exe`.
-* *macOS (Silicon) Example:* Rename `ffmpeg` to `ffmpeg-aarch64-apple-darwin`.
-* *Linux Example:* Rename `ffmpeg` to `ffmpeg-x86_64-unknown-linux-gnu`.
-
-### B. Configuring `tauri.conf.json`
-
-You must explicitly declare these binaries in your configuration file so the bundler knows to package them. Add the `externalBin` array inside the `bundle` object:
-
-```json
-"bundle": {
-  "externalBin": [
-    "sidecars/ffmpeg",
-    "sidecars/ffprobe",
-    "sidecars/mkvmerge"
-  ]
-}
-```
-
-### C. Calling Sidecars via Rust
-
-Once configured, your Rust backend leverages `tauri-plugin-shell` to spawn these sidecar processes. Instead of calling a system command, you specifically request the sidecar:
-
-```rust
-// Example of spawning a sidecar in lib.rs
-let cmd = app.shell().sidecar("ffmpeg")
-    .expect("Failed to initialize sidecar configuration")
-    .args(["-encoders"]);
+        ├── main.rs               # Tauri application entry point
+        ├── lib.rs                # Plugin registration & invoke handler setup
+        ├── commands.rs           # All #[tauri::command] IPC handlers
+        ├── process.rs            # FFmpeg pipeline, codec logic, arg builders
+        ├── models.rs             # Rust type definitions (enums, structs, state)
+        └── error.rs              # Custom error types with thiserror
 ```
 
 ---
 
-## 9. Initializing the Root Workspace Files
+## Developer Commands
 
-In your project root, create a file named `pnpm-workspace.yaml`. Because our backend is managed independently by Cargo, only the frontend is registered as a Node.js workspace module:
+All commands are run from the workspace root:
 
-```yaml
-packages:
-  - 'frontend'
-allowBuilds:
-  '@parcel/watcher': true
-  esbuild: true
-```
-
-Next, initialize the parent orchestrator `package.json`:
-
-```bash
-pnpm init
-```
-
----
-
-## 10. Unified Workflow Orchestration
-
-Because the backend isn't managed within the Node workspace graph, root pipeline controls address `frontend` filtering specifically via `pnpm -F`, and route native parameters to `backend/Cargo.toml` manually using manifest path redirections.
-
-**Note on redundancy:** We execute `tauri build` directly instead of chaining frontend builds because `tauri.conf.json` natively handles pre-build commands.
-
-Update the **root** `package.json` to reflect this optimized structure:
-
-```json
-{
-  "name": "mkv-filter-metadata-rust",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "tauri dev",
-    "build": "tauri build",
-    "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
-    "lint": "pnpm -F frontend lint && cargo clippy --manifest-path backend/Cargo.toml -- -D warnings",
-    "format": "pnpm -F frontend format && cargo fmt --manifest-path backend/Cargo.toml",
-    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
-    "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm -r exec node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && node -e \"require('fs').rmSync('node_modules', { recursive: true, force: true })\" && pnpm install",
-    "app-info": "pnpm tauri info"
-  },
-  "license": "MIT",
-  "devDependencies": {
-    "@tauri-apps/cli": "^2.11.2"
-  }
-}
-```
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Launch Vite dev server + Tauri window in parallel |
+| `pnpm build` | Production build (frontend bundle + Rust release binary) |
+| `pnpm check` | Type-check both Svelte (svelte-check) and Rust (cargo check) |
+| `pnpm fix` | Auto-fix lint + format issues across both frontend and backend |
+| `pnpm test` | Run Vitest (frontend) and cargo test (backend) |
+| `pnpm test:coverage` | Generate coverage reports for both layers |
+| `pnpm audit` | Security audit for npm and Cargo dependencies |
+| `pnpm clean` | Deep clean: wipe node_modules, Cargo target, then reinstall |
+| `pnpm prebuild` | Download sidecar binaries for your platform |
+| `pnpm app-info` | Print Tauri environment diagnostics |
 
 ---
 
-## 11. Injecting the Global Tauri CLI
+## Application Usage
 
-Tauri requires its CLI to orchestrate the dev servers and Rust compilation. Install it at the workspace root:
-
-```bash
-pnpm add -D @tauri-apps/cli -w
-```
-
----
-
-## 12. Injecting Quality Tooling & Code Verification
-
-To unlock advanced code safety features (linting, formatting, testing), install the core development dependencies directly inside the frontend package ecosystem:
-
-```bash
-pnpm -F frontend add -D vitest eslint eslint-plugin-svelte prettier prettier-plugin-svelte typescript-eslint globals @eslint/js
-```
-
-### Modern ESLint Flat Config (`frontend/eslint.config.js`)
-
-We use the modern flat config setup, specifically configuring the parser to handle Svelte 5 and TypeScript features (preventing "Unexpected token as" errors), while mapping `globals.node` so Node-level files like `vite.config.ts` do not trigger "process is not defined" errors.
-
-```javascript
-import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
-import eslintPluginSvelte from 'eslint-plugin-svelte';
-import globals from 'globals';
-
-export default tseslint.config(
-  eslint.configs.recommended,
-  ...tseslint.configs.recommended,
-  ...eslintPluginSvelte.configs['flat/recommended'],
-  {
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.browser,
-      },
-    },
-  },
-  {
-    files: ['**/*.svelte'],
-    languageOptions: {
-      parserOptions: {
-        parser: tseslint.parser,
-      },
-    },
-  },
-  {
-    ignores: ['build/', '.svelte-kit/', 'dist/']
-  }
-);
-```
+1. **Add Directories:** Click "+ Add Folder to Queue" or drag-and-drop folders onto the window. Multiple directories can be queued and reordered.
+2. **Configure Processing:**
+   - **Conversion Mode:** Choose "Remux Processing" (fast stream copy) or "Reencode Processing" (full transcode).
+   - **File Extensions Filter:** Comma-separated list of extensions to process (e.g., `mkv, mp4, mov, avi`).
+   - **Subtitle Tracks to Keep:** Comma-separated BCP-47 language codes (e.g., `eng, spa, und`).
+   - **Video Encoder:** Select from available hardware/software encoders (auto-detected at launch).
+   - **Encoder Preset:** Quality/speed tradeoff (adapts to selected encoder).
+   - **CRF:** Constant Rate Factor for quality control (0–51, lower = better quality).
+3. **Start Processing:** Click "Start Processing". The pipeline scans all queued directories, filters files by extension, and processes each one sequentially.
+4. **Monitor Progress:** Watch real-time progress bars, ETA, and streaming FFmpeg output in the terminal log.
+5. **Output Location:** Processed files are written to a `processed_files/` subdirectory within each source directory.
+6. **Open Results:** After completion, click the folder icon on any queue row to open its output directory.
 
 ---
 
-## 13. Frontend Layout & Strict Typing Standards
+## Backend Pipeline Details
 
-The `frontend` folder handles 100% of the UI. It uses Svelte 5 runes (`$state`, `$derived`, `$effect`) for modern state handling. To pass our strict linting requirements:
+### Processing Flow
 
-1. **Explicit Typing:** Avoid `any`. If referencing system objects like timers, use precise TS utility types (e.g., `let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;`).
-2. **Loop Identity:** All Svelte `{#each}` loops must declare explicit unique keys (e.g., `{#each array as item (item.id)}`) to optimize DOM diffing.
-3. **Unused Variables:** Handled by either stripping them entirely or prefixing variables you plan to use later with an underscore (e.g., `catch (_e) {}`).
-
-* Core interfaces talk directly to the system hardware via explicit core bridge invokes:
-
-```ts
-import { invoke } from '@tauri-apps/api/core';
+```
+Input Directory
+  → Walk directory tree (recursive)
+  → Filter by file extension
+  → For each file:
+      → FFprobe: inspect streams, identify subtitle tracks by language
+      → Build FFmpeg command (maps, codecs, presets)
+      → Execute FFmpeg via sidecar
+      → Stream stderr for progress parsing
+      → On subtitle incompatibility → auto-retry with ASS conversion
+      → On success → emit progress event to frontend
+      → On failure → log error, continue to next file
+  → Emit completion summary with storage metrics
 ```
 
+### Abort & Cleanup Protocol
+
+When the user clicks "Stop Execution" or closes the window mid-pipeline:
+1. The `is_aborted` atomic flag is set.
+2. The active FFmpeg child process is forcefully killed.
+3. The partially written output file is deleted from disk.
+4. Empty `processed_files/` directories are removed.
+
+### Supported Video Encoders
+
+| Encoder | Hardware | Presets |
+|---------|----------|---------|
+| `libx264` | CPU (Software) | ultrafast → veryslow |
+| `libx265` | CPU (Software) | ultrafast → veryslow |
+| `hevc_nvenc` | NVIDIA GPU | p1 → p7 |
+| `h264_nvenc` | NVIDIA GPU | p1 → p7 |
+| `av1_nvenc` | NVIDIA GPU | p1 → p7 |
+| `hevc_amf` | AMD GPU | speed, balanced, quality |
+| `h264_amf` | AMD GPU | speed, balanced, quality |
+| `av1_amf` | AMD GPU | speed, balanced, quality |
+| `hevc_qsv` | Intel iGPU | (default) |
+| `h264_qsv` | Intel iGPU | (default) |
+| `av1_qsv` | Intel iGPU | (default) |
+| `hevc_videotoolbox` | Apple Silicon | (default) |
+| `h264_videotoolbox` | Apple Silicon | (default) |
+| `av1_videotoolbox` | Apple Silicon | (default) |
+
 ---
 
-## 14. Backend Native Layer & Self-Healing Workflows
+## Frontend Component Architecture
 
-The `backend` folder handles hardware access, sidecars (FFmpeg/MKVMerge), and the filesystem. Key features implemented in `lib.rs`:
+| Component | Responsibility |
+|-----------|---------------|
+| **`+page.svelte`** | Root orchestrator: mounts all components, manages Tauri event listeners, timer logic, theme toggling, and the processing lifecycle |
+| **`DirectoryQueue.svelte`** | Multi-directory queue with drag-and-drop reorder, per-row status badges, directory stats tooltips, open-folder actions, and file-drop handling |
+| **`ConfigPanel.svelte`** | Conversion mode, file extension filter, subtitle filter, encoder/preset/CRF selection with dynamic hardware detection |
+| **`MetricsPanel.svelte`** | Overall progress bar, per-file progress bar, total conversion time, ETA, and storage savings display |
+| **`TerminalLog.svelte`** | Streaming FFmpeg log output with auto-scroll, copy-to-clipboard, and save-to-file |
+| **`ToastContainer.svelte`** | Stacked toast notifications with auto-dismiss, severity-based styling, and XSS-safe rendering |
 
-* **NVENC Hardware Detection:** Rust queries the system environment to determine if NVIDIA encoding APIs are available and relays this to the frontend.
-* **Self-Healing Fallback Strategy:** Rather than maintaining fragile, hardcoded lists of compatible or incompatible codecs, the application parses the actual `stderr` stream from FFmpeg natively. If it detects that a direct stream copy was rejected due to subtitle incompatibilities, it intercepts the failure, dynamically injects ASS subtitle conversion flags, and retries the file seamlessly.
-* **Granular Telemetry:** The backend isolates processing failures and cleanly reports explicit metrics (e.g., "Retries Triggered vs Resolved") via Tauri event emitters back to the Svelte application log.
-* **Session Rollbacks:** The state manager tracks generated outputs inside `Mutex<Vec<PathBuf>>`. If the application is closed or the user clicks "Abort", the system destroys active child processes and scrubs partially written files and empty directories from the drive.
+### State Management (Svelte 5 Runes)
 
----
-
-## 15. Update Project Build Paths
-
-Because folders are moved out of boilerplate definitions, Tauri must be directed to find your compiled assets via `backend/tauri.conf.json`. Update the `build` object:
-
-```json
-"build": {
-  "beforeDevCommand": "pnpm -F frontend dev",
-  "beforeBuildCommand": "pnpm -F frontend build",
-  "devUrl": "http://localhost:1420",
-  "frontendDist": "../frontend/build"
-}
-```
+| Store | Purpose |
+|-------|---------|
+| `config.svelte.ts` | Input directories, encoder settings, UI state (theme, hardware capabilities) |
+| `pipeline.svelte.ts` | Processing telemetry: progress, file index, timer, ETA, log buffer, directory statuses |
+| `toast.svelte.ts` | Toast notification queue with add/dismiss helpers |
 
 ---
 
-## 16. Building for Production / Distribution
+## Configuration & Capabilities
 
-To compile a standalone binary/installer for your current OS:
+### `backend/tauri.conf.json`
 
-1. Ensure your `tauri.conf.json` has a unique `identifier` (e.g., `com.mkvfilter.app`).
-2. From the root directory, run:
+Defines the application window, CSP security policy, sidecar binaries, bundle targets, and plugin configuration.
+
+### `backend/capabilities/default.json`
+
+Tauri v2's capability-based security model. The application requests only the permissions it needs:
+- `core:default` — Basic Tauri runtime
+- `dialog:allow-open`, `dialog:allow-save` — File/folder picker dialogs
+- `shell:allow-execute` — Sidecar binary execution (FFmpeg, FFprobe, MKVMerge)
+- `opener:default`, `opener:allow-open-path` — Open folders in file explorer
+- `notification:default` — Native OS notifications
+- `core:window:allow-close`, `core:window:allow-destroy`, `core:window:allow-set-theme` — Window management
+
+---
+
+## Building for Production
 
 ```bash
 pnpm build
 ```
 
-Tauri will compile the frontend, run Cargo code optimizations, link target sidecars, and output platform packages (`.exe`, `.dmg`, or `.deb`) inside `backend/target/release/bundle/`.
+This will:
+1. Bundle the Svelte frontend via Vite
+2. Compile the Rust backend in release mode
+3. Link sidecar binaries
+4. Output platform-specific installers in `backend/target/release/bundle/`
+
+Ensure your `tauri.conf.json` has a unique `identifier` (currently `com.cuates.mkv-filter-metadata-rust`).
 
 ---
 
-## 17. Troubleshooting & Common Pitfalls
+## Troubleshooting & Common Pitfalls
 
-* **"Cannot find project matching filter 'backend'"**: Occurs when trying to run `pnpm -F backend`. The backend is a Cargo container, not a Node package. Always target its files directly via path references (e.g., `--manifest-path backend/Cargo.toml`).
-* **Vite Port Collisions**: Set `strictPort: true` inside `frontend/vite.config.ts` to prevent Vite from changing ports when the designated port is busy.
-* **Sidecar Execution Failure**: Ensure your local binary filename accurately reflects your machine’s architecture triple (e.g. `ffmpeg-x86_64-pc-windows-msvc.exe` on Windows 64-bit systems).
-* **Package Script Conflicts:** Do not name workspace scripts the same as native PM commands. For example, use `app-info` rather than `info` to avoid triggering `pnpm view`.
+| Problem | Solution |
+|---------|----------|
+| **"Cannot find project matching filter 'backend'"** | The backend is a Cargo crate, not a Node package. Use `--manifest-path backend/Cargo.toml` instead of `pnpm -F backend`. |
+| **Vite port collision** | `strictPort: true` is set in `vite.config.js` to prevent silent port changes. Free port 1420 or update both Vite and `tauri.conf.json`. |
+| **Sidecar execution failure** | Ensure binary filenames include your architecture triple (e.g., `ffmpeg-x86_64-pc-windows-msvc.exe`). |
+| **`gen/schemas` showing as modified in git** | These are auto-generated by Tauri. Run `git rm --cached -r backend/gen/schemas` to untrack them. They are already in `.gitignore`. |
+| **FFmpeg subtitle errors** | The self-healing fallback handles most cases automatically. If a container truly doesn't support any subtitle format, the file will be processed without subtitles. |
+| **Package script name conflicts** | Root scripts avoid names that collide with pnpm internals (e.g., `app-info` instead of `info`). |
 
 ---
 
-## 18. Run the Clean Suite
+## License
 
-If you hit dependency cache corruption, cross-platform terminal errors, or lock file issues, execute the deep clean workspace pipeline:
-
-```bash
-pnpm clean
-```
-
-### Why this is safe across all platforms:
-
-Rather than depending on native Unix commands like `rm -rf` (which fail on Windows environments), the workspace clean engine invokes inline Node filesystems scripts (`node -e "require('fs').rmSync(...)"`). This cleanly targets sub-package node folders, root modules, and resets Rust's `target/` binaries safely on Windows, macOS, and Linux systems.
+This project is licensed under the [MIT License](LICENSE).
