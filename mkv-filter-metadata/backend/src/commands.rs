@@ -66,26 +66,57 @@ pub async fn get_directory_stats(
     .map_err(|e| AppError::Process(format!("Task join error: {}", e)))
 }
 
-fn validate_preset_codec_compat(codec: &crate::models::VideoCodec, preset: &crate::models::Preset) -> Result<(), AppError> {
+fn validate_preset_codec_compat(
+    codec: &crate::models::VideoCodec,
+    preset: &crate::models::Preset,
+) -> Result<(), AppError> {
     use crate::models::{Preset, VideoCodec};
     match codec {
         VideoCodec::Libx264 | VideoCodec::Libx265 => match preset {
-            Preset::Ultrafast | Preset::Superfast | Preset::Veryfast | Preset::Faster
-            | Preset::Fast | Preset::Medium | Preset::Slow | Preset::Slower | Preset::Veryslow => Ok(()),
-            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with software encoder '{}'", preset, codec))),
+            Preset::Ultrafast
+            | Preset::Superfast
+            | Preset::Veryfast
+            | Preset::Faster
+            | Preset::Fast
+            | Preset::Medium
+            | Preset::Slow
+            | Preset::Slower
+            | Preset::Veryslow => Ok(()),
+            _ => Err(AppError::Process(format!(
+                "Preset '{}' is not compatible with software encoder '{}'",
+                preset, codec
+            ))),
         },
         VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => match preset {
-            Preset::P1 | Preset::P2 | Preset::P3 | Preset::P4 | Preset::P5 | Preset::P6 | Preset::P7 => Ok(()),
-            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with NVENC encoder '{}'", preset, codec))),
+            Preset::P1
+            | Preset::P2
+            | Preset::P3
+            | Preset::P4
+            | Preset::P5
+            | Preset::P6
+            | Preset::P7 => Ok(()),
+            _ => Err(AppError::Process(format!(
+                "Preset '{}' is not compatible with NVENC encoder '{}'",
+                preset, codec
+            ))),
         },
         VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => match preset {
             Preset::Speed | Preset::Balanced | Preset::Quality => Ok(()),
-            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with AMF encoder '{}'", preset, codec))),
+            _ => Err(AppError::Process(format!(
+                "Preset '{}' is not compatible with AMF encoder '{}'",
+                preset, codec
+            ))),
         },
-        VideoCodec::HevcVideotoolbox | VideoCodec::H264Videotoolbox
-        | VideoCodec::HevcQsv | VideoCodec::H264Qsv | VideoCodec::Av1Qsv => match preset {
+        VideoCodec::HevcVideotoolbox
+        | VideoCodec::H264Videotoolbox
+        | VideoCodec::HevcQsv
+        | VideoCodec::H264Qsv
+        | VideoCodec::Av1Qsv => match preset {
             Preset::Default => Ok(()),
-            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with hardware encoder '{}'. Use 'default'.", preset, codec))),
+            _ => Err(AppError::Process(format!(
+                "Preset '{}' is not compatible with hardware encoder '{}'. Use 'default'.",
+                preset, codec
+            ))),
         },
     }
 }
@@ -93,7 +124,10 @@ fn validate_preset_codec_compat(codec: &crate::models::VideoCodec, preset: &crat
 fn validate_ext_list(raw: &str) -> Result<(), AppError> {
     for ext in parse_comma_list(raw) {
         if !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return Err(AppError::Process(format!("Invalid file extension: '{}'", ext)));
+            return Err(AppError::Process(format!(
+                "Invalid file extension: '{}'",
+                ext
+            )));
         }
     }
     Ok(())
@@ -102,7 +136,10 @@ fn validate_ext_list(raw: &str) -> Result<(), AppError> {
 fn validate_subtitle_tracks(raw: &str) -> Result<(), AppError> {
     for track in parse_comma_list(raw) {
         if !track.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return Err(AppError::Process(format!("Invalid subtitle track: '{}'", track)));
+            return Err(AppError::Process(format!(
+                "Invalid subtitle track: '{}'",
+                track
+            )));
         }
     }
     Ok(())
@@ -490,7 +527,11 @@ pub async fn process_video_pipeline(
             }
             {
                 let mut session = state.process.lock().await;
-                if let Some(pos) = session.output_files.iter().position(|p| p == &output_file_path) {
+                if let Some(pos) = session
+                    .output_files
+                    .iter()
+                    .position(|p| p == &output_file_path)
+                {
                     let path = session.output_files.remove(pos);
                     session.completed_files.push(path);
                 }
@@ -612,7 +653,7 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
         && let Ok(output) = cmd.args(["-encoders"]).output().await
     {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        
+
         let has_nvenc = stdout.contains("_nvenc");
         let has_amf = stdout.contains("_amf");
         let has_qsv = stdout.contains("_qsv");
@@ -622,11 +663,15 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
             if let Ok(test_cmd) = app.shell().sidecar("ffmpeg")
                 && let Ok(test_out) = test_cmd
                     .args([
-                        "-f", "lavfi",
-                        "-i", "nullsrc=s=256x256:d=0.1",
-                        "-c:v", codec,
-                        "-f", "null",
-                        "-"
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        "nullsrc=s=256x256:d=0.1",
+                        "-c:v",
+                        codec,
+                        "-f",
+                        "null",
+                        "-",
                     ])
                     .output()
                     .await
@@ -637,10 +682,34 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
         };
 
         let (nvenc, amf, qsv, videotoolbox) = tokio::join!(
-            async { if has_nvenc { test_codec(app.clone(), "hevc_nvenc").await } else { false } },
-            async { if has_amf { test_codec(app.clone(), "hevc_amf").await } else { false } },
-            async { if has_qsv { test_codec(app.clone(), "hevc_qsv").await } else { false } },
-            async { if has_videotoolbox { test_codec(app.clone(), "hevc_videotoolbox").await } else { false } }
+            async {
+                if has_nvenc {
+                    test_codec(app.clone(), "hevc_nvenc").await
+                } else {
+                    false
+                }
+            },
+            async {
+                if has_amf {
+                    test_codec(app.clone(), "hevc_amf").await
+                } else {
+                    false
+                }
+            },
+            async {
+                if has_qsv {
+                    test_codec(app.clone(), "hevc_qsv").await
+                } else {
+                    false
+                }
+            },
+            async {
+                if has_videotoolbox {
+                    test_codec(app.clone(), "hevc_videotoolbox").await
+                } else {
+                    false
+                }
+            }
         );
 
         caps.nvenc = nvenc;
@@ -648,7 +717,7 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
         caps.qsv = qsv;
         caps.videotoolbox = videotoolbox;
     }
-    
+
     let _ = state.encoder_caps.set(caps.clone());
     caps
 }
@@ -763,7 +832,7 @@ pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
     if let Ok(log_dir) = app.path().app_log_dir() {
         let mut target_file = std::fs::File::create(&path)
             .map_err(|e| AppError::Process(format!("Failed to create target file: {}", e)))?;
-        
+
         let mut any_saved = false;
         for file_name in ["session.2.log", "session.1.log", "session.log"] {
             let log_file = log_dir.join(file_name);

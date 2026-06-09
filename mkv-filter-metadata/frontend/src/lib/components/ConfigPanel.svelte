@@ -81,11 +81,11 @@
   <div class="row toggle-row">
     <label for="recursive-scan" class="toggle-label">Recursive Directory Scanning</label>
     <label class="switch">
-      <input 
-        id="recursive-scan" 
-        type="checkbox" 
-        bind:checked={config.recursive} 
-        disabled={pipeline.processingActive} 
+      <input
+        id="recursive-scan"
+        type="checkbox"
+        bind:checked={config.recursive}
+        disabled={pipeline.processingActive}
       />
       <span class="slider round"></span>
     </label>
@@ -199,7 +199,7 @@
     flex-direction: row;
     align-items: center;
     gap: 1rem;
-    
+
     .toggle-label {
       margin: 0;
     }
@@ -213,7 +213,7 @@
     height: 20px;
   }
 
-  .switch input { 
+  .switch input {
     opacity: 0;
     width: 0;
     height: 0;
@@ -227,19 +227,19 @@
     right: 0;
     bottom: 0;
     background-color: var(--border-color);
-    transition: .4s;
+    transition: 0.4s;
     border-radius: 20px;
   }
 
   .slider:before {
     position: absolute;
-    content: "";
+    content: '';
     height: 14px;
     width: 14px;
     left: 3px;
     bottom: 3px;
     background-color: white;
-    transition: .4s;
+    transition: 0.4s;
     border-radius: 50%;
   }
 

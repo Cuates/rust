@@ -10,9 +10,18 @@ use crate::models::{AppState, ConversionMode, VideoCodec};
 /// The writer must be initialized via `initialize_session_log` before disk writes take effect.
 pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     let msg = message.as_ref();
-    if msg.contains("[ERROR]") || msg.contains("[FATAL]") || msg.contains("❌") || msg.contains("Error:") {
+    if msg.contains("[ERROR]")
+        || msg.contains("[FATAL]")
+        || msg.contains("❌")
+        || msg.contains("Error:")
+    {
         tracing::error!("{}", msg);
-    } else if msg.starts_with("---") || msg.starts_with("[") || msg.contains("Pipeline") || msg.contains("Session") || msg.contains("Scanned file total:") {
+    } else if msg.starts_with("---")
+        || msg.starts_with("[")
+        || msg.contains("Pipeline")
+        || msg.contains("Session")
+        || msg.contains("Scanned file total:")
+    {
         tracing::info!("{}", msg);
     } else {
         tracing::trace!("{}", msg);
@@ -77,7 +86,6 @@ pub fn flush_log_writer(app: &AppHandle) {
 }
 
 impl VideoCodec {
-
     pub fn map_preset(&self, preset: &crate::models::Preset) -> String {
         match preset {
             crate::models::Preset::Ultrafast => "ultrafast".to_string(),
@@ -178,17 +186,39 @@ pub fn parse_comma_list(raw: &str) -> Vec<String> {
 /// Normalizes common ISO 639-1 language codes into their 3-letter ISO 639-2 equivalents.
 pub fn normalize_lang(tag: &str) -> &str {
     match tag.to_lowercase().as_str() {
-        "en" => "eng", "ja" => "jpn", "zh" => "zho",
-        "fr" => "fra", "de" => "deu", "es" => "spa",
-        "ru" => "rus", "it" => "ita", "pt" => "por",
-        "ko" => "kor", "ar" => "ara", "hi" => "hin",
-        "bn" => "ben", "pa" => "pan", "te" => "tel",
-        "sv" => "swe", "nl" => "nld", "pl" => "pol",
-        "tr" => "tur", "vi" => "vie", "th" => "tha",
-        "id" => "ind", "ms" => "msa", "el" => "ell",
-        "cs" => "ces", "da" => "dan", "fi" => "fin",
-        "hu" => "hun", "no" => "nor", "ro" => "ron",
-        "sk" => "slk", "uk" => "ukr", "he" => "heb",
+        "en" => "eng",
+        "ja" => "jpn",
+        "zh" => "zho",
+        "fr" => "fra",
+        "de" => "deu",
+        "es" => "spa",
+        "ru" => "rus",
+        "it" => "ita",
+        "pt" => "por",
+        "ko" => "kor",
+        "ar" => "ara",
+        "hi" => "hin",
+        "bn" => "ben",
+        "pa" => "pan",
+        "te" => "tel",
+        "sv" => "swe",
+        "nl" => "nld",
+        "pl" => "pol",
+        "tr" => "tur",
+        "vi" => "vie",
+        "th" => "tha",
+        "id" => "ind",
+        "ms" => "msa",
+        "el" => "ell",
+        "cs" => "ces",
+        "da" => "dan",
+        "fi" => "fin",
+        "hu" => "hun",
+        "no" => "nor",
+        "ro" => "ron",
+        "sk" => "slk",
+        "uk" => "ukr",
+        "he" => "heb",
         _ => tag,
     }
 }
@@ -199,7 +229,7 @@ pub fn stderr_indicates_subtitle_incompatibility(logs: &[String]) -> bool {
     logs.iter().any(|l| {
         let l = l.to_lowercase();
         (l.contains("subtitle codec") && l.contains("not supported"))
-            || (l.contains("could not write header") 
+            || (l.contains("could not write header")
                 && (l.contains("subtitle") || l.contains("codec") || l.contains("muxer")))
             || (l.contains("function not implemented") && !l.contains("vf#"))
     })
@@ -557,7 +587,8 @@ pub async fn run_sidecar_command(
         }
     }
 
-    if aborted_mid_stream || state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
+    if aborted_mid_stream || state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled()
+    {
         return Err(AppError::Aborted);
     }
 
@@ -591,7 +622,9 @@ mod tests {
         let logs_err = vec!["Subtitle codec not supported".to_string()];
         assert!(stderr_indicates_subtitle_incompatibility(&logs_err));
 
-        let logs_err2 = vec!["could not write header for output file #0 (incorrect codec parameters ?)".to_string()];
+        let logs_err2 = vec![
+            "could not write header for output file #0 (incorrect codec parameters ?)".to_string(),
+        ];
         assert!(stderr_indicates_subtitle_incompatibility(&logs_err2));
     }
 }
