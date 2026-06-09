@@ -393,10 +393,11 @@ pub async fn run_sidecar_command(
         ))
     })?;
 
-    {
+    let cancel_token = {
         let mut session = state.process.lock().await;
         session.child = Some(child);
-    }
+        session.cancel.clone()
+    };
 
     let mut aborted_mid_stream = false;
     let mut file_success = false;
@@ -404,13 +405,19 @@ pub async fn run_sidecar_command(
     let mut total_duration_secs: Option<f64> = None;
     let mut video_fps: Option<f64> = None;
 
-    while let Some(event) = rx.recv().await {
-        if state.is_aborted.load(Ordering::SeqCst) {
-            aborted_mid_stream = true;
-            break;
-        }
+    loop {
+        tokio::select! {
+            _ = cancel_token.cancelled() => {
+                aborted_mid_stream = true;
+                break;
+            }
+            event_opt = rx.recv() => {
+                let event = match event_opt {
+                    Some(e) => e,
+                    None => break,
+                };
 
-        match event {
+                match event {
             tauri_plugin_shell::process::CommandEvent::Stdout(line_bytes) => {
                 let text = String::from_utf8_lossy(&line_bytes).into_owned();
                 let mut sanitized = text.replace('\r', "\n");
@@ -515,10 +522,12 @@ pub async fn run_sidecar_command(
                 append_log(app, format!("  | [FATAL] {}", err));
             }
             _ => {}
+                }
+            }
         }
     }
 
-    if aborted_mid_stream || state.is_aborted.load(Ordering::SeqCst) {
+    if aborted_mid_stream || state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
         return Err(AppError::Aborted);
     }
 

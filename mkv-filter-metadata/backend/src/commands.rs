@@ -104,11 +104,15 @@ pub async fn process_video_pipeline(
     validate_payload(&payload)?;
 
     state.is_aborted.store(false, Ordering::SeqCst);
+    let cancel_token;
     {
         let mut session = state.process.lock().await;
+        session.cancel = tokio_util::sync::CancellationToken::new();
+        cancel_token = session.cancel.clone();
         session.child = None;
         session.output_path = None;
         session.output_files.clear();
+        session.completed_files.clear();
         session.output_dirs.clear();
     }
 
@@ -119,12 +123,13 @@ pub async fn process_video_pipeline(
     let input_directories = payload.input_directories.clone();
     let app_clone = app.clone();
 
+    let cancel_token_clone = cancel_token.clone();
     let target_files = tokio::task::spawn_blocking(move || {
         let mut target_files = Vec::new();
         let state = app_clone.state::<AppState>();
 
         for dir_path in &input_directories {
-            if state.is_aborted.load(Ordering::SeqCst) {
+            if state.is_aborted.load(Ordering::SeqCst) || cancel_token_clone.is_cancelled() {
                 return Err(AppError::Aborted);
             }
 
@@ -167,7 +172,7 @@ pub async fn process_video_pipeline(
     let mut total_output_bytes: u64 = 0;
 
     for (index, (queue_dir, file_path)) in target_files.iter().enumerate() {
-        if state.is_aborted.load(Ordering::SeqCst) {
+        if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
             return Err(AppError::Aborted);
         }
 
@@ -427,6 +432,13 @@ pub async fn process_video_pipeline(
             if let Ok(metadata) = std::fs::metadata(&output_file_path) {
                 total_output_bytes += metadata.len();
             }
+            {
+                let mut session = state.process.lock().await;
+                if let Some(pos) = session.output_files.iter().position(|p| p == &output_file_path) {
+                    let path = session.output_files.remove(pos);
+                    session.completed_files.push(path);
+                }
+            }
         } else {
             failed_files += 1;
         }
@@ -600,12 +612,15 @@ pub async fn abort_video_pipeline(
     let (opt_child, target_cleanup_path, files_to_delete, dirs_to_check) = {
         let mut session = state.process.lock().await;
 
+        session.cancel.cancel(); // Trigger CancellationToken
+
         let child = session.child.take();
         let path = session.output_path.take();
         let files = session.output_files.clone();
         let dirs = session.output_dirs.clone();
 
         session.output_files.clear();
+        // Do NOT clear completed_files here, they should be preserved!
         session.output_dirs.clear();
 
         (child, path, files, dirs)
@@ -613,9 +628,7 @@ pub async fn abort_video_pipeline(
 
     if let Some(child) = opt_child {
         let _ = child.kill();
-        // On Windows, process termination after kill() is asynchronous.
-        // Wait long enough for the child to fully exit and release file handles.
-        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        // Removed sleep hack since cancellation token provides cooperative shutdown
     }
 
     // Use retry logic for all file deletions to handle Windows file locking

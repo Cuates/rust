@@ -131,11 +131,12 @@ pub struct AppState {
     pub log_writer: std::sync::Mutex<Option<SessionLog>>,
 }
 
-#[derive(Default)]
 pub struct ProcessSession {
+    pub cancel: tokio_util::sync::CancellationToken,
     pub child: Option<tauri_plugin_shell::process::CommandChild>,
     pub output_path: Option<PathBuf>,
-    pub output_files: Vec<PathBuf>,
+    pub output_files: Vec<PathBuf>, // In-progress files
+    pub completed_files: Vec<PathBuf>, // Completed files, safe from abort
     pub output_dirs: Vec<PathBuf>,
 }
 
@@ -143,7 +144,14 @@ impl Default for AppState {
     fn default() -> Self {
         Self {
             is_aborted: AtomicBool::new(false),
-            process: tokio::sync::Mutex::new(ProcessSession::default()),
+            process: tokio::sync::Mutex::new(ProcessSession {
+                cancel: tokio_util::sync::CancellationToken::new(),
+                child: None,
+                output_path: None,
+                output_files: Vec::new(),
+                completed_files: Vec::new(),
+                output_dirs: Vec::new(),
+            }),
             log_writer: std::sync::Mutex::new(None),
         }
     }
