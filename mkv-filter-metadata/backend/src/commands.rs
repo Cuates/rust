@@ -452,11 +452,15 @@ pub async fn process_video_pipeline(
                 ];
 
                 // Append MKVMerge specific subtitle tracking rules
-                if !sub_langs.is_empty() {
+                if !subtitle_maps.is_empty() {
+                    let mkv_track_ids: Vec<String> = subtitle_maps
+                        .iter()
+                        .filter_map(|s| s.split(':').next_back().map(|id| id.to_string()))
+                        .collect();
                     mkvmerge_args.push("--subtitle-tracks".to_string());
-                    mkvmerge_args.push(sub_langs.join(","));
+                    mkvmerge_args.push(mkv_track_ids.join(","));
                 } else {
-                    // Drop all subtitles if array is blank
+                    // Drop all subtitles if none matched or if array is blank
                     mkvmerge_args.push("--no-subtitles".to_string());
                 }
 
