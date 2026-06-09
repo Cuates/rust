@@ -2,7 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[strum(serialize_all = "snake_case")]
 pub enum VideoCodec {
     #[serde(rename = "libx265")]
     Libx265,
@@ -30,8 +31,6 @@ pub enum VideoCodec {
     HevcVideotoolbox,
     #[serde(rename = "h264_videotoolbox")]
     H264Videotoolbox,
-    #[serde(rename = "av1_videotoolbox")]
-    Av1Videotoolbox,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -42,7 +41,8 @@ pub enum ConversionMode {
     Reencode,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[strum(serialize_all = "snake_case")]
 pub enum Preset {
     #[serde(rename = "ultrafast")]
     Ultrafast,
@@ -90,6 +90,7 @@ pub enum Preset {
 pub struct VideoPipelinePayload {
     pub input_directories: Vec<String>,
     pub file_extensions: String,
+    pub recursive: bool,
     pub subtitle_tracks: String,
     pub output_extension: String,
     pub conversion_mode: ConversionMode,
@@ -98,7 +99,7 @@ pub struct VideoPipelinePayload {
     pub crf: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct EncoderCapabilities {
     pub nvenc: bool,
     pub amf: bool,
@@ -129,6 +130,7 @@ pub struct AppState {
     pub is_aborted: AtomicBool,
     pub process: tokio::sync::Mutex<ProcessSession>,
     pub log_writer: std::sync::Mutex<Option<SessionLog>>,
+    pub encoder_caps: tokio::sync::OnceCell<EncoderCapabilities>,
 }
 
 pub struct ProcessSession {
@@ -153,6 +155,7 @@ impl Default for AppState {
                 output_dirs: Vec::new(),
             }),
             log_writer: std::sync::Mutex::new(None),
+            encoder_caps: tokio::sync::OnceCell::new(),
         }
     }
 }

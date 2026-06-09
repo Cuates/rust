@@ -1,6 +1,7 @@
 export const config = $state({
   input_directories: [] as string[],
   file_extensions: 'mkv, mp4, mov, avi, ogm, wmv',
+  recursive: false,
   subtitle_tracks: 'ang, eng, enm, zxx, und',
   output_extension: '.mkv',
   conversion_mode: 'remux',

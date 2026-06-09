@@ -13,22 +13,49 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     tracing::info!("{}", msg);
     let _ = app.emit("process-log", msg);
     let state = app.state::<AppState>();
-    if let Ok(mut guard) = state.log_writer.lock()
-        && let Some(log) = guard.as_mut()
-    {
-        use std::io::{Seek, SeekFrom, Write};
-        let line_len = msg.len() + 1; // +1 for \n
-        if log.bytes_written + line_len > 10 * 1024 * 1024 {
-            let _ = log.writer.flush();
-            let _ = log.writer.get_ref().set_len(0);
-            let _ = log.writer.seek(SeekFrom::Start(0));
-            log.bytes_written = 0;
-            let _ = writeln!(log.writer, "--- LOG ROTATED DUE TO SIZE LIMIT ---");
-            log.bytes_written += 38;
+    if let Ok(mut guard) = state.log_writer.lock() {
+        let mut rotate = false;
+        if let Some(log) = guard.as_mut() {
+            use std::io::Write;
+            let line_len = msg.len() + 1; // +1 for \n
+            if log.bytes_written + line_len > 10 * 1024 * 1024 {
+                let _ = log.writer.flush();
+                rotate = true;
+            } else {
+                let _ = writeln!(log.writer, "{}", msg);
+                log.bytes_written += line_len;
+            }
         }
-        let _ = writeln!(log.writer, "{}", msg);
-        log.bytes_written += line_len;
-    };
+
+        if rotate {
+            drop(guard.take()); // Close the file handle
+            if let Ok(log_dir) = app.path().app_log_dir() {
+                let log_file = log_dir.join("session.log");
+                let rot1 = log_dir.join("session.1.log");
+                let rot2 = log_dir.join("session.2.log");
+                let _ = std::fs::remove_file(&rot2);
+                let _ = std::fs::rename(&rot1, &rot2);
+                let _ = std::fs::rename(&log_file, &rot1);
+
+                if let Ok(file) = std::fs::OpenOptions::new()
+                    .create(true)
+                    .write(true)
+                    .truncate(true)
+                    .open(&log_file)
+                {
+                    use std::io::Write;
+                    let mut new_log = crate::models::SessionLog {
+                        writer: std::io::BufWriter::new(file),
+                        bytes_written: 0,
+                    };
+                    let _ = writeln!(new_log.writer, "--- LOG ROTATED ---");
+                    let _ = writeln!(new_log.writer, "{}", msg);
+                    new_log.bytes_written += 20 + msg.len() + 1;
+                    *guard = Some(new_log);
+                }
+            }
+        }
+    }
 }
 
 /// Flushes the cached log writer to ensure all buffered data is written to disk.
@@ -44,24 +71,6 @@ pub fn flush_log_writer(app: &AppHandle) {
 }
 
 impl VideoCodec {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            VideoCodec::Libx265 => "libx265",
-            VideoCodec::Libx264 => "libx264",
-            VideoCodec::HevcNvenc => "hevc_nvenc",
-            VideoCodec::H264Nvenc => "h264_nvenc",
-            VideoCodec::Av1Nvenc => "av1_nvenc",
-            VideoCodec::HevcAmf => "hevc_amf",
-            VideoCodec::H264Amf => "h264_amf",
-            VideoCodec::Av1Amf => "av1_amf",
-            VideoCodec::HevcQsv => "hevc_qsv",
-            VideoCodec::H264Qsv => "h264_qsv",
-            VideoCodec::Av1Qsv => "av1_qsv",
-            VideoCodec::HevcVideotoolbox => "hevc_videotoolbox",
-            VideoCodec::H264Videotoolbox => "h264_videotoolbox",
-            VideoCodec::Av1Videotoolbox => "av1_videotoolbox",
-        }
-    }
 
     pub fn map_preset(&self, preset: &crate::models::Preset) -> String {
         match preset {
@@ -93,9 +102,7 @@ impl VideoCodec {
             VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => "cuda",
             VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => "d3d11va",
             VideoCodec::HevcQsv | VideoCodec::H264Qsv | VideoCodec::Av1Qsv => "qsv",
-            VideoCodec::HevcVideotoolbox
-            | VideoCodec::H264Videotoolbox
-            | VideoCodec::Av1Videotoolbox => "videotoolbox",
+            VideoCodec::HevcVideotoolbox | VideoCodec::H264Videotoolbox => "videotoolbox",
             // Software encoders don't strictly need hardware decode, but auto is a safe fallback
             VideoCodec::Libx264 | VideoCodec::Libx265 => "auto",
         }
@@ -103,7 +110,7 @@ impl VideoCodec {
 
     pub fn get_hardware_args(&self, preset: &crate::models::Preset, crf: &str) -> Vec<String> {
         let mapped_preset = self.map_preset(preset);
-        let mut args = vec!["-c:v".to_string(), self.as_str().to_string()];
+        let mut args = vec!["-c:v".to_string(), self.to_string()];
 
         match self {
             VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => {
@@ -138,9 +145,7 @@ impl VideoCodec {
                     crf.to_string(),
                 ]);
             }
-            VideoCodec::HevcVideotoolbox
-            | VideoCodec::H264Videotoolbox
-            | VideoCodec::Av1Videotoolbox => {
+            VideoCodec::HevcVideotoolbox | VideoCodec::H264Videotoolbox => {
                 args.extend(["-q:v".to_string(), crf.to_string()]);
             }
             VideoCodec::Libx264 | VideoCodec::Libx265 => {
@@ -170,7 +175,8 @@ pub fn stderr_indicates_subtitle_incompatibility(logs: &[String]) -> bool {
     logs.iter().any(|l| {
         let l = l.to_lowercase();
         (l.contains("subtitle codec") && l.contains("not supported"))
-            || l.contains("could not write header")
+            || (l.contains("could not write header") 
+                && (l.contains("subtitle") || l.contains("codec") || l.contains("muxer")))
             || (l.contains("function not implemented") && !l.contains("vf#"))
     })
 }

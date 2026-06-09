@@ -2,6 +2,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::ShellExt;
 
 use crate::error::AppError;
@@ -65,8 +66,55 @@ pub async fn get_directory_stats(
     .map_err(|e| AppError::Process(format!("Task join error: {}", e)))
 }
 
+fn validate_preset_codec_compat(codec: &crate::models::VideoCodec, preset: &crate::models::Preset) -> Result<(), AppError> {
+    use crate::models::{Preset, VideoCodec};
+    match codec {
+        VideoCodec::Libx264 | VideoCodec::Libx265 => match preset {
+            Preset::Ultrafast | Preset::Superfast | Preset::Veryfast | Preset::Faster
+            | Preset::Fast | Preset::Medium | Preset::Slow | Preset::Slower | Preset::Veryslow => Ok(()),
+            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with software encoder '{}'", preset, codec))),
+        },
+        VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => match preset {
+            Preset::P1 | Preset::P2 | Preset::P3 | Preset::P4 | Preset::P5 | Preset::P6 | Preset::P7 => Ok(()),
+            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with NVENC encoder '{}'", preset, codec))),
+        },
+        VideoCodec::HevcAmf | VideoCodec::H264Amf | VideoCodec::Av1Amf => match preset {
+            Preset::Speed | Preset::Balanced | Preset::Quality => Ok(()),
+            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with AMF encoder '{}'", preset, codec))),
+        },
+        VideoCodec::HevcVideotoolbox | VideoCodec::H264Videotoolbox
+        | VideoCodec::HevcQsv | VideoCodec::H264Qsv | VideoCodec::Av1Qsv => match preset {
+            Preset::Default => Ok(()),
+            _ => Err(AppError::Process(format!("Preset '{}' is not compatible with hardware encoder '{}'. Use 'default'.", preset, codec))),
+        },
+    }
+}
+
+fn validate_ext_list(raw: &str) -> Result<(), AppError> {
+    for ext in parse_comma_list(raw) {
+        if !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Err(AppError::Process(format!("Invalid file extension: '{}'", ext)));
+        }
+    }
+    Ok(())
+}
+
+fn validate_subtitle_tracks(raw: &str) -> Result<(), AppError> {
+    for track in parse_comma_list(raw) {
+        if !track.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err(AppError::Process(format!("Invalid subtitle track: '{}'", track)));
+        }
+    }
+    Ok(())
+}
+
 fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
+    validate_ext_list(&payload.file_extensions)?;
+    validate_subtitle_tracks(&payload.subtitle_tracks)?;
+
     if payload.conversion_mode == crate::models::ConversionMode::Reencode {
+        validate_preset_codec_compat(&payload.video_codec, &payload.preset)?;
+
         let crf: u32 = payload
             .crf
             .parse()
@@ -121,6 +169,7 @@ pub async fn process_video_pipeline(
     let extensions = parse_comma_list(&payload.file_extensions);
     let sub_langs = parse_comma_list(&payload.subtitle_tracks);
     let input_directories = payload.input_directories.clone();
+    let recursive = payload.recursive;
     let app_clone = app.clone();
 
     let cancel_token_clone = cancel_token.clone();
@@ -133,11 +182,12 @@ pub async fn process_video_pipeline(
                 return Err(AppError::Aborted);
             }
 
-            for entry in walkdir::WalkDir::new(dir_path)
-                .max_depth(1)
-                .into_iter()
-                .flatten()
-            {
+            let mut walker = walkdir::WalkDir::new(dir_path);
+            if !recursive {
+                walker = walker.max_depth(1);
+            }
+
+            for entry in walker.into_iter().flatten() {
                 let path = entry.path();
                 if path.is_file()
                     && let Some(ext) = path.extension().and_then(|e| e.to_str())
@@ -539,6 +589,11 @@ pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<
 
 #[tauri::command]
 pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderCapabilities {
+    let state = app.state::<AppState>();
+    if let Some(caps) = state.encoder_caps.get() {
+        return caps.clone();
+    }
+
     let mut caps = crate::models::EncoderCapabilities {
         nvenc: false,
         amf: false,
@@ -551,36 +606,44 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
         && let Ok(output) = cmd.args(["-encoders"]).output().await
     {
         let stdout = String::from_utf8_lossy(&output.stdout);
+        
+        let has_nvenc = stdout.contains("_nvenc");
+        let has_amf = stdout.contains("_amf");
+        let has_qsv = stdout.contains("_qsv");
+        let has_videotoolbox = stdout.contains("_videotoolbox");
 
-        let tests = [
-            ("_nvenc", "hevc_nvenc", &mut caps.nvenc),
-            ("_amf", "hevc_amf", &mut caps.amf),
-            ("_qsv", "hevc_qsv", &mut caps.qsv),
-            ("_videotoolbox", "hevc_videotoolbox", &mut caps.videotoolbox),
-        ];
-
-        for (pattern, codec, flag) in tests {
-            if stdout.contains(pattern)
-                && let Ok(test_cmd) = shell.sidecar("ffmpeg")
+        let test_codec = |app: AppHandle, codec: &'static str| async move {
+            if let Ok(test_cmd) = app.shell().sidecar("ffmpeg")
                 && let Ok(test_out) = test_cmd
                     .args([
-                        "-f",
-                        "lavfi",
-                        "-i",
-                        "nullsrc=s=256x256:d=0.1",
-                        "-c:v",
-                        codec,
-                        "-f",
-                        "null",
-                        "-",
+                        "-f", "lavfi",
+                        "-i", "nullsrc=s=256x256:d=0.1",
+                        "-c:v", codec,
+                        "-f", "null",
+                        "-"
                     ])
                     .output()
                     .await
             {
-                *flag = test_out.status.success();
+                return test_out.status.success();
             }
-        }
+            false
+        };
+
+        let (nvenc, amf, qsv, videotoolbox) = tokio::join!(
+            async { if has_nvenc { test_codec(app.clone(), "hevc_nvenc").await } else { false } },
+            async { if has_amf { test_codec(app.clone(), "hevc_amf").await } else { false } },
+            async { if has_qsv { test_codec(app.clone(), "hevc_qsv").await } else { false } },
+            async { if has_videotoolbox { test_codec(app.clone(), "hevc_videotoolbox").await } else { false } }
+        );
+
+        caps.nvenc = nvenc;
+        caps.amf = amf;
+        caps.qsv = qsv;
+        caps.videotoolbox = videotoolbox;
     }
+    
+    let _ = state.encoder_caps.set(caps.clone());
     caps
 }
 
@@ -692,10 +755,20 @@ pub async fn abort_video_pipeline(
 pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
     flush_log_writer(&app);
     if let Ok(log_dir) = app.path().app_log_dir() {
-        let log_file = log_dir.join("session.log");
-        if log_file.exists() {
-            std::fs::copy(log_file, path)
-                .map_err(|e| AppError::Process(format!("Failed to copy log file: {}", e)))?;
+        let mut target_file = std::fs::File::create(&path)
+            .map_err(|e| AppError::Process(format!("Failed to create target file: {}", e)))?;
+        
+        let mut any_saved = false;
+        for file_name in ["session.2.log", "session.1.log", "session.log"] {
+            let log_file = log_dir.join(file_name);
+            if log_file.exists()
+                && let Ok(mut src) = std::fs::File::open(&log_file)
+                && std::io::copy(&mut src, &mut target_file).is_ok()
+            {
+                any_saved = true;
+            }
+        }
+        if any_saved {
             return Ok(());
         }
     }
@@ -707,15 +780,18 @@ pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
 #[tauri::command]
 pub fn read_session_log(app: AppHandle) -> Result<String, AppError> {
     flush_log_writer(&app);
+    let mut content = String::new();
     if let Ok(log_dir) = app.path().app_log_dir() {
-        let log_file = log_dir.join("session.log");
-        if log_file.exists() {
-            let content = std::fs::read_to_string(log_file)
-                .map_err(|e| AppError::Process(format!("Failed to read log: {}", e)))?;
-            return Ok(content);
+        for file_name in ["session.2.log", "session.1.log", "session.log"] {
+            let log_file = log_dir.join(file_name);
+            if log_file.exists()
+                && let Ok(text) = std::fs::read_to_string(&log_file)
+            {
+                content.push_str(&text);
+            }
         }
     }
-    Ok(String::new())
+    Ok(content)
 }
 
 #[tauri::command]
@@ -768,20 +844,9 @@ pub fn check_session_log(app: AppHandle) -> Result<bool, AppError> {
 }
 
 #[tauri::command]
-pub fn open_folder(path: String) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        std::process::Command::new("open")
-            .arg(&path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-    }
+pub fn open_folder(app: AppHandle, path: String) -> Result<(), AppError> {
+    app.opener()
+        .open_path(path, None::<&str>)
+        .map_err(|e| AppError::Process(format!("Failed to open folder: {}", e)))?;
     Ok(())
 }
