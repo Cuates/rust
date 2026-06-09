@@ -2,7 +2,7 @@
   import { pipeline } from '../stores/pipeline.svelte';
   import { formatBytes } from '../utils/formatters';
 
-  let storageSavedPercent = $derived(() => {
+  let storageSavedPercent = $derived.by(() => {
     if (pipeline.storageOriginalBytes === 0) return 0;
     return Math.max(
       0,
@@ -55,7 +55,7 @@
     <div class="time-container-block">
       <span class="total-time-title">Storage Saved:</span>
       <span class="total-time-value" style="color: var(--success-color);">
-        {storageSavedPercent().toFixed(2)}% ({formatBytes(pipeline.storageOriginalBytes)} -> {formatBytes(
+        {storageSavedPercent.toFixed(2)}% ({formatBytes(pipeline.storageOriginalBytes)} -> {formatBytes(
           pipeline.storageOutputBytes
         )})
       </span>

@@ -10,7 +10,13 @@ use crate::models::{AppState, ConversionMode, VideoCodec};
 /// The writer must be initialized via `initialize_session_log` before disk writes take effect.
 pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     let msg = message.as_ref();
-    tracing::info!("{}", msg);
+    if msg.contains("[ERROR]") || msg.contains("[FATAL]") || msg.contains("❌") || msg.contains("Error:") {
+        tracing::error!("{}", msg);
+    } else if msg.starts_with("---") || msg.starts_with("[") || msg.contains("Pipeline") || msg.contains("Session") || msg.contains("Scanned file total:") {
+        tracing::info!("{}", msg);
+    } else {
+        tracing::trace!("{}", msg);
+    }
     let _ = app.emit("process-log", msg);
     let state = app.state::<AppState>();
     if let Ok(mut guard) = state.log_writer.lock() {
@@ -167,6 +173,24 @@ pub fn parse_comma_list(raw: &str) -> Vec<String> {
         .map(|s| s.trim().to_lowercase())
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+/// Normalizes common ISO 639-1 language codes into their 3-letter ISO 639-2 equivalents.
+pub fn normalize_lang(tag: &str) -> &str {
+    match tag.to_lowercase().as_str() {
+        "en" => "eng", "ja" => "jpn", "zh" => "zho",
+        "fr" => "fra", "de" => "deu", "es" => "spa",
+        "ru" => "rus", "it" => "ita", "pt" => "por",
+        "ko" => "kor", "ar" => "ara", "hi" => "hin",
+        "bn" => "ben", "pa" => "pan", "te" => "tel",
+        "sv" => "swe", "nl" => "nld", "pl" => "pol",
+        "tr" => "tur", "vi" => "vie", "th" => "tha",
+        "id" => "ind", "ms" => "msa", "el" => "ell",
+        "cs" => "ces", "da" => "dan", "fi" => "fin",
+        "hu" => "hun", "no" => "nor", "ro" => "ron",
+        "sk" => "slk", "uk" => "ukr", "he" => "heb",
+        _ => tag,
+    }
 }
 
 /// Inspects collected stderr lines from an FFmpeg run and determines whether the failure
@@ -333,7 +357,7 @@ pub async fn get_matching_subtitle_maps(
 
         // Treat missing language tag as 'und' (undetermined) just like the Python script
         let lang = if parts.len() > 1 {
-            parts[1].trim().to_lowercase()
+            normalize_lang(parts[1].trim()).to_lowercase()
         } else {
             "und".to_string()
         };
@@ -387,6 +411,8 @@ pub async fn run_sidecar_command(
 ) -> Result<(bool, Vec<String>), AppError> {
     let shell = app.shell();
     let is_mkvmerge = binary_name == "mkvmerge";
+    static FPS_REGEX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let fps_regex = FPS_REGEX.get_or_init(|| regex::Regex::new(r"(\d+(?:\.\d+)?)\s+fps").unwrap());
 
     let cmd = shell
         .sidecar(binary_name)
@@ -443,6 +469,7 @@ pub async fn run_sidecar_command(
             tauri_plugin_shell::process::CommandEvent::Stderr(line_bytes) => {
                 let text = String::from_utf8_lossy(&line_bytes).into_owned();
                 let sanitized = text.replace('\r', "\n");
+
                 for line in sanitized.lines() {
                     let t = line.trim();
                     if !t.is_empty() {
@@ -461,14 +488,11 @@ pub async fn run_sidecar_command(
                         if video_fps.is_none()
                             && t.starts_with("Stream #")
                             && t.contains("Video:")
-                            && let Some(fps_idx) = t.find(" fps")
+                            && let Some(caps) = fps_regex.captures(t)
+                            && let Ok(fps) = caps[1].parse::<f64>()
                         {
-                            let substr = &t[..fps_idx];
-                            if let Some(fps_str) = substr.split(',').next_back().map(|s| s.trim())
-                                && let Ok(fps) = fps_str.parse::<f64>()
-                            {
-                                video_fps = Some(fps);
-                            }
+                            // Handle 0 fps gracefully (disable intra-file progress instead of division by 0)
+                            video_fps = Some(if fps > 0.0 { fps } else { -1.0 });
                         }
 
                         if let Some(total_secs) = total_duration_secs {
@@ -567,7 +591,7 @@ mod tests {
         let logs_err = vec!["Subtitle codec not supported".to_string()];
         assert!(stderr_indicates_subtitle_incompatibility(&logs_err));
 
-        let logs_err2 = vec!["could not write header".to_string()];
+        let logs_err2 = vec!["could not write header for output file #0 (incorrect codec parameters ?)".to_string()];
         assert!(stderr_indicates_subtitle_incompatibility(&logs_err2));
     }
 }

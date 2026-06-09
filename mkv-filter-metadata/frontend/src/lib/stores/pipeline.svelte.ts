@@ -44,7 +44,12 @@ export function addLogs(...logs: string[]) {
     flushTimeout = setTimeout(() => {
       pipeline.consoleLogs.push(...logBuffer);
       if (pipeline.consoleLogs.length > 1000) {
-        pipeline.consoleLogs.splice(0, pipeline.consoleLogs.length - 1000);
+        const overflow = pipeline.consoleLogs.length - 1000;
+        pipeline.consoleLogs.splice(0, overflow);
+        pipeline.consoleLogs.unshift({
+          id: logIdCounter++,
+          text: `— [${overflow} entries trimmed – see saved session.log] —`
+        });
       }
       logBuffer = [];
       flushTimeout = null;

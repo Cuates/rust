@@ -7,6 +7,8 @@
   import { addToast } from '../stores/toast.svelte';
   import { buildTooltip } from '../utils/formatters';
 
+  let { isDraggingOS = false } = $props();
+
   let isDragging = $state(false);
   let pointerDraggingIndex = $state<number | null>(null);
   let pointerStartY = $state(0);
@@ -234,7 +236,7 @@
   <div
     bind:this={queueBoxEl}
     id="queue-box"
-    class="queue-container {isDragging ? 'dragging' : ''}"
+    class="queue-container {isDragging || isDraggingOS ? 'dragging' : ''}"
     ondragover={handleDragOver}
     ondragleave={handleDragLeave}
     ondrop={handleDragLeave}

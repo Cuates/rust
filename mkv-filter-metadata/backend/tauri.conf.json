@@ -15,10 +15,10 @@
         "title": "MKV Filter Metadata",
         "dragDropEnabled": true,
         "width": 850,
-        "height": 1050,
+        "height": 900,
         "resizable": true,
-        "minWidth": 850,
-        "minHeight": 1050
+        "minWidth": 720,
+        "minHeight": 600
       }
     ],
     "security": {

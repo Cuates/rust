@@ -22,6 +22,7 @@
   let startTime = 0;
   let queueComponent: ReturnType<typeof DirectoryQueue>;
   let terminalComponent: ReturnType<typeof TerminalLog>;
+  let isDraggingOS = $state(false);
 
   onMount(() => {
     const savedTheme = localStorage.getItem('app-theme');
@@ -43,17 +44,22 @@
         emitLog(`[ERROR] Failed querying hardware encoder API integrations: ${e}`);
       }
 
+      const unlistenDrag = await listen('tauri://drag-enter', () => {
+        if (!pipeline.processingActive) isDraggingOS = true;
+      });
+
+      const unlistenDragCancelled = await listen('tauri://drag-leave', () => {
+        isDraggingOS = false;
+      });
+
       const unlistenDrop = await listen<{ paths: string[] }>('tauri://drag-drop', (event) => {
+        isDraggingOS = false;
         if (!pipeline.processingActive && event.payload?.paths && queueComponent) {
           queueComponent.handleDragDrop(event.payload.paths);
         }
       });
 
       const unlistenLogFn = await listen<string>('process-log', async (event) => {
-        if (event.payload.includes('Failures resolved via fallback: 0')) {
-          return;
-        }
-
         if (
           event.payload.includes('[ERROR]') ||
           event.payload.includes('[FATAL]') ||
@@ -141,6 +147,8 @@
         unlistenProgressFn();
         unlistenCloseFn();
         unlistenDrop();
+        unlistenDrag();
+        unlistenDragCancelled();
         if (timerInterval) cancelAnimationFrame(timerInterval);
       };
     };
@@ -422,7 +430,7 @@
   </header>
 
   <div class="form-workspace-card">
-    <DirectoryQueue bind:this={queueComponent} />
+    <DirectoryQueue bind:this={queueComponent} {isDraggingOS} />
     <ConfigPanel />
 
     <div class="action-row">
@@ -468,7 +476,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .navbar-layer {

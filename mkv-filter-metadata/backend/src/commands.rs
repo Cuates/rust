@@ -160,6 +160,7 @@ pub async fn process_video_pipeline(
         session.child = None;
         session.output_path = None;
         session.output_files.clear();
+        session.output_set.clear();
         session.completed_files.clear();
         session.output_dirs.clear();
     }
@@ -288,7 +289,7 @@ pub async fn process_video_pipeline(
             let base_candidate = processed_dir_path.join(format!("{}{}", file_stub, formatted_ext));
             let mut candidate = base_candidate.clone();
             let mut dedup_counter = 1u32;
-            while session.output_files.contains(&candidate) {
+            while session.output_set.contains(&candidate) {
                 candidate = processed_dir_path
                     .join(format!("{}_{}{}", file_stub, dedup_counter, formatted_ext));
                 dedup_counter += 1;
@@ -297,6 +298,7 @@ pub async fn process_video_pipeline(
 
             session.output_path = Some(output_file_path.clone());
             session.output_files.push(output_file_path.clone());
+            session.output_set.insert(output_file_path.clone());
         }
 
         // M9: Session Resumption logic

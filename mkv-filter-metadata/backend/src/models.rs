@@ -138,6 +138,7 @@ pub struct ProcessSession {
     pub child: Option<tauri_plugin_shell::process::CommandChild>,
     pub output_path: Option<PathBuf>,
     pub output_files: Vec<PathBuf>, // In-progress files
+    pub output_set: std::collections::HashSet<PathBuf>, // For fast dedup
     pub completed_files: Vec<PathBuf>, // Completed files, safe from abort
     pub output_dirs: Vec<PathBuf>,
 }
@@ -151,6 +152,7 @@ impl Default for AppState {
                 child: None,
                 output_path: None,
                 output_files: Vec::new(),
+                output_set: std::collections::HashSet::new(),
                 completed_files: Vec::new(),
                 output_dirs: Vec::new(),
             }),
