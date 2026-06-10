@@ -183,43 +183,48 @@ pub fn parse_comma_list(raw: &str) -> Vec<String> {
         .collect()
 }
 
-/// Normalizes common ISO 639-1 language codes into their 3-letter ISO 639-2 equivalents.
 pub fn normalize_lang(tag: &str) -> &str {
-    match tag.to_lowercase().as_str() {
-        "en" => "eng",
-        "ja" => "jpn",
-        "zh" => "zho",
-        "fr" => "fra",
-        "de" => "deu",
-        "es" => "spa",
-        "ru" => "rus",
-        "it" => "ita",
-        "pt" => "por",
-        "ko" => "kor",
-        "ar" => "ara",
-        "hi" => "hin",
-        "bn" => "ben",
-        "pa" => "pan",
-        "te" => "tel",
-        "sv" => "swe",
-        "nl" => "nld",
-        "pl" => "pol",
-        "tr" => "tur",
-        "vi" => "vie",
-        "th" => "tha",
-        "id" => "ind",
-        "ms" => "msa",
-        "el" => "ell",
-        "cs" => "ces",
-        "da" => "dan",
-        "fi" => "fin",
-        "hu" => "hun",
-        "no" => "nor",
-        "ro" => "ron",
-        "sk" => "slk",
-        "uk" => "ukr",
-        "he" => "heb",
-        _ => tag,
+    if tag.len() == 2 && tag.is_ascii() {
+        let b0 = tag.as_bytes()[0].to_ascii_lowercase();
+        let b1 = tag.as_bytes()[1].to_ascii_lowercase();
+        match &[b0, b1] {
+            b"en" => "eng",
+            b"ja" => "jpn",
+            b"zh" => "zho",
+            b"fr" => "fra",
+            b"de" => "deu",
+            b"es" => "spa",
+            b"ru" => "rus",
+            b"it" => "ita",
+            b"pt" => "por",
+            b"ko" => "kor",
+            b"ar" => "ara",
+            b"hi" => "hin",
+            b"bn" => "ben",
+            b"pa" => "pan",
+            b"te" => "tel",
+            b"sv" => "swe",
+            b"nl" => "nld",
+            b"pl" => "pol",
+            b"tr" => "tur",
+            b"vi" => "vie",
+            b"th" => "tha",
+            b"id" => "ind",
+            b"ms" => "msa",
+            b"el" => "ell",
+            b"cs" => "ces",
+            b"da" => "dan",
+            b"fi" => "fin",
+            b"hu" => "hun",
+            b"no" => "nor",
+            b"ro" => "ron",
+            b"sk" => "slk",
+            b"uk" => "ukr",
+            b"he" => "heb",
+            _ => tag,
+        }
+    } else {
+        tag
     }
 }
 
@@ -483,7 +488,9 @@ pub async fn run_sidecar_command(
             tauri_plugin_shell::process::CommandEvent::Stdout(line_bytes) => {
                 let text = String::from_utf8_lossy(&line_bytes).into_owned();
                 let mut sanitized = text.replace('\r', "\n");
-                sanitized = sanitized.replace("100%The cue", "100%\nThe cue");
+                if is_mkvmerge {
+                    sanitized = sanitized.replace("100%The cue", "100%\nThe cue");
+                }
 
                 for line in sanitized.lines() {
                     let t = line.trim();
@@ -626,5 +633,14 @@ mod tests {
             "could not write header for output file #0 (incorrect codec parameters ?)".to_string(),
         ];
         assert!(stderr_indicates_subtitle_incompatibility(&logs_err2));
+    }
+
+    #[test]
+    fn test_normalize_lang() {
+        assert_eq!(normalize_lang("en"), "eng");
+        assert_eq!(normalize_lang("EN"), "eng");
+        assert_eq!(normalize_lang("ja"), "jpn");
+        assert_eq!(normalize_lang("eng"), "eng");
+        assert_eq!(normalize_lang("unknown"), "unknown");
     }
 }

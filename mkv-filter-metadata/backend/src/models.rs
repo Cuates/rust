@@ -3,86 +3,54 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum VideoCodec {
-    #[serde(rename = "libx265")]
     Libx265,
-    #[serde(rename = "libx264")]
     Libx264,
-    #[serde(rename = "hevc_nvenc")]
     HevcNvenc,
-    #[serde(rename = "h264_nvenc")]
     H264Nvenc,
-    #[serde(rename = "av1_nvenc")]
     Av1Nvenc,
-    #[serde(rename = "hevc_amf")]
     HevcAmf,
-    #[serde(rename = "h264_amf")]
     H264Amf,
-    #[serde(rename = "av1_amf")]
     Av1Amf,
-    #[serde(rename = "hevc_qsv")]
     HevcQsv,
-    #[serde(rename = "h264_qsv")]
     H264Qsv,
-    #[serde(rename = "av1_qsv")]
     Av1Qsv,
-    #[serde(rename = "hevc_videotoolbox")]
     HevcVideotoolbox,
-    #[serde(rename = "h264_videotoolbox")]
     H264Videotoolbox,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum ConversionMode {
-    #[serde(rename = "remux")]
     Remux,
-    #[serde(rename = "reencode")]
     Reencode,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum Preset {
-    #[serde(rename = "ultrafast")]
     Ultrafast,
-    #[serde(rename = "superfast")]
     Superfast,
-    #[serde(rename = "veryfast")]
     Veryfast,
-    #[serde(rename = "faster")]
     Faster,
-    #[serde(rename = "fast")]
     Fast,
-    #[serde(rename = "medium")]
     Medium,
-    #[serde(rename = "slow")]
     Slow,
-    #[serde(rename = "slower")]
     Slower,
-    #[serde(rename = "veryslow")]
     Veryslow,
-    #[serde(rename = "p1")]
     P1,
-    #[serde(rename = "p2")]
     P2,
-    #[serde(rename = "p3")]
     P3,
-    #[serde(rename = "p4")]
     P4,
-    #[serde(rename = "p5")]
     P5,
-    #[serde(rename = "p6")]
     P6,
-    #[serde(rename = "p7")]
     P7,
-    #[serde(rename = "speed")]
     Speed,
-    #[serde(rename = "balanced")]
     Balanced,
-    #[serde(rename = "quality")]
     Quality,
-    #[serde(rename = "default")]
     Default,
 }
 

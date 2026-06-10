@@ -126,6 +126,10 @@
         }
       });
 
+      const unlistenLargeBatchFn = await listen<number>('large-batch-warning', (event) => {
+        addToast(`⚠️ Large batch detected (>${event.payload} files). Please ensure sufficient disk space.`, 'warning');
+      });
+
       const appWindow = getCurrentWindow();
       let isClosing = false;
       const unlistenCloseFn = await appWindow.onCloseRequested((event) => {
@@ -145,6 +149,7 @@
       cleanup = () => {
         unlistenLogFn();
         unlistenProgressFn();
+        unlistenLargeBatchFn();
         unlistenCloseFn();
         unlistenDrop();
         unlistenDrag();

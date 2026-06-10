@@ -257,6 +257,12 @@ pub async fn process_video_pipeline(
     let total_files = target_files.len();
     append_log(&app, format!("Scanned file total: {}", total_files));
 
+    const LARGE_BATCH_THRESHOLD: usize = 500;
+    if total_files > LARGE_BATCH_THRESHOLD {
+        append_log(&app, format!("⚠️ Warning: Large batch detected (>{} files). Please ensure sufficient disk space and system stability.", LARGE_BATCH_THRESHOLD));
+        let _ = app.emit("large-batch-warning", LARGE_BATCH_THRESHOLD);
+    }
+
     if total_files == 0 {
         return Ok(PipelineSummary {
             message: "Pipeline terminated: No valid files matched filter parameters.".to_string(),
