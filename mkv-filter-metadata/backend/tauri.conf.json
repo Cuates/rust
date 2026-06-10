@@ -25,15 +25,6 @@
       "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:"
     }
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://releases.myapp.com/{{target}}/{{current_version}}"
-      ],
-      "dialog": true,
-      "pubkey": "YOUR_UPDATER_PUBLIC_KEY_HERE"
-    }
-  },
   "bundle": {
     "externalBin": [
       "sidecars/ffmpeg",

@@ -107,14 +107,26 @@ fn validate_preset_codec_compat(
                 preset, codec
             ))),
         },
-        VideoCodec::HevcVideotoolbox
-        | VideoCodec::H264Videotoolbox
-        | VideoCodec::HevcQsv
-        | VideoCodec::H264Qsv
-        | VideoCodec::Av1Qsv => match preset {
+        VideoCodec::HevcVideotoolbox | VideoCodec::H264Videotoolbox => match preset {
             Preset::Default => Ok(()),
             _ => Err(AppError::Process(format!(
                 "Preset '{}' is not compatible with hardware encoder '{}'. Use 'default'.",
+                preset, codec
+            ))),
+        },
+        VideoCodec::HevcQsv | VideoCodec::H264Qsv | VideoCodec::Av1Qsv => match preset {
+            Preset::Ultrafast
+            | Preset::Superfast
+            | Preset::Veryfast
+            | Preset::Faster
+            | Preset::Fast
+            | Preset::Medium
+            | Preset::Slow
+            | Preset::Slower
+            | Preset::Veryslow
+            | Preset::Default => Ok(()),
+            _ => Err(AppError::Process(format!(
+                "Preset '{}' is not compatible with QSV encoder '{}'. Use a standard preset (ultrafast–veryslow) or 'default'.",
                 preset, codec
             ))),
         },
