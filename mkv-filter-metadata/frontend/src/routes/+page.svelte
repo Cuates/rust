@@ -223,7 +223,7 @@
 
   async function displaySidecarVersions() {
     emitLog('--- Querying Embedded Sidecar Binary Configurations ---');
-    const tools = ['ffmpeg', 'mkvmerge'];
+    const tools = ['ffmpeg', 'ffprobe', 'mkvmerge'];
     for (const tool of tools) {
       try {
         const rawVer = await invoke('get_sidecar_version', { binaryName: tool });
@@ -288,7 +288,8 @@
         try {
           const rawStats = await invoke('get_directory_stats', {
             dirPath: dir,
-            fileExtensions: config.file_extensions
+            fileExtensions: config.file_extensions,
+            recursive: config.recursive
           });
           const stats = DirStatsSchema.parse(rawStats);
           tempDirStats[dir] = stats;

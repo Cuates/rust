@@ -17,6 +17,7 @@ use crate::process::{
 pub async fn get_directory_stats(
     dir_path: String,
     file_extensions: String,
+    recursive: bool,
 ) -> Result<DirectoryStats, AppError> {
     tokio::task::spawn_blocking(move || {
         let path = Path::new(&dir_path);
@@ -34,11 +35,12 @@ pub async fn get_directory_stats(
         let mut total_size_bytes = 0;
         let mut files = Vec::new();
 
-        for entry in walkdir::WalkDir::new(path)
-            .max_depth(1)
-            .into_iter()
-            .flatten()
-        {
+        let mut walker = walkdir::WalkDir::new(path);
+        if !recursive {
+            walker = walker.max_depth(1);
+        }
+
+        for entry in walker.into_iter().flatten() {
             let p = entry.path();
             if p.is_file()
                 && let Some(ext) = p.extension().and_then(|e| e.to_str())
@@ -270,6 +272,7 @@ pub async fn process_video_pipeline(
     let mut reencode_subtitle_retry_successes = 0;
     let mut total_original_bytes: u64 = 0;
     let mut total_output_bytes: u64 = 0;
+    let mut failed_paths: Vec<String> = Vec::new();
 
     for (index, (queue_dir, file_path)) in target_files.iter().enumerate() {
         if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
@@ -550,6 +553,7 @@ pub async fn process_video_pipeline(
             }
         } else {
             failed_files += 1;
+            failed_paths.push(file_name.to_string());
         }
     }
 
@@ -599,8 +603,8 @@ pub async fn process_video_pipeline(
         )
     } else {
         format!(
-            "⚠️ Execution Finished: {} Succeeded, {} Failed.",
-            successful_files, failed_files
+            "⚠️ Execution Finished: {} Succeeded, {} Failed.\nFailed files:\n  - {}",
+            successful_files, failed_files, failed_paths.join("\n  - ")
         )
     };
 
