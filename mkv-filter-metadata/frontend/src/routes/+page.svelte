@@ -334,7 +334,6 @@
       pipeline.storageOutputBytes = summary.output_size_bytes;
 
       pipeline.overallProgress = 100;
-      emitLog(summary.message);
 
       try {
         const { isPermissionGranted, requestPermission, sendNotification } =

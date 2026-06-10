@@ -403,19 +403,9 @@ pub async fn process_video_pipeline(
             session.output_set.insert(output_file_path.clone());
         }
 
-        // M9: Session Resumption logic
-        // If the file already exists on disk, assume it was successfully completed in a prior aborted run and skip.
-        if output_file_path.exists() {
-            append_log(
-                &app,
-                format!(
-                    "  | [INFO] ⏭️ Skipping file - output already exists: {}",
-                    output_file_path.display()
-                ),
-            );
-            successful_files += 1;
-            continue;
-        }
+        // Update: Removed legacy naive `output_file_path.exists()` skip logic.
+        // We now rely exclusively on the robust SQLite Resiliency Tracker.
+        // If a file is not in the SQLite DB, we process it and let ffmpeg/mkvmerge overwrite any existing incomplete/aborted output files.
 
         // Run ffprobe to get exact stream IDs for matching subtitles before building ffmpeg command
         let subtitle_maps = get_matching_subtitle_maps(&app, file_path, &sub_langs).await.unwrap_or_else(|e| {
