@@ -127,7 +127,10 @@
       });
 
       const unlistenLargeBatchFn = await listen<number>('large-batch-warning', (event) => {
-        addToast(`⚠️ Large batch detected (>${event.payload} files). Please ensure sufficient disk space.`, 'warning');
+        addToast(
+          `⚠️ Large batch detected (>${event.payload} files). Please ensure sufficient disk space.`,
+          'warning'
+        );
       });
 
       const appWindow = getCurrentWindow();

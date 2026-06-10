@@ -259,7 +259,13 @@ pub async fn process_video_pipeline(
 
     const LARGE_BATCH_THRESHOLD: usize = 500;
     if total_files > LARGE_BATCH_THRESHOLD {
-        append_log(&app, format!("⚠️ Warning: Large batch detected (>{} files). Please ensure sufficient disk space and system stability.", LARGE_BATCH_THRESHOLD));
+        append_log(
+            &app,
+            format!(
+                "⚠️ Warning: Large batch detected (>{} files). Please ensure sufficient disk space and system stability.",
+                LARGE_BATCH_THRESHOLD
+            ),
+        );
         let _ = app.emit("large-batch-warning", LARGE_BATCH_THRESHOLD);
     }
 
@@ -610,7 +616,9 @@ pub async fn process_video_pipeline(
     } else {
         format!(
             "⚠️ Execution Finished: {} Succeeded, {} Failed.\nFailed files:\n  - {}",
-            successful_files, failed_files, failed_paths.join("\n  - ")
+            successful_files,
+            failed_files,
+            failed_paths.join("\n  - ")
         )
     };
 
