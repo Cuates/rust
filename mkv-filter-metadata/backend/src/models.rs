@@ -99,6 +99,7 @@ pub struct AppState {
     pub process: tokio::sync::Mutex<ProcessSession>,
     pub log_writer: std::sync::Mutex<Option<SessionLog>>,
     pub encoder_caps: tokio::sync::OnceCell<EncoderCapabilities>,
+    pub db: tokio::sync::Mutex<Option<rusqlite::Connection>>,
 }
 
 pub struct ProcessSession {
@@ -126,6 +127,7 @@ impl Default for AppState {
             }),
             log_writer: std::sync::Mutex::new(None),
             encoder_caps: tokio::sync::OnceCell::new(),
+            db: tokio::sync::Mutex::new(None),
         }
     }
 }

@@ -33,3 +33,4 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tauri-plugin-notification = "2.3.3"
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }

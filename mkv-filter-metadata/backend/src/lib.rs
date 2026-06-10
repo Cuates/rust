@@ -1,9 +1,11 @@
 pub mod commands;
 pub mod error;
+pub mod history;
 pub mod models;
 pub mod process;
 
 use crate::models::AppState;
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,6 +19,24 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let state = handle.state::<AppState>();
+            match crate::history::init_db(&handle) {
+                Ok(conn) => {
+                    if let Ok(mut guard) = state.db.try_lock() {
+                        *guard = Some(conn);
+                    } else {
+                        // blocking_lock is available on tokio::sync::Mutex
+                        *state.db.blocking_lock() = Some(conn);
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("Failed to initialize history database: {:?}", e);
+                }
+            }
+            Ok(())
+        })
         .manage(AppState::default())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
@@ -33,7 +53,8 @@ pub fn run() {
             commands::check_session_log,
             commands::initialize_session_log,
             commands::log_message,
-            commands::open_folder
+            commands::open_folder,
+            commands::clear_processing_history
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

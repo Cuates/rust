@@ -17,12 +17,14 @@
   import MetricsPanel from '../lib/components/MetricsPanel.svelte';
   import TerminalLog from '../lib/components/TerminalLog.svelte';
   import ToastContainer from '../lib/components/ToastContainer.svelte';
+  import ConfirmationModal from '../lib/components/ConfirmationModal.svelte';
 
   let timerInterval: number | undefined = undefined;
   let startTime = 0;
   let queueComponent: ReturnType<typeof DirectoryQueue>;
   let terminalComponent: ReturnType<typeof TerminalLog>;
   let isDraggingOS = $state(false);
+  let showClearHistoryModal = $state(false);
 
   onMount(() => {
     const savedTheme = localStorage.getItem('app-theme');
@@ -411,6 +413,20 @@
     }
   }
 
+  function clearHistory() {
+    showClearHistoryModal = true;
+  }
+
+  async function executeClearHistory() {
+    showClearHistoryModal = false;
+    try {
+      await invoke('clear_processing_history');
+      addToast('✅ Processing history cleared successfully.', 'success');
+    } catch (e) {
+      addToast(`❌ Failed to clear history: ${e}`, 'error');
+    }
+  }
+
   function handlePointerMove(e: PointerEvent) {
     if (queueComponent) queueComponent.handleGlobalPointerMove(e);
   }
@@ -440,7 +456,7 @@
 
   <div class="form-workspace-card">
     <DirectoryQueue bind:this={queueComponent} {isDraggingOS} />
-    <ConfigPanel />
+    <ConfigPanel onclearhistory={clearHistory} />
 
     <div class="action-row">
       {#if pipeline.processingActive}
@@ -474,6 +490,16 @@
 </main>
 
 <ToastContainer />
+
+<ConfirmationModal
+  show={showClearHistoryModal}
+  title="Clear Processing History"
+  message="Are you sure you want to clear the processing history database?&#10;&#10;This will cause any previously completed files to be re-processed if they are queued again."
+  confirmText="Clear History"
+  cancelText="Cancel"
+  onConfirm={executeClearHistory}
+  onCancel={() => (showClearHistoryModal = false)}
+/>
 
 <style lang="scss">
   .app-container {

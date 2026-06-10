@@ -192,6 +192,7 @@ pub struct PipelineSummary {
     pub message: String,
     pub original_size_bytes: u64,
     pub output_size_bytes: u64,
+    pub skipped_files: usize,
 }
 
 #[tauri::command]
@@ -274,6 +275,7 @@ pub async fn process_video_pipeline(
             message: "Pipeline terminated: No valid files matched filter parameters.".to_string(),
             original_size_bytes: 0,
             output_size_bytes: 0,
+            skipped_files: 0,
         });
     }
 
@@ -285,6 +287,7 @@ pub async fn process_video_pipeline(
     let mut total_original_bytes: u64 = 0;
     let mut total_output_bytes: u64 = 0;
     let mut failed_paths: Vec<String> = Vec::new();
+    let mut skipped_files = 0;
 
     for (index, (queue_dir, file_path)) in target_files.iter().enumerate() {
         if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
@@ -296,6 +299,41 @@ pub async fn process_video_pipeline(
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown");
         let current_index = index + 1;
+
+        let path_str = file_path.to_string_lossy().to_string();
+        let (original_size, modified_timestamp) = match std::fs::metadata(file_path) {
+            Ok(m) => {
+                let size = m.len();
+                let ts = m
+                    .modified()
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                (size, ts)
+            }
+            Err(_) => (0, 0),
+        };
+
+        {
+            let db_guard = state.db.lock().await;
+            if let Some(db) = db_guard.as_ref()
+                && crate::history::is_file_processed(
+                    db,
+                    &path_str,
+                    original_size,
+                    modified_timestamp,
+                )
+                .unwrap_or(false)
+            {
+                append_log(
+                    &app,
+                    format!("⏭️ Skipping previously processed file: {}", file_name),
+                );
+                skipped_files += 1;
+                continue;
+            }
+        }
 
         append_log(
             &app,
@@ -552,6 +590,18 @@ pub async fn process_video_pipeline(
             if let Ok(metadata) = std::fs::metadata(&output_file_path) {
                 total_output_bytes += metadata.len();
             }
+            // Mark as processed in database
+            {
+                let db_guard = state.db.lock().await;
+                if let Some(db) = db_guard.as_ref() {
+                    let _ = crate::history::mark_file_processed(
+                        db,
+                        &path_str,
+                        original_size,
+                        modified_timestamp,
+                    );
+                }
+            }
             {
                 let mut session = state.process.lock().await;
                 if let Some(pos) = session
@@ -608,25 +658,33 @@ pub async fn process_video_pipeline(
         );
     }
 
-    let final_summary = if failed_files == 0 {
+    let summary_message = format!(
+        "✅ Success! {} Succeeded, {} Failed, {} Skipped. Ffmpeg Fallback Subtitle Failures: {} - Re-encode Retry Successes: {}",
+        successful_files,
+        failed_files,
+        skipped_files,
+        ffmpeg_fallback_failures,
+        reencode_subtitle_retry_successes
+    );
+
+    let final_summary = if !failed_paths.is_empty() {
         format!(
-            "✅ Success! All {} active queue pipelines executed to completion.",
-            successful_files
-        )
-    } else {
-        format!(
-            "⚠️ Execution Finished: {} Succeeded, {} Failed.\nFailed files:\n  - {}",
-            successful_files,
-            failed_files,
+            "{}\nFailed Files:\n  - {}",
+            summary_message,
             failed_paths.join("\n  - ")
         )
+    } else {
+        summary_message
     };
+
+    append_log(&app, final_summary.clone());
 
     flush_log_writer(&app);
     Ok(PipelineSummary {
         message: final_summary,
         original_size_bytes: total_original_bytes,
         output_size_bytes: total_output_bytes,
+        skipped_files,
     })
 }
 
@@ -953,5 +1011,14 @@ pub fn open_folder(app: AppHandle, path: String) -> Result<(), AppError> {
     app.opener()
         .open_path(path, None::<&str>)
         .map_err(|e| AppError::Process(format!("Failed to open folder: {}", e)))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_processing_history(state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+    let db_guard = state.db.lock().await;
+    if let Some(db) = db_guard.as_ref() {
+        crate::history::clear_history(db)?;
+    }
     Ok(())
 }

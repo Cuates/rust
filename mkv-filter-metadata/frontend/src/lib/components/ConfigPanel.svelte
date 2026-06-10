@@ -2,6 +2,8 @@
   import { config, appState } from '../stores/config.svelte';
   import { pipeline } from '../stores/pipeline.svelte';
 
+  let { onclearhistory }: { onclearhistory?: () => void } = $props();
+
   $effect(() => {
     // Reactively update the preset if the current preset is incompatible with the new video_codec
     if (config.video_codec.includes('nvenc') && !config.preset.match(/^p[1-7]$/)) {
@@ -171,6 +173,14 @@
   </div>
 </div>
 
+<div class="grid-layout-1" style="margin-top: 1rem;">
+  <div class="row">
+    <button class="clear-history-btn" onclick={onclearhistory} disabled={pipeline.processingActive}>
+      Clear Processing History
+    </button>
+  </div>
+</div>
+
 <style lang="scss">
   .grid-layout-2 {
     display: grid;
@@ -287,5 +297,22 @@
     min-height: 0;
     border-top: 1px solid var(--border-color);
     padding-top: 0.5rem;
+  }
+
+  .clear-history-btn {
+    background-color: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.4rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: fit-content;
+
+    &:hover:not(:disabled) {
+      color: var(--error-color, #ff4c4c);
+      border-color: var(--error-color, #ff4c4c);
+    }
   }
 </style>
