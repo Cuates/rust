@@ -86,31 +86,6 @@ pub fn flush_log_writer(app: &AppHandle) {
 }
 
 impl VideoCodec {
-    pub fn map_preset(&self, preset: &crate::models::Preset) -> String {
-        match preset {
-            crate::models::Preset::Ultrafast => "ultrafast".to_string(),
-            crate::models::Preset::Superfast => "superfast".to_string(),
-            crate::models::Preset::Veryfast => "veryfast".to_string(),
-            crate::models::Preset::Faster => "faster".to_string(),
-            crate::models::Preset::Fast => "fast".to_string(),
-            crate::models::Preset::Medium => "medium".to_string(),
-            crate::models::Preset::Slow => "slow".to_string(),
-            crate::models::Preset::Slower => "slower".to_string(),
-            crate::models::Preset::Veryslow => "veryslow".to_string(),
-            crate::models::Preset::P1 => "p1".to_string(),
-            crate::models::Preset::P2 => "p2".to_string(),
-            crate::models::Preset::P3 => "p3".to_string(),
-            crate::models::Preset::P4 => "p4".to_string(),
-            crate::models::Preset::P5 => "p5".to_string(),
-            crate::models::Preset::P6 => "p6".to_string(),
-            crate::models::Preset::P7 => "p7".to_string(),
-            crate::models::Preset::Speed => "speed".to_string(),
-            crate::models::Preset::Balanced => "balanced".to_string(),
-            crate::models::Preset::Quality => "quality".to_string(),
-            crate::models::Preset::Default => "default".to_string(),
-        }
-    }
-
     pub fn get_hwaccel_api(&self) -> &'static str {
         match self {
             VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => "cuda",
@@ -123,7 +98,7 @@ impl VideoCodec {
     }
 
     pub fn get_hardware_args(&self, preset: &crate::models::Preset, crf: &str) -> Vec<String> {
-        let mapped_preset = self.map_preset(preset);
+        let mapped_preset = preset.to_string();
         let mut args = vec!["-c:v".to_string(), self.to_string()];
 
         match self {
@@ -443,6 +418,8 @@ pub async fn run_sidecar_command(
     state: &tauri::State<'_, AppState>,
     binary_name: &str,
     args: Vec<String>,
+    task_id: std::path::PathBuf,
+    file_name: &str,
 ) -> Result<(bool, Vec<String>), AppError> {
     let shell = app.shell();
     let is_mkvmerge = binary_name == "mkvmerge";
@@ -462,7 +439,7 @@ pub async fn run_sidecar_command(
 
     let cancel_token = {
         let mut session = state.process.lock().await;
-        session.child = Some(child);
+        session.children.insert(task_id, child);
         session.cancel.clone()
     };
 
@@ -565,7 +542,8 @@ pub async fn run_sidecar_command(
                                 let _ = app.emit(
                                     "process-progress",
                                     serde_json::json!({
-                                        "intra_progress": percent
+                                        "intra_progress": percent,
+                                        "current_filename": file_name
                                     }),
                                 );
                             }
@@ -642,5 +620,26 @@ mod tests {
         assert_eq!(normalize_lang("ja"), "jpn");
         assert_eq!(normalize_lang("eng"), "eng");
         assert_eq!(normalize_lang("unknown"), "unknown");
+    }
+
+    #[test]
+    fn test_error_line_detection() {
+        assert!(is_error_line("Error opening file"));
+        assert!(!is_error_line("frame= 123 fps=30"));
+    }
+
+    #[test]
+    fn test_build_ffmpeg_args() {
+        let config = FfmpegJobConfig {
+            input: Path::new("in.mkv"),
+            output: Path::new("out.mkv"),
+            subtitle_maps: &["0:2".to_string()],
+            mode: ConversionMode::Remux,
+            subtitle_codec: SubtitleCodec::Copy,
+            reencode: None,
+        };
+        let args = build_ffmpeg_args(&config);
+        assert!(args.contains(&"-c:v".to_string()));
+        assert!(args.contains(&"copy".to_string()));
     }
 }

@@ -13,7 +13,9 @@
     "core:window:allow-destroy",
     "core:window:allow-set-theme",
     "opener:allow-open-path",
-    "notification:default"
+    "notification:default",
+    "store:default",
+    "core:window:allow-show"
   ],
   "scopes": {
     "opener": [

@@ -6,6 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>MKV Filter Metadata</title>
     %sveltekit.head%
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('app-theme');
+          var isDark = saved
+            ? saved === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          document.documentElement.className = isDark ? 'dark-mode' : 'light-mode';
+          document.documentElement.style.backgroundColor = isDark ? '#0f111a' : '#f1f5f9';
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body data-sveltekit-preload-data="hover">
     <div style="display: contents">%sveltekit.body%</div>

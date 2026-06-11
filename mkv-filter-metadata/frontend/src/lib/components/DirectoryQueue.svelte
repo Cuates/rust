@@ -50,10 +50,8 @@
     config.input_directories = [];
     pipeline.consoleLogs = [];
     pipeline.totalFilesCount = 0;
-    pipeline.currentFileIndex = 0;
-    pipeline.overallProgress = 0;
-    pipeline.intraFileProgress = 0;
-    pipeline.currentFilename = '';
+    pipeline.completedFilesCount = 0;
+    pipeline.activeFiles = {};
     pipeline.runningTimeFormatted = '0ms';
     pipeline.showMetricsPanel = false;
     pipeline.directoryStatuses = {};

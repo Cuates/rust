@@ -6,11 +6,48 @@ export const pipeline = $state({
   showMetricsPanel: false,
 
   // Layout Metric Sync Parameters
-  currentFileIndex: 0,
   totalFilesCount: 0,
-  overallProgress: 0,
-  intraFileProgress: 0,
-  currentFilename: '',
+  completedFilesCount: 0,
+  completedFilesPerDir: {} as Record<string, number>,
+  activeFiles: {} as Record<string, number>,
+
+  get overallProgress() {
+    if (this.totalFilesCount === 0) return 0;
+    let sumIntra = 0;
+    for (const key in this.activeFiles) {
+      sumIntra += this.activeFiles[key];
+    }
+    const completed = this.completedFilesCount;
+    const fraction = completed + sumIntra / 100;
+    const percent = (fraction / this.totalFilesCount) * 100;
+    // Floor it so it doesn't say 100% until it's actually 100%
+    return Math.floor(Math.min(100, Math.max(0, percent)));
+  },
+
+  get currentFileIndex() {
+    return Math.min(
+      this.totalFilesCount,
+      this.completedFilesCount + Object.keys(this.activeFiles).length
+    );
+  },
+
+  get activeTaskList() {
+    return Object.entries(this.activeFiles).map(([filename, progress]) => ({
+      filename,
+      progress
+    }));
+  },
+
+  get currentFilename() {
+    const keys = Object.keys(this.activeFiles);
+    return keys.length > 0 ? keys[keys.length - 1] : '';
+  },
+
+  get intraFileProgress() {
+    const name = this.currentFilename;
+    return name ? this.activeFiles[name] || 0 : 0;
+  },
+
   runningTimeFormatted: '0ms',
   etaFormatted: '--',
   storageOriginalBytes: 0,

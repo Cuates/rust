@@ -15,15 +15,27 @@ pub fn init_db(app: &tauri::AppHandle) -> std::result::Result<Connection, AppErr
     let conn = Connection::open(&db_path)
         .map_err(|e| AppError::Process(format!("Failed to open database: {}", e)))?;
 
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS processed_files (
-            file_path TEXT PRIMARY KEY,
-            original_size INTEGER,
-            modified_timestamp INTEGER
-        )",
-        [],
-    )
-    .map_err(|e| AppError::Process(format!("Failed to create table: {}", e)))?;
+    conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
+        .map_err(|e| AppError::Process(format!("Failed to configure WAL mode: {}", e)))?;
+
+    let version: u32 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap_or(0);
+
+    if version < 1 {
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS processed_files (
+                file_path TEXT PRIMARY KEY,
+                original_size INTEGER,
+                modified_timestamp INTEGER
+            )",
+            [],
+        )
+        .map_err(|e| AppError::Process(format!("Failed to create table: {}", e)))?;
+
+        conn.execute_batch("PRAGMA user_version = 1;")
+            .map_err(|e| AppError::Process(format!("Failed to set user_version: {}", e)))?;
+    }
 
     Ok(conn)
 }

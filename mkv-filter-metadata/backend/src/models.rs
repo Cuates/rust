@@ -104,7 +104,7 @@ pub struct AppState {
 
 pub struct ProcessSession {
     pub cancel: tokio_util::sync::CancellationToken,
-    pub child: Option<tauri_plugin_shell::process::CommandChild>,
+    pub children: std::collections::HashMap<PathBuf, tauri_plugin_shell::process::CommandChild>,
     pub output_path: Option<PathBuf>,
     pub output_files: Vec<PathBuf>, // In-progress files
     pub output_set: std::collections::HashSet<PathBuf>, // For fast dedup
@@ -118,7 +118,7 @@ impl Default for AppState {
             is_aborted: AtomicBool::new(false),
             process: tokio::sync::Mutex::new(ProcessSession {
                 cancel: tokio_util::sync::CancellationToken::new(),
-                child: None,
+                children: std::collections::HashMap::new(),
                 output_path: None,
                 output_files: Vec::new(),
                 output_set: std::collections::HashSet::new(),

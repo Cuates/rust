@@ -195,6 +195,389 @@ pub struct PipelineSummary {
     pub skipped_files: usize,
 }
 
+struct ProcessResult {
+    success: bool,
+    skipped: bool,
+    failed_path: Option<String>,
+    original_size: u64,
+    output_size: u64,
+    ffmpeg_fallback_failures: usize,
+    reencode_subtitle_retry_attempts: usize,
+    reencode_subtitle_retry_successes: usize,
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn process_one_file(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    payload: VideoPipelinePayload,
+    queue_dir: String,
+    file_path: std::path::PathBuf,
+    current_index: usize,
+    total_files: usize,
+    cancel_token: tokio_util::sync::CancellationToken,
+) -> Result<ProcessResult, AppError> {
+    let mut res = ProcessResult {
+        success: false,
+        skipped: false,
+        failed_path: None,
+        original_size: 0,
+        output_size: 0,
+        ffmpeg_fallback_failures: 0,
+        reencode_subtitle_retry_attempts: 0,
+        reencode_subtitle_retry_successes: 0,
+    };
+
+    if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
+        return Err(AppError::Aborted);
+    }
+
+    let file_name = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
+
+    let path_str = file_path.to_string_lossy().to_string();
+    let (original_size, modified_timestamp) = match std::fs::metadata(&file_path) {
+        Ok(m) => {
+            let size = m.len();
+            let ts = m
+                .modified()
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            (size, ts)
+        }
+        Err(_) => (0, 0),
+    };
+    res.original_size = original_size;
+
+    {
+        let db_guard = state.db.lock().await;
+        if let Some(db) = db_guard.as_ref()
+            && crate::history::is_file_processed(db, &path_str, original_size, modified_timestamp)
+                .unwrap_or(false)
+        {
+            append_log(
+                &app,
+                format!("⏭️ Skipping previously processed file: {}", file_name),
+            );
+            res.skipped = true;
+            return Ok(res);
+        }
+    }
+
+    append_log(
+        &app,
+        format!(
+            "[{}/{}] Processing file: {}",
+            current_index, total_files, file_name
+        ),
+    );
+
+    let current_progress = ((current_index as f32 / total_files as f32) * 100.0) as u32;
+    let _ = app.emit(
+        "process-progress",
+        serde_json::json!({
+            "progress": current_progress,
+            "current_index": current_index,
+            "total_files": total_files,
+            "active_directory": queue_dir,
+            "current_filename": file_name
+        }),
+    );
+
+    let parent_dir = file_path.parent().ok_or_else(|| {
+        AppError::Process("Unable to resolve parent path contextual tracking.".to_string())
+    })?;
+    let processed_dir_path = parent_dir.join("processed_files");
+
+    if !processed_dir_path.exists() {
+        std::fs::create_dir_all(&processed_dir_path).map_err(|e| {
+            AppError::Process(format!(
+                "Failed to instantiate target subfolder workspace directory: {e}"
+            ))
+        })?;
+    }
+
+    let file_stub = file_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let formatted_ext = if payload.output_extension.starts_with('.') {
+        payload.output_extension.clone()
+    } else {
+        format!(".{}", payload.output_extension)
+    };
+
+    let output_file_path;
+    {
+        let mut session = state.process.lock().await;
+        if !session.output_dirs.contains(&processed_dir_path) {
+            session.output_dirs.push(processed_dir_path.clone());
+        }
+
+        let base_candidate = processed_dir_path.join(format!("{}{}", file_stub, formatted_ext));
+        let mut candidate = base_candidate.clone();
+        let mut dedup_counter = 1u32;
+        while session.output_set.contains(&candidate) {
+            candidate = processed_dir_path
+                .join(format!("{}_{}{}", file_stub, dedup_counter, formatted_ext));
+            dedup_counter += 1;
+        }
+        output_file_path = candidate;
+
+        // Note: we can't easily track the single output_path anymore, so we don't set session.output_path
+        session.output_files.push(output_file_path.clone());
+        session.output_set.insert(output_file_path.clone());
+    }
+
+    let sub_langs = parse_comma_list(&payload.subtitle_tracks);
+    let subtitle_maps = get_matching_subtitle_maps(&app, &file_path, &sub_langs)
+        .await
+        .unwrap_or_else(|e| {
+            append_log(
+                &app,
+                format!(
+                    "  | [ERROR] ⚠️ FFprobe parsing error, defaulting to no subtitles. Error: {}",
+                    e
+                ),
+            );
+            Vec::new()
+        });
+
+    let mut file_success;
+
+    if payload.conversion_mode == ConversionMode::Reencode {
+        let ffmpeg_args = build_ffmpeg_args(&FfmpegJobConfig {
+            input: &file_path,
+            output: &output_file_path,
+            subtitle_maps: &subtitle_maps,
+            mode: ConversionMode::Reencode,
+            subtitle_codec: SubtitleCodec::Copy,
+            reencode: Some(ReencodeConfig {
+                video_codec: &payload.video_codec,
+                preset: &payload.preset,
+                crf: &payload.crf,
+            }),
+        });
+
+        let (success, stderr_lines) = run_sidecar_command(
+            &app,
+            &state,
+            "ffmpeg",
+            ffmpeg_args,
+            output_file_path.clone(),
+            &file_name,
+        )
+        .await?;
+        file_success = success;
+
+        if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
+            res.reencode_subtitle_retry_attempts += 1;
+            append_log(
+                &app,
+                "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
+            );
+
+            if output_file_path.exists() {
+                let _ = std::fs::remove_file(&output_file_path);
+            }
+
+            let retry_args = build_ffmpeg_args(&FfmpegJobConfig {
+                input: &file_path,
+                output: &output_file_path,
+                subtitle_maps: &subtitle_maps,
+                mode: ConversionMode::Reencode,
+                subtitle_codec: SubtitleCodec::Ass,
+                reencode: Some(ReencodeConfig {
+                    video_codec: &payload.video_codec,
+                    preset: &payload.preset,
+                    crf: &payload.crf,
+                }),
+            });
+
+            let (retry_success, _) = run_sidecar_command(
+                &app,
+                &state,
+                "ffmpeg",
+                retry_args,
+                output_file_path.clone(),
+                &file_name,
+            )
+            .await?;
+            file_success = retry_success;
+
+            if file_success {
+                res.reencode_subtitle_retry_successes += 1;
+            } else {
+                append_log(
+                    &app,
+                    "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.",
+                );
+            }
+        }
+    } else {
+        append_log(
+            &app,
+            "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...",
+        );
+
+        let ffmpeg_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
+            input: &file_path,
+            output: &output_file_path,
+            subtitle_maps: &subtitle_maps,
+            mode: ConversionMode::Remux,
+            subtitle_codec: SubtitleCodec::Copy,
+            reencode: None,
+        });
+
+        let (success, stderr_lines) = run_sidecar_command(
+            &app,
+            &state,
+            "ffmpeg",
+            ffmpeg_copy_args,
+            output_file_path.clone(),
+            &file_name,
+        )
+        .await?;
+        file_success = success;
+
+        if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
+            append_log(
+                &app,
+                "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
+            );
+
+            if output_file_path.exists() {
+                let _ = std::fs::remove_file(&output_file_path);
+            }
+
+            let retry_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
+                input: &file_path,
+                output: &output_file_path,
+                subtitle_maps: &subtitle_maps,
+                mode: ConversionMode::Remux,
+                subtitle_codec: SubtitleCodec::Ass,
+                reencode: None,
+            });
+
+            let (retry_success, retry_stderr) = run_sidecar_command(
+                &app,
+                &state,
+                "ffmpeg",
+                retry_copy_args,
+                output_file_path.clone(),
+                &file_name,
+            )
+            .await?;
+            file_success = retry_success;
+
+            if !file_success && stderr_indicates_subtitle_incompatibility(&retry_stderr) {
+                file_success = false;
+            }
+        }
+
+        if !file_success {
+            res.ffmpeg_fallback_failures += 1;
+            append_log(
+                &app,
+                "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...",
+            );
+
+            if output_file_path.exists() {
+                let _ = std::fs::remove_file(&output_file_path);
+            }
+
+            let mut mkvmerge_args = vec![
+                "-o".to_string(),
+                output_file_path.to_string_lossy().into_owned(),
+            ];
+
+            if !subtitle_maps.is_empty() {
+                let mkv_track_ids: Vec<String> = subtitle_maps
+                    .iter()
+                    .filter_map(|s| s.split(':').next_back().map(|id| id.to_string()))
+                    .collect();
+                mkvmerge_args.push("--subtitle-tracks".to_string());
+                mkvmerge_args.push(mkv_track_ids.join(","));
+            } else {
+                mkvmerge_args.push("--no-subtitles".to_string());
+            }
+
+            mkvmerge_args.push("--title".to_string());
+            mkvmerge_args.push(String::new());
+
+            mkvmerge_args.push(file_path.to_string_lossy().into_owned());
+
+            let (mkvmerge_success, _) = run_sidecar_command(
+                &app,
+                &state,
+                "mkvmerge",
+                mkvmerge_args,
+                output_file_path.clone(),
+                &file_name,
+            )
+            .await?;
+            file_success = mkvmerge_success;
+        }
+    }
+
+    if file_success {
+        res.success = true;
+        if let Ok(metadata) = std::fs::metadata(&output_file_path) {
+            res.output_size = metadata.len();
+        }
+        {
+            let db_guard = state.db.lock().await;
+            if let Some(db) = db_guard.as_ref() {
+                let _ = crate::history::mark_file_processed(
+                    db,
+                    &path_str,
+                    original_size,
+                    modified_timestamp,
+                );
+            }
+        }
+        {
+            let mut session = state.process.lock().await;
+            if let Some(pos) = session
+                .output_files
+                .iter()
+                .position(|p| p == &output_file_path)
+            {
+                let path = session.output_files.remove(pos);
+                session.completed_files.push(path);
+            }
+            session.children.remove(&output_file_path); // Process finished
+        }
+    } else {
+        res.failed_path = Some(file_name.clone());
+        let mut session = state.process.lock().await;
+        session.children.remove(&output_file_path); // Process finished
+    }
+
+    let root_dir = payload
+        .input_directories
+        .iter()
+        .find(|d| file_path.starts_with(*d))
+        .cloned()
+        .unwrap_or_default();
+
+    let _ = app.emit(
+        "process-progress",
+        serde_json::json!({
+            "file_completed": file_name,
+            "root_directory": root_dir,
+            "success": res.success
+        }),
+    );
+
+    Ok(res)
+}
+
 #[tauri::command]
 pub async fn process_video_pipeline(
     app: AppHandle,
@@ -209,7 +592,7 @@ pub async fn process_video_pipeline(
         let mut session = state.process.lock().await;
         session.cancel = tokio_util::sync::CancellationToken::new();
         cancel_token = session.cancel.clone();
-        session.child = None;
+        session.children.clear();
         session.output_path = None;
         session.output_files.clear();
         session.output_set.clear();
@@ -220,7 +603,6 @@ pub async fn process_video_pipeline(
     append_log(&app, "Analyzing targets and indexing directories...");
 
     let extensions = parse_comma_list(&payload.file_extensions);
-    let sub_langs = parse_comma_list(&payload.subtitle_tracks);
     let input_directories = payload.input_directories.clone();
     let recursive = payload.recursive;
     let app_clone = app.clone();
@@ -258,16 +640,8 @@ pub async fn process_video_pipeline(
     let total_files = target_files.len();
     append_log(&app, format!("Scanned file total: {}", total_files));
 
-    const LARGE_BATCH_THRESHOLD: usize = 500;
-    if total_files > LARGE_BATCH_THRESHOLD {
-        append_log(
-            &app,
-            format!(
-                "⚠️ Warning: Large batch detected (>{} files). Please ensure sufficient disk space and system stability.",
-                LARGE_BATCH_THRESHOLD
-            ),
-        );
-        let _ = app.emit("large-batch-warning", LARGE_BATCH_THRESHOLD);
+    if total_files > 100 {
+        let _ = app.emit("large-batch-warning", total_files);
     }
 
     if total_files == 0 {
@@ -289,329 +663,81 @@ pub async fn process_video_pipeline(
     let mut failed_paths: Vec<String> = Vec::new();
     let mut skipped_files = 0;
 
-    for (index, (queue_dir, file_path)) in target_files.iter().enumerate() {
+    let concurrency_limit = if payload.conversion_mode == ConversionMode::Reencode {
+        2 // limit re-encodes to 2 parallel tasks
+    } else {
+        4 // limit remuxes to 4 parallel tasks
+    };
+
+    let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency_limit));
+    let mut set = tokio::task::JoinSet::new();
+
+    for (index, (queue_dir, file_path)) in target_files.into_iter().enumerate() {
         if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
             return Err(AppError::Aborted);
         }
 
-        let file_name = file_path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("Unknown");
-        let current_index = index + 1;
+        let permit = sem
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| AppError::Aborted)?;
+        let app_clone = app.clone();
+        let payload_clone = payload.clone();
+        let cancel_token_clone = cancel_token.clone();
 
-        let path_str = file_path.to_string_lossy().to_string();
-        let (original_size, modified_timestamp) = match std::fs::metadata(file_path) {
-            Ok(m) => {
-                let size = m.len();
-                let ts = m
-                    .modified()
-                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs();
-                (size, ts)
-            }
-            Err(_) => (0, 0),
-        };
-
-        {
-            let db_guard = state.db.lock().await;
-            if let Some(db) = db_guard.as_ref()
-                && crate::history::is_file_processed(
-                    db,
-                    &path_str,
-                    original_size,
-                    modified_timestamp,
-                )
-                .unwrap_or(false)
-            {
-                append_log(
-                    &app,
-                    format!("⏭️ Skipping previously processed file: {}", file_name),
-                );
-                skipped_files += 1;
-                continue;
-            }
-        }
-
-        append_log(
-            &app,
-            format!(
-                "[{}/{}] Processing file: {}",
-                current_index, total_files, file_name
-            ),
-        );
-
-        let current_progress = ((index as f32 / total_files as f32) * 100.0) as u32;
-        let _ = app.emit(
-            "process-progress",
-            serde_json::json!({
-                "progress": current_progress,
-                "current_index": current_index,
-                "total_files": total_files,
-                "active_directory": queue_dir,
-                "current_filename": file_name
-            }),
-        );
-
-        let parent_dir = file_path.parent().ok_or_else(|| {
-            AppError::Process("Unable to resolve parent path contextual tracking.".to_string())
-        })?;
-        let processed_dir_path = parent_dir.join("processed_files");
-
-        if !processed_dir_path.exists() {
-            std::fs::create_dir_all(&processed_dir_path).map_err(|e| {
-                AppError::Process(format!(
-                    "Failed to instantiate target subfolder workspace directory: {e}"
-                ))
-            })?;
-        }
-
-        let file_stub = file_path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("output");
-        let formatted_ext = if payload.output_extension.starts_with('.') {
-            payload.output_extension.clone()
-        } else {
-            format!(".{}", payload.output_extension)
-        };
-
-        let output_file_path;
-        {
-            let mut session = state.process.lock().await;
-            // Track the output directory for cleanup on abort
-            if !session.output_dirs.contains(&processed_dir_path) {
-                session.output_dirs.push(processed_dir_path.clone());
-            }
-
-            // Deduplicate output filenames to prevent silent overwrites when multiple
-            // input files map to the same output name (e.g., movie.mkv and movie.avi → movie.mkv)
-            let base_candidate = processed_dir_path.join(format!("{}{}", file_stub, formatted_ext));
-            let mut candidate = base_candidate.clone();
-            let mut dedup_counter = 1u32;
-            while session.output_set.contains(&candidate) {
-                candidate = processed_dir_path
-                    .join(format!("{}_{}{}", file_stub, dedup_counter, formatted_ext));
-                dedup_counter += 1;
-            }
-            output_file_path = candidate;
-
-            session.output_path = Some(output_file_path.clone());
-            session.output_files.push(output_file_path.clone());
-            session.output_set.insert(output_file_path.clone());
-        }
-
-        // Update: Removed legacy naive `output_file_path.exists()` skip logic.
-        // We now rely exclusively on the robust SQLite Resiliency Tracker.
-        // If a file is not in the SQLite DB, we process it and let ffmpeg/mkvmerge overwrite any existing incomplete/aborted output files.
-
-        // Run ffprobe to get exact stream IDs for matching subtitles before building ffmpeg command
-        let subtitle_maps = get_matching_subtitle_maps(&app, file_path, &sub_langs).await.unwrap_or_else(|e| {
-            append_log(&app, format!("  | [ERROR] ⚠️ FFprobe parsing error, defaulting to no subtitles. Error: {}", e));
-            Vec::new()
+        set.spawn(async move {
+            let state = app_clone.state::<AppState>();
+            let result = process_one_file(
+                app_clone.clone(), // we need app_clone to live longer
+                state.clone(), // state can be cloned since tauri::State implements Clone internally if we just pass a ref, but tauri::State doesn't implement Clone.
+                payload_clone,
+                queue_dir,
+                file_path,
+                index + 1,
+                total_files,
+                cancel_token_clone,
+            )
+            .await;
+            drop(permit);
+            result
         });
+    }
 
-        let mut file_success;
-
-        // Routing Logic: Reencode vs Remux Fallback Protocol
-        if payload.conversion_mode == ConversionMode::Reencode {
-            // First attempt: try copying subtitles as-is
-            let ffmpeg_args = build_ffmpeg_args(&FfmpegJobConfig {
-                input: file_path,
-                output: &output_file_path,
-                subtitle_maps: &subtitle_maps,
-                mode: ConversionMode::Reencode,
-                subtitle_codec: SubtitleCodec::Copy,
-                reencode: Some(ReencodeConfig {
-                    video_codec: &payload.video_codec,
-                    preset: &payload.preset,
-                    crf: &payload.crf,
-                }),
-            });
-
-            let (success, stderr_lines) =
-                run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_args).await?;
-            file_success = success;
-
-            // If the copy failed due to a subtitle codec incompatible with the container,
-            // retry automatically with ASS conversion. No codec list needed — FFmpeg tells us.
-            if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
-                reencode_subtitle_retry_attempts += 1;
-                append_log(
-                    &app,
-                    "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
-                );
-
-                if output_file_path.exists() {
-                    let _ = std::fs::remove_file(&output_file_path);
-                }
-
-                let retry_args = build_ffmpeg_args(&FfmpegJobConfig {
-                    input: file_path,
-                    output: &output_file_path,
-                    subtitle_maps: &subtitle_maps,
-                    mode: ConversionMode::Reencode,
-                    subtitle_codec: SubtitleCodec::Ass,
-                    reencode: Some(ReencodeConfig {
-                        video_codec: &payload.video_codec,
-                        preset: &payload.preset,
-                        crf: &payload.crf,
-                    }),
-                });
-
-                let (retry_success, _) =
-                    run_sidecar_command(&app, &state, "ffmpeg", retry_args).await?;
-                file_success = retry_success;
-
-                if file_success {
-                    reencode_subtitle_retry_successes += 1;
+    while let Some(res) = set.join_next().await {
+        match res {
+            Ok(Ok(proc_res)) => {
+                if proc_res.skipped {
+                    skipped_files += 1;
+                } else if proc_res.success {
+                    successful_files += 1;
+                    total_original_bytes += proc_res.original_size;
+                    total_output_bytes += proc_res.output_size;
                 } else {
-                    append_log(
-                        &app,
-                        "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.",
-                    );
+                    failed_files += 1;
+                    if let Some(path) = proc_res.failed_path {
+                        failed_paths.push(path);
+                    }
                 }
+                ffmpeg_fallback_failures += proc_res.ffmpeg_fallback_failures;
+                reencode_subtitle_retry_attempts += proc_res.reencode_subtitle_retry_attempts;
+                reencode_subtitle_retry_successes += proc_res.reencode_subtitle_retry_successes;
             }
-        } else {
-            // Remux protocol
-            append_log(
-                &app,
-                "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...",
-            );
-
-            // First attempt: try copying subtitles as-is
-            let ffmpeg_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
-                input: file_path,
-                output: &output_file_path,
-                subtitle_maps: &subtitle_maps,
-                mode: ConversionMode::Remux,
-                subtitle_codec: SubtitleCodec::Copy,
-                reencode: None,
-            });
-
-            let (success, stderr_lines) =
-                run_sidecar_command(&app, &state, "ffmpeg", ffmpeg_copy_args).await?;
-            file_success = success;
-
-            // Same subtitle incompatibility retry as reencode path
-            if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
-                append_log(
-                    &app,
-                    "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
-                );
-
-                if output_file_path.exists() {
-                    let _ = std::fs::remove_file(&output_file_path);
-                }
-
-                let retry_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
-                    input: file_path,
-                    output: &output_file_path,
-                    subtitle_maps: &subtitle_maps,
-                    mode: ConversionMode::Remux,
-                    subtitle_codec: SubtitleCodec::Ass,
-                    reencode: None,
-                });
-
-                let (retry_success, retry_stderr) =
-                    run_sidecar_command(&app, &state, "ffmpeg", retry_copy_args).await?;
-                file_success = retry_success;
-
-                // If the ASS retry also failed for a non-subtitle reason, propagate the
-                // original failure so the mkvmerge fallback below can still trigger
-                if !file_success && stderr_indicates_subtitle_incompatibility(&retry_stderr) {
-                    file_success = false; // still failed, fall through to mkvmerge
-                }
-            }
-
-            // If FFmpeg failed entirely (both copy and ASS retry), fall back to mkvmerge
-            if !file_success {
-                ffmpeg_fallback_failures += 1; // Increment conversion failure count
-                append_log(
-                    &app,
-                    "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...",
-                );
-
-                if output_file_path.exists() {
-                    let _ = std::fs::remove_file(&output_file_path);
-                }
-
-                let mut mkvmerge_args = vec![
-                    "-o".to_string(),
-                    output_file_path.to_string_lossy().into_owned(),
-                ];
-
-                // Append MKVMerge specific subtitle tracking rules
-                if !subtitle_maps.is_empty() {
-                    let mkv_track_ids: Vec<String> = subtitle_maps
-                        .iter()
-                        .filter_map(|s| s.split(':').next_back().map(|id| id.to_string()))
-                        .collect();
-                    mkvmerge_args.push("--subtitle-tracks".to_string());
-                    mkvmerge_args.push(mkv_track_ids.join(","));
+            Ok(Err(e)) => {
+                if let AppError::Aborted = e {
+                    // Ignored, pipeline will return Aborted soon
                 } else {
-                    // Drop all subtitles if none matched or if array is blank
-                    mkvmerge_args.push("--no-subtitles".to_string());
-                }
-
-                // Clear the title metadata, matching the Python script's mkvmerge command:
-                // `--title ""`
-                mkvmerge_args.push("--title".to_string());
-                mkvmerge_args.push(String::new());
-
-                mkvmerge_args.push(file_path.to_string_lossy().into_owned());
-
-                let (mkvmerge_success, _) =
-                    run_sidecar_command(&app, &state, "mkvmerge", mkvmerge_args).await?;
-                file_success = mkvmerge_success;
-            }
-        }
-
-        // Tally results and sizes
-        if file_success {
-            successful_files += 1;
-            // Get original size
-            if let Ok(metadata) = std::fs::metadata(file_path) {
-                total_original_bytes += metadata.len();
-            }
-            // Get output size
-            if let Ok(metadata) = std::fs::metadata(&output_file_path) {
-                total_output_bytes += metadata.len();
-            }
-            // Mark as processed in database
-            {
-                let db_guard = state.db.lock().await;
-                if let Some(db) = db_guard.as_ref() {
-                    let _ = crate::history::mark_file_processed(
-                        db,
-                        &path_str,
-                        original_size,
-                        modified_timestamp,
-                    );
+                    failed_files += 1;
                 }
             }
-            {
-                let mut session = state.process.lock().await;
-                if let Some(pos) = session
-                    .output_files
-                    .iter()
-                    .position(|p| p == &output_file_path)
-                {
-                    let path = session.output_files.remove(pos);
-                    session.completed_files.push(path);
-                }
+            Err(_) => {
+                failed_files += 1;
             }
-        } else {
-            failed_files += 1;
-            failed_paths.push(file_name.to_string());
         }
     }
 
-    {
-        let mut session = state.process.lock().await;
-        session.output_path = None;
+    if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
+        return Err(AppError::Aborted);
     }
 
     let _ = app.emit(
@@ -623,7 +749,6 @@ pub async fn process_video_pipeline(
         }),
     );
 
-    // Explicitly output the total ffmpeg stream copy failures to the Real-time Log ONLY if failures exist
     if payload.conversion_mode != ConversionMode::Reencode && ffmpeg_fallback_failures > 0 {
         append_log(
             &app,
@@ -825,30 +950,26 @@ pub async fn abort_video_pipeline(
 ) -> Result<(), AppError> {
     state.is_aborted.store(true, Ordering::SeqCst);
 
-    let (opt_child, target_cleanup_path, files_to_delete, dirs_to_check) = {
+    let (children, target_cleanup_path, files_to_delete, dirs_to_check) = {
         let mut session = state.process.lock().await;
 
         session.cancel.cancel(); // Trigger CancellationToken
 
-        let child = session.child.take();
+        let children = std::mem::take(&mut session.children);
         let path = session.output_path.take();
         let files = session.output_files.clone();
         let dirs = session.output_dirs.clone();
 
         session.output_files.clear();
-        // Do NOT clear completed_files here, they should be preserved!
         session.output_dirs.clear();
 
-        (child, path, files, dirs)
+        (children, path, files, dirs)
     };
 
-    if let Some(child) = opt_child {
+    for (_, child) in children {
         let _ = child.kill();
-        // Removed sleep hack since cancellation token provides cooperative shutdown
     }
 
-    // Use retry logic for all file deletions to handle Windows file locking
-    // where killed processes may briefly retain write locks on output files.
     if let Some(path) = target_cleanup_path
         && path.exists()
     {
@@ -1011,4 +1132,16 @@ pub async fn clear_processing_history(state: tauri::State<'_, AppState>) -> Resu
         crate::history::clear_history(db)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qsv_accepts_standard_presets() {
+        use crate::models::{Preset, VideoCodec};
+        assert!(validate_preset_codec_compat(&VideoCodec::HevcQsv, &Preset::Fast).is_ok());
+        assert!(validate_preset_codec_compat(&VideoCodec::HevcQsv, &Preset::P4).is_err());
+    }
 }

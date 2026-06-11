@@ -5,7 +5,7 @@ pub mod models;
 pub mod process;
 
 use crate::models::AppState;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +19,12 @@ pub fn run() {
         .init();
 
     tauri::Builder::default()
+        .manage(AppState::default())
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let state = handle.state::<AppState>();
@@ -33,15 +39,11 @@ pub fn run() {
                 }
                 Err(e) => {
                     tracing::error!("Failed to initialize history database: {:?}", e);
+                    let _ = handle.emit("db-init-failed", e.to_string());
                 }
             }
             Ok(())
         })
-        .manage(AppState::default())
-        .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             commands::abort_video_pipeline,
             commands::get_encoder_capabilities,

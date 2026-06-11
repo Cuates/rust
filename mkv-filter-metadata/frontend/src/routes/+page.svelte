@@ -5,6 +5,7 @@
   import { onMount, tick } from 'svelte';
 
   import { config, appState } from '../lib/stores/config.svelte';
+  import { shortcuts } from '../lib/stores/shortcuts.svelte';
   import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
   import type { DirStats } from '$lib/types';
@@ -16,7 +17,6 @@
   import ConfigPanel from '../lib/components/ConfigPanel.svelte';
   import MetricsPanel from '../lib/components/MetricsPanel.svelte';
   import TerminalLog from '../lib/components/TerminalLog.svelte';
-  import ToastContainer from '../lib/components/ToastContainer.svelte';
   import ConfirmationModal from '../lib/components/ConfirmationModal.svelte';
 
   let timerInterval: number | undefined = undefined;
@@ -27,14 +27,6 @@
   let showClearHistoryModal = $state(false);
 
   onMount(() => {
-    const savedTheme = localStorage.getItem('app-theme');
-    if (savedTheme) {
-      appState.isDarkMode = savedTheme === 'dark';
-    } else {
-      appState.isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    applyThemeBody();
-
     let cleanup: (() => void) | undefined;
     let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -62,22 +54,13 @@
       });
 
       const unlistenLogFn = await listen<string>('process-log', async (event) => {
-        if (
-          event.payload.includes('[ERROR]') ||
-          event.payload.includes('[FATAL]') ||
-          event.payload.includes('❌')
-        ) {
-          if (pipeline.currentActiveDirectory) {
-            pipeline.directoryErrors[pipeline.currentActiveDirectory] = true;
-          }
-        }
-
         addLogs(event.payload);
         if (event.payload.includes('Scanned file total:')) {
           const match = event.payload.match(/Scanned file total:\s*(\d+)/);
           if (match) {
             pipeline.totalFilesCount = parseInt(match[1], 10);
-            pipeline.currentFileIndex = 0;
+            pipeline.completedFilesCount = 0;
+            pipeline.activeFiles = {};
           }
         }
 
@@ -97,17 +80,36 @@
         total_files?: number;
         active_directory?: string;
         current_filename?: string;
+        file_completed?: string;
+        root_directory?: string;
+        success?: boolean;
       }>('process-progress', (event) => {
-        if (event.payload.progress !== undefined) pipeline.overallProgress = event.payload.progress;
-        if (event.payload.intra_progress !== undefined)
-          pipeline.intraFileProgress = event.payload.intra_progress;
-        if (event.payload.current_filename !== undefined)
-          pipeline.currentFilename = event.payload.current_filename;
-        if (event.payload.current_index !== undefined) {
-          if (pipeline.currentFileIndex !== event.payload.current_index) {
-            pipeline.intraFileProgress = 0;
+        if (event.payload.file_completed !== undefined) {
+          pipeline.completedFilesCount++;
+          delete pipeline.activeFiles[event.payload.file_completed];
+
+          if (event.payload.root_directory !== undefined) {
+            const rootDir = event.payload.root_directory;
+            pipeline.completedFilesPerDir[rootDir] =
+              (pipeline.completedFilesPerDir[rootDir] || 0) + 1;
+
+            if (event.payload.success === false) {
+              pipeline.directoryErrors[rootDir] = true;
+            }
+
+            if (
+              pipeline.directoryStats[rootDir] &&
+              pipeline.completedFilesPerDir[rootDir] >= pipeline.directoryStats[rootDir].file_count
+            ) {
+              pipeline.directoryStatuses[rootDir] = 'done';
+            }
           }
-          pipeline.currentFileIndex = event.payload.current_index;
+        }
+        if (
+          event.payload.intra_progress !== undefined &&
+          event.payload.current_filename !== undefined
+        ) {
+          pipeline.activeFiles[event.payload.current_filename] = event.payload.intra_progress;
         }
         if (event.payload.total_files !== undefined)
           pipeline.totalFilesCount = event.payload.total_files;
@@ -115,24 +117,23 @@
         if (event.payload.active_directory !== undefined) {
           const activeDir = event.payload.active_directory;
           pipeline.currentActiveDirectory = activeDir;
-          if (pipeline.directoryStatuses[activeDir] !== 'processing') {
-            const newStatuses = { ...pipeline.directoryStatuses };
-            for (const key in newStatuses) {
-              if (newStatuses[key] === 'processing' && key !== activeDir) {
-                newStatuses[key] = 'done';
-              }
-            }
-            newStatuses[activeDir] = 'processing';
-            pipeline.directoryStatuses = newStatuses;
+          const rootDir = config.input_directories.find((root) => activeDir.startsWith(root));
+          if (rootDir && pipeline.directoryStatuses[rootDir] === 'pending') {
+            pipeline.directoryStatuses[rootDir] = 'processing';
           }
         }
       });
 
       const unlistenLargeBatchFn = await listen<number>('large-batch-warning', (event) => {
         addToast(
-          `⚠️ Large batch detected (>${event.payload} files). Please ensure sufficient disk space.`,
+          `⚠️ Large batch detected (${event.payload} files). Please ensure sufficient disk space.`,
           'warning'
         );
+      });
+
+      const unlistenDbInit = await listen<string>('db-init-failed', (event) => {
+        addToast(`History Database failed to initialize: ${event.payload}`, 'error');
+        emitLog(`❌ History DB Error: ${event.payload}`);
       });
 
       const appWindow = getCurrentWindow();
@@ -156,6 +157,7 @@
         unlistenProgressFn();
         unlistenLargeBatchFn();
         unlistenCloseFn();
+        unlistenDbInit();
         unlistenDrop();
         unlistenDrag();
         unlistenDragCancelled();
@@ -178,8 +180,11 @@
       const elapsedMs = Date.now() - startTime;
       pipeline.runningTimeFormatted = formatDuration(elapsedMs);
 
-      const completedFraction =
-        Math.max(0, pipeline.currentFileIndex - 1) + pipeline.intraFileProgress / 100;
+      let sumIntra = 0;
+      for (const key in pipeline.activeFiles) {
+        sumIntra += pipeline.activeFiles[key];
+      }
+      const completedFraction = pipeline.completedFilesCount + sumIntra / 100;
 
       if (
         pipeline.totalFilesCount > 0 &&
@@ -209,26 +214,6 @@
   function toggleTheme() {
     appState.isDarkMode = !appState.isDarkMode;
     localStorage.setItem('app-theme', appState.isDarkMode ? 'dark' : 'light');
-    applyThemeBody();
-  }
-
-  async function applyThemeBody() {
-    const appWindow = getCurrentWindow();
-    if (appState.isDarkMode) {
-      document.documentElement.className = 'dark-mode';
-      try {
-        await appWindow.setTheme('dark');
-      } catch (e) {
-        console.error(e);
-      }
-    } else {
-      document.documentElement.className = 'light-mode';
-      try {
-        await appWindow.setTheme('light');
-      } catch (e) {
-        console.error(e);
-      }
-    }
   }
 
   async function displaySidecarVersions() {
@@ -263,10 +248,9 @@
 
     pipeline.processingActive = true;
     pipeline.showMetricsPanel = true;
-    pipeline.overallProgress = 0;
-    pipeline.intraFileProgress = 0;
-    pipeline.currentFilename = '';
-    pipeline.currentFileIndex = 0;
+    pipeline.activeFiles = {};
+    pipeline.completedFilesCount = 0;
+    pipeline.completedFilesPerDir = {};
     pipeline.totalFilesCount = 0;
     pipeline.storageOriginalBytes = 0;
     pipeline.storageOutputBytes = 0;
@@ -333,7 +317,8 @@
       pipeline.storageOriginalBytes = summary.original_size_bytes;
       pipeline.storageOutputBytes = summary.output_size_bytes;
 
-      pipeline.overallProgress = 100;
+      pipeline.completedFilesCount = pipeline.totalFilesCount;
+      pipeline.activeFiles = {};
 
       try {
         const { isPermissionGranted, requestPermission, sendNotification } =
@@ -359,20 +344,23 @@
       pipeline.processingActive = false;
       stopTimer();
 
-      pipeline.currentFilename = '';
-      pipeline.intraFileProgress = 0;
+      pipeline.activeFiles = {};
 
-      const newStatuses = { ...pipeline.directoryStatuses };
-      for (const key in newStatuses) {
-        if (newStatuses[key] === 'processing' || newStatuses[key] === 'pending') {
-          if (pipeline.overallProgress === 100) {
-            newStatuses[key] = 'done';
+      for (const key in pipeline.directoryStatuses) {
+        if (
+          pipeline.directoryStatuses[key] === 'processing' ||
+          pipeline.directoryStatuses[key] === 'pending'
+        ) {
+          if (
+            pipeline.completedFilesCount >= pipeline.totalFilesCount &&
+            pipeline.totalFilesCount > 0
+          ) {
+            pipeline.directoryStatuses[key] = 'done';
           } else {
-            delete newStatuses[key];
+            delete pipeline.directoryStatuses[key];
           }
         }
       }
-      pipeline.directoryStatuses = newStatuses;
 
       const endDate = new Date();
       const elapsedMs = endDate.getTime() - startTime;
@@ -426,6 +414,34 @@
     }
   }
 
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+    const keyCombo = [];
+    if (e.ctrlKey) keyCombo.push('Ctrl');
+    if (e.shiftKey) keyCombo.push('Shift');
+    if (e.altKey) keyCombo.push('Alt');
+
+    let key = e.key;
+    if (key === ' ') key = 'Space';
+    if (key.length === 1) key = key.toUpperCase();
+    if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+      keyCombo.push(key);
+    }
+
+    const comboStr = keyCombo.join('+');
+
+    if (comboStr === shortcuts.startPipeline && !pipeline.processingActive) {
+      if (config.input_directories.length > 0) {
+        e.preventDefault();
+        executePipeline();
+      }
+    } else if (comboStr === shortcuts.abortPipeline && pipeline.processingActive) {
+      e.preventDefault();
+      abortPipeline();
+    }
+  }
+
   function handlePointerMove(e: PointerEvent) {
     if (queueComponent) queueComponent.handleGlobalPointerMove(e);
   }
@@ -436,6 +452,7 @@
 </script>
 
 <svelte:window
+  onkeydown={handleKeydown}
   onpointermove={handlePointerMove}
   onpointerup={handlePointerUp}
   onpointercancel={handlePointerUp}
@@ -444,13 +461,23 @@
 <main class="app-container">
   <header class="navbar-layer">
     <h1>MKV Filter Metadata</h1>
-    <button
-      class="theme-toggle-icon-btn"
-      onclick={toggleTheme}
-      aria-label="Toggle color display theme"
-    >
-      {#if appState.isDarkMode}☀️{:else}🌙{/if}
-    </button>
+    <div class="nav-actions">
+      <!-- eslint-disable svelte/no-navigation-without-resolve -->
+      <a
+        class="theme-toggle-icon-btn"
+        href="/settings"
+        aria-label="Settings"
+        style="text-decoration: none;">⚙️</a
+      >
+      <!-- eslint-enable svelte/no-navigation-without-resolve -->
+      <button
+        class="theme-toggle-icon-btn"
+        onclick={toggleTheme}
+        aria-label="Toggle color display theme"
+      >
+        {#if appState.isDarkMode}☀️{:else}🌙{/if}
+      </button>
+    </div>
   </header>
 
   <div class="form-workspace-card">
@@ -487,8 +514,6 @@
     <TerminalLog bind:this={terminalComponent} />
   </div>
 </main>
-
-<ToastContainer />
 
 <ConfirmationModal
   show={showClearHistoryModal}
@@ -529,6 +554,12 @@
       margin: 0;
       color: var(--text-primary);
     }
+  }
+
+  .nav-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
   }
 
   .theme-toggle-icon-btn {

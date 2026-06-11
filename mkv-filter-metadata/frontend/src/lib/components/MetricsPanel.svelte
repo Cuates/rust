@@ -26,22 +26,19 @@
         >Overall Progress: <strong>{pipeline.overallProgress}%</strong></span
       >
     </div>
-    {#if pipeline.currentFilename}
+    {#each pipeline.activeTaskList as activeFile (activeFile.filename)}
       <div class="progress-bar-track intra-track">
-        <div
-          class="progress-bar-fill intra-fill"
-          style="width: {pipeline.intraFileProgress}%;"
-        ></div>
+        <div class="progress-bar-fill intra-fill" style="width: {activeFile.progress}%;"></div>
       </div>
       <div class="progress-labels-sub-row intra-row">
-        <span class="sub-metric-label intra-label" title={pipeline.currentFilename}>
-          Current File: <strong>{pipeline.currentFilename}</strong>
+        <span class="sub-metric-label intra-label" title={activeFile.filename}>
+          Processing: <strong>{activeFile.filename}</strong>
         </span>
         <span class="sub-metric-label text-right intra-value">
-          <strong>{pipeline.intraFileProgress.toFixed(1)}%</strong>
+          <strong>{activeFile.progress.toFixed(1)}%</strong>
         </span>
       </div>
-    {/if}
+    {/each}
   </div>
   <div class="time-container-block">
     <span class="total-time-title">Total Conversion Time:</span>

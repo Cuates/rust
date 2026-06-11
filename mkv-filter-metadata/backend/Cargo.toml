@@ -22,6 +22,7 @@ tauri = { version = "2.0.0", features = [] }
 tauri-plugin-dialog = "2.0.0"
 tauri-plugin-shell = "2.0.0"
 tauri-plugin-opener = "2.0.0"
+tauri-plugin-store = "2.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.37", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "io-util"] }
@@ -33,4 +34,4 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tauri-plugin-notification = "2.3.3"
 strum = { version = "0.26", features = ["derive"] }
 regex = "1"
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.31", features = ["bundled"] } # rusqlite = bundled: compiles SQLite from source for cross-platform consistency. Expected impact: +30-60s clean compile, +500KB binary. This is intentional.
