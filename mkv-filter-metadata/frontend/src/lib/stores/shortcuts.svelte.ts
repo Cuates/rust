@@ -1,4 +1,4 @@
-import { Store, load } from '@tauri-apps/plugin-store';
+import { load, type Store } from '@tauri-apps/plugin-store';
 
 export interface ShortcutConfig {
   startPipeline: string;
