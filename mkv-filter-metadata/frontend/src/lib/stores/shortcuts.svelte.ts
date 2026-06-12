@@ -12,8 +12,8 @@ const DEFAULT_SHORTCUTS: ShortcutConfig = {
 
 export const shortcuts = $state<ShortcutConfig>({ ...DEFAULT_SHORTCUTS });
 
-let store: Store | null = null;
-let isLoaded = $state(false);
+let shortcutsStore: Store | null = null;
+export const shortcutsState = $state({ isLoaded: false });
 
 export function resetShortcutsToDefaults() {
   Object.assign(shortcuts, DEFAULT_SHORTCUTS);
@@ -24,33 +24,34 @@ export function isShortcutsDefault() {
 }
 
 export async function loadShortcuts() {
-  store = await load('shortcuts.json', {
-    autoSave: false
-  } as unknown as import('@tauri-apps/plugin-store').StoreOptions);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  shortcutsStore = await load('shortcuts.json', { autoSave: false } as any);
 
   for (const key of Object.keys(DEFAULT_SHORTCUTS)) {
-    const val = await store!.get<unknown>(key);
+    const val = await shortcutsStore!.get<unknown>(key);
     if (val !== null && val !== undefined) {
       (shortcuts as unknown as Record<string, unknown>)[key] = val;
     }
   }
-  isLoaded = true;
+  shortcutsState.isLoaded = true;
 }
 
 export function initShortcutWatcher() {
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
-    if (!isLoaded || !store) return;
+    if (!shortcutsState.isLoaded || !shortcutsStore) return;
 
     const currentShortcuts = {
       startPipeline: shortcuts.startPipeline,
       abortPipeline: shortcuts.abortPipeline
     };
 
-    (async () => {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
       for (const [key, value] of Object.entries(currentShortcuts)) {
-        await store.set(key, value);
+        await shortcutsStore!.set(key, value);
       }
-      await store.save();
-    })();
+      await shortcutsStore!.save();
+    }, 500);
   });
 }

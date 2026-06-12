@@ -4,12 +4,23 @@
     resetShortcutsToDefaults,
     isShortcutsDefault
   } from '../../lib/stores/shortcuts.svelte';
-  import { appState, resetConfigToDefaults, isConfigDefault } from '../../lib/stores/config.svelte';
+  import {
+    config,
+    appState,
+    resetConfigToDefaults,
+    isConfigDefault
+  } from '../../lib/stores/config.svelte';
   import { addToast } from '../../lib/stores/toast.svelte';
   import ConfirmationModal from '../../lib/components/ConfirmationModal.svelte';
+  import { onMount } from 'svelte';
 
   let recordingFor: 'startPipeline' | 'abortPipeline' | null = $state(null);
   let showResetModal = $state(false);
+  let logicalCores = $state(8);
+
+  onMount(() => {
+    logicalCores = window.navigator.hardwareConcurrency || 8;
+  });
 
   function handleKeydown(e: KeyboardEvent, field: 'startPipeline' | 'abortPipeline') {
     e.preventDefault();
@@ -119,6 +130,60 @@
           {shortcuts.abortPipeline}
         </button>
       {/if}
+    </div>
+  </div>
+
+  <div class="form-workspace-card">
+    <h2>Performance Settings</h2>
+    <p class="description">
+      Adjust processing concurrency. Higher values process more files simultaneously but use more
+      system resources.
+    </p>
+
+    <div class="shortcut-row">
+      <div style="width: 200px; display: flex; flex-direction: column;">
+        <span>Re-encode Concurrency:</span>
+        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
+          >(Recommended: 1-2 CPU, 2-4 GPU)</span
+        >
+      </div>
+      <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+        <input
+          type="range"
+          min="1"
+          max={Math.min(logicalCores, 8)}
+          bind:value={config.reencode_concurrency}
+          style="flex: 1;"
+        />
+        <span
+          style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
+        >
+          {config.reencode_concurrency} (Max: {Math.min(logicalCores, 8)})
+        </span>
+      </div>
+    </div>
+
+    <div class="shortcut-row" style="border-bottom: none; padding-bottom: 0;">
+      <div style="width: 200px; display: flex; flex-direction: column;">
+        <span>Remux Concurrency:</span>
+        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
+          >(Recommended: 2-4 HDD, 4-8 SSD)</span
+        >
+      </div>
+      <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+        <input
+          type="range"
+          min="1"
+          max="8"
+          bind:value={config.remux_concurrency}
+          style="flex: 1;"
+        />
+        <span
+          style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
+        >
+          {config.remux_concurrency} (Max: 8)
+        </span>
+      </div>
     </div>
   </div>
 

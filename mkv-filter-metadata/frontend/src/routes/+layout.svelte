@@ -5,6 +5,7 @@
   import { loadShortcuts, initShortcutWatcher } from '$lib/stores/shortcuts.svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
+  import { addToast } from '$lib/stores/toast.svelte';
 
   let { children } = $props();
 
@@ -25,9 +26,15 @@
 
   onMount(() => {
     try {
-      getCurrentWindow().show();
+      getCurrentWindow()
+        .show()
+        .catch((e) => {
+          console.error(e);
+          addToast(`Failed to show window: ${e}`, 'error');
+        });
     } catch (e) {
       console.error(e);
+      addToast(`Failed to initialize window context: ${e}`, 'error');
     }
 
     const savedTheme = localStorage.getItem('app-theme');
@@ -40,6 +47,7 @@
     // Do not await this, let it load in the background so the UI renders instantly
     Promise.all([loadConfig(), loadShortcuts()]).catch((e) => {
       console.error('Failed to load Tauri stores (are plugins registered?):', e);
+      addToast(`Failed to load saved settings: ${e}. Using defaults.`, 'warning');
     });
   });
 

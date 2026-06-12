@@ -2,6 +2,43 @@ import { Store, load } from '@tauri-apps/plugin-store';
 
 export type ConversionMode = 'remux' | 'reencode';
 
+export type VideoCodec =
+  | 'libx265'
+  | 'libx264'
+  | 'hevc_nvenc'
+  | 'h264_nvenc'
+  | 'av1_nvenc'
+  | 'hevc_amf'
+  | 'h264_amf'
+  | 'av1_amf'
+  | 'hevc_qsv'
+  | 'h264_qsv'
+  | 'av1_qsv'
+  | 'hevc_videotoolbox'
+  | 'h264_videotoolbox';
+
+export type Preset =
+  | 'ultrafast'
+  | 'superfast'
+  | 'veryfast'
+  | 'faster'
+  | 'fast'
+  | 'medium'
+  | 'slow'
+  | 'slower'
+  | 'veryslow'
+  | 'p1'
+  | 'p2'
+  | 'p3'
+  | 'p4'
+  | 'p5'
+  | 'p6'
+  | 'p7'
+  | 'speed'
+  | 'balanced'
+  | 'quality'
+  | 'default';
+
 export interface AppConfig {
   input_directories: string[];
   file_extensions: string;
@@ -9,9 +46,11 @@ export interface AppConfig {
   subtitle_tracks: string;
   output_extension: string;
   conversion_mode: ConversionMode;
-  video_codec: string;
-  preset: string;
+  video_codec: VideoCodec;
+  preset: Preset;
   crf: number;
+  reencode_concurrency: number;
+  remux_concurrency: number;
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -23,7 +62,9 @@ const DEFAULT_CONFIG: AppConfig = {
   conversion_mode: 'remux',
   video_codec: 'libx265',
   preset: 'faster',
-  crf: 18
+  crf: 18,
+  reencode_concurrency: 2,
+  remux_concurrency: 4
 };
 
 // Global config state
@@ -38,26 +79,31 @@ export function isConfigDefault() {
 }
 
 // Store instance
-let store: Store | null = null;
-let isLoaded = $state(false);
+let configStore: Store | null = null;
+export const configState = $state({ isLoaded: false });
 
 export async function loadConfig() {
-  store = await load('config.json', {
-    autoSave: false
-  } as unknown as import('@tauri-apps/plugin-store').StoreOptions);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  configStore = await load('config.json', { autoSave: false } as any);
 
   for (const key of Object.keys(DEFAULT_CONFIG)) {
-    const val = await store!.get<unknown>(key);
+    const val = await configStore!.get<unknown>(key);
     if (val !== null && val !== undefined) {
       (config as unknown as Record<string, unknown>)[key] = val;
     }
   }
-  isLoaded = true;
+
+  if (config.remux_concurrency > 8) {
+    config.remux_concurrency = 8;
+  }
+
+  configState.isLoaded = true;
 }
 
 export function initConfigWatcher() {
+  let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
-    if (!isLoaded || !store) return;
+    if (!configState.isLoaded || !configStore) return;
 
     // access all properties to track them
     const currentConfig = {
@@ -69,16 +115,18 @@ export function initConfigWatcher() {
       conversion_mode: config.conversion_mode,
       video_codec: config.video_codec,
       preset: config.preset,
-      crf: config.crf
+      crf: config.crf,
+      reencode_concurrency: config.reencode_concurrency,
+      remux_concurrency: config.remux_concurrency
     };
 
-    // Using an async wrapper to save without blocking reactivity
-    (async () => {
+    if (saveTimeout) clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
       for (const [key, value] of Object.entries(currentConfig)) {
-        await store.set(key, value);
+        await configStore!.set(key, value);
       }
-      await store.save();
-    })();
+      await configStore!.save();
+    }, 500);
   });
 }
 

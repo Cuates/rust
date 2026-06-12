@@ -65,6 +65,8 @@ pub struct VideoPipelinePayload {
     pub video_codec: VideoCodec,
     pub preset: Preset,
     pub crf: String,
+    pub reencode_concurrency: usize,
+    pub remux_concurrency: usize,
 }
 
 #[derive(Serialize, Clone)]
@@ -105,7 +107,6 @@ pub struct AppState {
 pub struct ProcessSession {
     pub cancel: tokio_util::sync::CancellationToken,
     pub children: std::collections::HashMap<PathBuf, tauri_plugin_shell::process::CommandChild>,
-    pub output_path: Option<PathBuf>,
     pub output_files: Vec<PathBuf>, // In-progress files
     pub output_set: std::collections::HashSet<PathBuf>, // For fast dedup
     pub completed_files: Vec<PathBuf>, // Completed files, safe from abort
@@ -119,7 +120,6 @@ impl Default for AppState {
             process: tokio::sync::Mutex::new(ProcessSession {
                 cancel: tokio_util::sync::CancellationToken::new(),
                 children: std::collections::HashMap::new(),
-                output_path: None,
                 output_files: Vec::new(),
                 output_set: std::collections::HashSet::new(),
                 completed_files: Vec::new(),

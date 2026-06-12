@@ -4,7 +4,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { onMount, tick } from 'svelte';
 
-  import { config, appState } from '../lib/stores/config.svelte';
+  import { config, appState, configState } from '../lib/stores/config.svelte';
   import { shortcuts } from '../lib/stores/shortcuts.svelte';
   import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
@@ -19,12 +19,44 @@
   import TerminalLog from '../lib/components/TerminalLog.svelte';
   import ConfirmationModal from '../lib/components/ConfirmationModal.svelte';
 
-  let timerInterval: number | undefined = undefined;
+  let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
   let startTime = 0;
   let queueComponent: ReturnType<typeof DirectoryQueue>;
   let terminalComponent: ReturnType<typeof TerminalLog>;
   let isDraggingOS = $state(false);
   let showClearHistoryModal = $state(false);
+  let initialDirCheckDone = false;
+
+  $effect(() => {
+    if (configState.isLoaded && !initialDirCheckDone && config.input_directories.length > 0) {
+      initialDirCheckDone = true;
+      (async () => {
+        let removed = 0;
+        const validDirs = [];
+        for (const dir of config.input_directories) {
+          try {
+            const rawStats = await invoke('get_directory_stats', {
+              dirPath: dir,
+              fileExtensions: config.file_extensions,
+              recursive: config.recursive
+            });
+            const stats = DirStatsSchema.parse(rawStats);
+            if (stats.exists) {
+              validDirs.push(dir);
+            } else {
+              removed++;
+            }
+          } catch {
+            removed++;
+          }
+        }
+        if (removed > 0) {
+          config.input_directories = validDirs;
+          addToast(`Removed ${removed} stale directory path(s) from queue.`, 'warning');
+        }
+      })();
+    }
+  });
 
   onMount(() => {
     let cleanup: (() => void) | undefined;
@@ -161,7 +193,7 @@
         unlistenDrop();
         unlistenDrag();
         unlistenDragCancelled();
-        if (timerInterval) cancelAnimationFrame(timerInterval);
+        if (timerInterval) clearInterval(timerInterval);
       };
     };
 
@@ -173,42 +205,45 @@
   });
 
   function startTimer() {
-    if (timerInterval) cancelAnimationFrame(timerInterval);
+    if (timerInterval) clearInterval(timerInterval);
     startTime = Date.now();
 
     function tickTime() {
       const elapsedMs = Date.now() - startTime;
       pipeline.runningTimeFormatted = formatDuration(elapsedMs);
 
-      let sumIntra = 0;
-      for (const key in pipeline.activeFiles) {
-        sumIntra += pipeline.activeFiles[key];
-      }
-      const completedFraction = pipeline.completedFilesCount + sumIntra / 100;
+      try {
+        let sumIntra = 0;
+        const vals = Object.values(pipeline.activeFiles);
+        for (let i = 0; i < vals.length; i++) {
+          sumIntra += vals[i] as number;
+        }
+        const completedFraction = pipeline.completedFilesCount + sumIntra / 100;
 
-      if (
-        pipeline.totalFilesCount > 0 &&
-        completedFraction > 0.05 &&
-        completedFraction < pipeline.totalFilesCount
-      ) {
-        const msPerFile = elapsedMs / completedFraction;
-        const remainingFraction = pipeline.totalFilesCount - completedFraction;
-        const remainingMs = remainingFraction * msPerFile;
-        pipeline.etaFormatted = formatDuration(remainingMs);
-      } else if (pipeline.totalFilesCount > 0 && completedFraction >= pipeline.totalFilesCount) {
-        pipeline.etaFormatted = '0ms';
-      } else {
-        pipeline.etaFormatted = '--';
+        if (
+          pipeline.totalFilesCount > 0 &&
+          completedFraction > 0.05 &&
+          completedFraction < pipeline.totalFilesCount
+        ) {
+          const msPerFile = elapsedMs / completedFraction;
+          const remainingFraction = pipeline.totalFilesCount - completedFraction;
+          const remainingMs = remainingFraction * msPerFile;
+          pipeline.etaFormatted = formatDuration(remainingMs);
+        } else if (pipeline.totalFilesCount > 0 && completedFraction >= pipeline.totalFilesCount) {
+          pipeline.etaFormatted = '0ms';
+        } else {
+          pipeline.etaFormatted = '--';
+        }
+      } catch (err) {
+        console.error('Timer tick error:', err);
       }
-
-      timerInterval = requestAnimationFrame(tickTime);
     }
 
-    timerInterval = requestAnimationFrame(tickTime);
+    timerInterval = setInterval(tickTime, 100);
   }
 
   function stopTimer() {
-    if (timerInterval) cancelAnimationFrame(timerInterval);
+    if (timerInterval) clearInterval(timerInterval);
   }
 
   function toggleTheme() {
@@ -304,13 +339,27 @@
       const PipelineSummarySchema = z.object({
         message: z.string(),
         original_size_bytes: z.number(),
-        output_size_bytes: z.number()
+        output_size_bytes: z.number(),
+        skipped_files: z.number()
       });
 
-      const payload = {
+      let payload = {
         ...config,
         crf: String(config.crf)
       };
+
+      if (
+        config.conversion_mode === 'reencode' &&
+        !config.video_codec.includes('nvenc') &&
+        !config.video_codec.includes('amf') &&
+        !config.video_codec.includes('qsv') &&
+        !config.video_codec.includes('videotoolbox') &&
+        config.reencode_concurrency > 2
+      ) {
+        payload.reencode_concurrency = 2;
+        addToast('Lowered CPU re-encode concurrency to 2 for better performance.', 'info');
+        emitLog('ℹ️ System automatically optimized CPU re-encode concurrency to 2.');
+      }
       const rawSummary = await invoke('process_video_pipeline', { payload });
       const summary = PipelineSummarySchema.parse(rawSummary);
 

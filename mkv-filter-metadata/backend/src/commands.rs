@@ -255,11 +255,28 @@ async fn process_one_file(
     res.original_size = original_size;
 
     {
-        let db_guard = state.db.lock().await;
-        if let Some(db) = db_guard.as_ref()
-            && crate::history::is_file_processed(db, &path_str, original_size, modified_timestamp)
+        let app_clone = app.clone();
+        let path_str_clone = path_str.clone();
+
+        let is_processed = tokio::task::spawn_blocking(move || {
+            let state = app_clone.state::<AppState>();
+            let db_guard = state.db.blocking_lock();
+            if let Some(db) = db_guard.as_ref() {
+                crate::history::is_file_processed(
+                    db,
+                    &path_str_clone,
+                    original_size,
+                    modified_timestamp,
+                )
                 .unwrap_or(false)
-        {
+            } else {
+                false
+            }
+        })
+        .await
+        .unwrap_or(false);
+
+        if is_processed {
             append_log(
                 &app,
                 format!("⏭️ Skipping previously processed file: {}", file_name),
@@ -531,15 +548,22 @@ async fn process_one_file(
             res.output_size = metadata.len();
         }
         {
-            let db_guard = state.db.lock().await;
-            if let Some(db) = db_guard.as_ref() {
-                let _ = crate::history::mark_file_processed(
-                    db,
-                    &path_str,
-                    original_size,
-                    modified_timestamp,
-                );
-            }
+            let app_clone = app.clone();
+            let path_str_clone = path_str.clone();
+
+            let _ = tokio::task::spawn_blocking(move || {
+                let state = app_clone.state::<AppState>();
+                let db_guard = state.db.blocking_lock();
+                if let Some(db) = db_guard.as_ref() {
+                    let _ = crate::history::mark_file_processed(
+                        db,
+                        &path_str_clone,
+                        original_size,
+                        modified_timestamp,
+                    );
+                }
+            })
+            .await;
         }
         {
             let mut session = state.process.lock().await;
@@ -593,7 +617,6 @@ pub async fn process_video_pipeline(
         session.cancel = tokio_util::sync::CancellationToken::new();
         cancel_token = session.cancel.clone();
         session.children.clear();
-        session.output_path = None;
         session.output_files.clear();
         session.output_set.clear();
         session.completed_files.clear();
@@ -640,7 +663,7 @@ pub async fn process_video_pipeline(
     let total_files = target_files.len();
     append_log(&app, format!("Scanned file total: {}", total_files));
 
-    if total_files > 100 {
+    if total_files > 300 {
         let _ = app.emit("large-batch-warning", total_files);
     }
 
@@ -664,9 +687,9 @@ pub async fn process_video_pipeline(
     let mut skipped_files = 0;
 
     let concurrency_limit = if payload.conversion_mode == ConversionMode::Reencode {
-        2 // limit re-encodes to 2 parallel tasks
+        payload.reencode_concurrency
     } else {
-        4 // limit remuxes to 4 parallel tasks
+        payload.remux_concurrency
     };
 
     let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency_limit));
@@ -950,30 +973,23 @@ pub async fn abort_video_pipeline(
 ) -> Result<(), AppError> {
     state.is_aborted.store(true, Ordering::SeqCst);
 
-    let (children, target_cleanup_path, files_to_delete, dirs_to_check) = {
+    let (children, files_to_delete, dirs_to_check) = {
         let mut session = state.process.lock().await;
 
         session.cancel.cancel(); // Trigger CancellationToken
 
         let children = std::mem::take(&mut session.children);
-        let path = session.output_path.take();
         let files = session.output_files.clone();
         let dirs = session.output_dirs.clone();
 
         session.output_files.clear();
         session.output_dirs.clear();
 
-        (children, path, files, dirs)
+        (children, files, dirs)
     };
 
     for (_, child) in children {
         let _ = child.kill();
-    }
-
-    if let Some(path) = target_cleanup_path
-        && path.exists()
-    {
-        let _ = retry_remove_file(&path).await;
     }
 
     for file in files_to_delete {
@@ -1143,5 +1159,32 @@ mod tests {
         use crate::models::{Preset, VideoCodec};
         assert!(validate_preset_codec_compat(&VideoCodec::HevcQsv, &Preset::Fast).is_ok());
         assert!(validate_preset_codec_compat(&VideoCodec::HevcQsv, &Preset::P4).is_err());
+    }
+
+    #[test]
+    fn nvenc_rejects_standard_presets() {
+        use crate::models::{Preset, VideoCodec};
+        assert!(validate_preset_codec_compat(&VideoCodec::HevcNvenc, &Preset::P4).is_ok());
+        assert!(validate_preset_codec_compat(&VideoCodec::HevcNvenc, &Preset::Fast).is_err());
+    }
+
+    #[test]
+    fn software_codec_accepts_x264_presets() {
+        use crate::models::{Preset, VideoCodec};
+        assert!(validate_preset_codec_compat(&VideoCodec::Libx265, &Preset::Veryslow).is_ok());
+        assert!(validate_preset_codec_compat(&VideoCodec::Libx265, &Preset::P1).is_err());
+    }
+
+    #[test]
+    fn amf_and_videotoolbox_tests() {
+        use crate::models::{Preset, VideoCodec};
+        assert!(validate_preset_codec_compat(&VideoCodec::HevcAmf, &Preset::Quality).is_ok());
+        assert!(validate_preset_codec_compat(&VideoCodec::HevcAmf, &Preset::P1).is_err());
+        assert!(
+            validate_preset_codec_compat(&VideoCodec::HevcVideotoolbox, &Preset::Default).is_ok()
+        );
+        assert!(
+            validate_preset_codec_compat(&VideoCodec::HevcVideotoolbox, &Preset::Fast).is_err()
+        );
     }
 }
