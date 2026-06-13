@@ -28,6 +28,17 @@
   let showClearHistoryModal = $state(false);
   let initialDirCheckDone = false;
 
+  async function scrollToTerminalBottom(delay = 0) {
+    await tick();
+    if (delay > 0) {
+      setTimeout(() => {
+        if (terminalComponent) terminalComponent.scrollToBottom();
+      }, delay);
+    } else {
+      if (terminalComponent) terminalComponent.scrollToBottom();
+    }
+  }
+
   $effect(() => {
     if (configState.isLoaded && !initialDirCheckDone && config.input_directories.length > 0) {
       initialDirCheckDone = true;
@@ -100,8 +111,7 @@
         if (!scrollTimeout) {
           scrollTimeout = setTimeout(async () => {
             scrollTimeout = null;
-            await tick();
-            if (terminalComponent) terminalComponent.scrollToBottom();
+            await scrollToTerminalBottom();
           }, 100);
         }
       });
@@ -270,8 +280,7 @@
       }
     }
     emitLog('--------------------------------------------------------');
-    await tick();
-    if (terminalComponent) terminalComponent.scrollToBottom();
+    await scrollToTerminalBottom();
   }
 
   async function executePipeline() {
@@ -280,8 +289,7 @@
       emitLog(
         '❌ Error: Please add at least one target directory to the queue before running processing tasks.'
       );
-      await tick();
-      if (terminalComponent) terminalComponent.scrollToBottom();
+      await scrollToTerminalBottom();
       return;
     }
 
@@ -414,8 +422,7 @@
         `Total Conversion Time: ${finalTimeStr}`
       );
 
-      await tick();
-      if (terminalComponent) terminalComponent.scrollToBottom();
+      await scrollToTerminalBottom();
     }
   }
 
@@ -423,8 +430,7 @@
     try {
       addToast('Halt instruction issued. Rolling back...', 'warning');
       emitLog('⚠️ Halt instruction issued. Terminating processes and rolling back...');
-      await tick();
-      if (terminalComponent) terminalComponent.scrollToBottom();
+      await scrollToTerminalBottom();
 
       await invoke(TAURI_COMMANDS.ABORT_VIDEO_PIPELINE);
       emitLog('🛑 Processing execution stopped and partial files cleaned up.');
@@ -434,10 +440,7 @@
       pipeline.processingActive = false;
       stopTimer();
 
-      await tick();
-      setTimeout(() => {
-        if (terminalComponent) terminalComponent.scrollToBottom();
-      }, 40);
+      await scrollToTerminalBottom(40);
     }
   }
 

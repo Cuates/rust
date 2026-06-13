@@ -13,6 +13,159 @@ use crate::process::{
     stderr_indicates_subtitle_incompatibility,
 };
 
+fn validate_character_list(
+    raw: &str,
+    entity_name: &str,
+    allow_hyphen: bool,
+) -> Result<(), AppError> {
+    for item in parse_comma_list(raw) {
+        let is_valid = item
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || (allow_hyphen && c == '-'));
+        if !is_valid {
+            return Err(AppError::Process(format!(
+                "Invalid {}: '{}'",
+                entity_name, item
+            )));
+        }
+    }
+    Ok(())
+}
+
+async fn check_file_processed(
+    app: &AppHandle,
+    path_str: String,
+    original_size: u64,
+    modified_timestamp: u64,
+) -> bool {
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app_clone.state::<AppState>();
+        let db_guard = state.db.blocking_lock();
+        if let Some(db) = db_guard.as_ref() {
+            crate::history::is_file_processed(db, &path_str, original_size, modified_timestamp)
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    })
+    .await
+    .unwrap_or(false)
+}
+
+async fn mark_file_processed_async(
+    app: &AppHandle,
+    path_str: String,
+    original_size: u64,
+    modified_timestamp: u64,
+) {
+    let app_clone = app.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        let state = app_clone.state::<AppState>();
+        let db_guard = state.db.blocking_lock();
+        if let Some(db) = db_guard.as_ref() {
+            let _ = crate::history::mark_file_processed(
+                db,
+                &path_str,
+                original_size,
+                modified_timestamp,
+            );
+        }
+    })
+    .await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn retry_with_ass_conversion<'a>(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+    file_path: &std::path::Path,
+    output_file_path: &std::path::Path,
+    subtitle_maps: &[String],
+    file_name: &str,
+    mode: ConversionMode,
+    reencode_config: Option<ReencodeConfig<'a>>,
+) -> Result<(bool, Vec<String>), AppError> {
+    append_log(
+        app,
+        "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
+    );
+
+    if output_file_path.exists() {
+        let _ = std::fs::remove_file(output_file_path);
+    }
+
+    let retry_args = build_ffmpeg_args(&FfmpegJobConfig {
+        input: file_path,
+        output: output_file_path,
+        subtitle_maps,
+        mode,
+        subtitle_codec: SubtitleCodec::Ass,
+        reencode: reencode_config,
+    });
+
+    run_sidecar_command(
+        app,
+        state,
+        "ffmpeg",
+        retry_args,
+        output_file_path.to_path_buf(),
+        file_name,
+    )
+    .await
+}
+
+async fn run_mkvmerge_fallback(
+    app: &AppHandle,
+    state: &tauri::State<'_, AppState>,
+    file_path: &std::path::Path,
+    output_file_path: &std::path::Path,
+    subtitle_maps: &[String],
+    file_name: &str,
+) -> Result<bool, AppError> {
+    append_log(
+        app,
+        "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...",
+    );
+
+    if output_file_path.exists() {
+        let _ = std::fs::remove_file(output_file_path);
+    }
+
+    let mut mkvmerge_args = vec![
+        "-o".to_string(),
+        output_file_path.to_string_lossy().into_owned(),
+    ];
+
+    if !subtitle_maps.is_empty() {
+        let mkv_track_ids: Vec<String> = subtitle_maps
+            .iter()
+            .filter_map(|s| s.split(':').next_back().map(|id| id.to_string()))
+            .collect();
+        mkvmerge_args.push("--subtitle-tracks".to_string());
+        mkvmerge_args.push(mkv_track_ids.join(","));
+    } else {
+        mkvmerge_args.push("--no-subtitles".to_string());
+    }
+
+    mkvmerge_args.push("--title".to_string());
+    mkvmerge_args.push(String::new());
+
+    mkvmerge_args.push(file_path.to_string_lossy().into_owned());
+
+    let (mkvmerge_success, _) = run_sidecar_command(
+        app,
+        state,
+        "mkvmerge",
+        mkvmerge_args,
+        output_file_path.to_path_buf(),
+        file_name,
+    )
+    .await?;
+
+    Ok(mkvmerge_success)
+}
+
 #[tauri::command]
 pub async fn get_directory_stats(
     dir_path: String,
@@ -135,33 +288,9 @@ fn validate_preset_codec_compat(
     }
 }
 
-fn validate_ext_list(raw: &str) -> Result<(), AppError> {
-    for ext in parse_comma_list(raw) {
-        if !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
-            return Err(AppError::Process(format!(
-                "Invalid file extension: '{}'",
-                ext
-            )));
-        }
-    }
-    Ok(())
-}
-
-fn validate_subtitle_tracks(raw: &str) -> Result<(), AppError> {
-    for track in parse_comma_list(raw) {
-        if !track.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
-            return Err(AppError::Process(format!(
-                "Invalid subtitle track: '{}'",
-                track
-            )));
-        }
-    }
-    Ok(())
-}
-
 fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
-    validate_ext_list(&payload.file_extensions)?;
-    validate_subtitle_tracks(&payload.subtitle_tracks)?;
+    validate_character_list(&payload.file_extensions, "file extension", false)?;
+    validate_character_list(&payload.subtitle_tracks, "subtitle track", true)?;
 
     if payload.conversion_mode == crate::models::ConversionMode::Reencode {
         validate_preset_codec_compat(&payload.video_codec, &payload.preset)?;
@@ -261,26 +390,8 @@ async fn process_one_file(
     res.original_size = original_size;
 
     {
-        let app_clone = app.clone();
-        let path_str_clone = path_str.clone();
-
-        let is_processed = tokio::task::spawn_blocking(move || {
-            let state = app_clone.state::<AppState>();
-            let db_guard = state.db.blocking_lock();
-            if let Some(db) = db_guard.as_ref() {
-                crate::history::is_file_processed(
-                    db,
-                    &path_str_clone,
-                    original_size,
-                    modified_timestamp,
-                )
-                .unwrap_or(false)
-            } else {
-                false
-            }
-        })
-        .await
-        .unwrap_or(false);
+        let is_processed =
+            check_file_processed(&app, path_str.clone(), original_size, modified_timestamp).await;
 
         if is_processed {
             append_log(
@@ -400,35 +511,20 @@ async fn process_one_file(
 
         if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
             res.reencode_subtitle_retry_attempts += 1;
-            append_log(
+
+            let (retry_success, _) = retry_with_ass_conversion(
                 &app,
-                "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
-            );
-
-            if output_file_path.exists() {
-                let _ = std::fs::remove_file(&output_file_path);
-            }
-
-            let retry_args = build_ffmpeg_args(&FfmpegJobConfig {
-                input: &file_path,
-                output: &output_file_path,
-                subtitle_maps: &subtitle_maps,
-                mode: ConversionMode::Reencode,
-                subtitle_codec: SubtitleCodec::Ass,
-                reencode: Some(ReencodeConfig {
+                &state,
+                &file_path,
+                &output_file_path,
+                &subtitle_maps,
+                &file_name,
+                ConversionMode::Reencode,
+                Some(ReencodeConfig {
                     video_codec: &payload.video_codec,
                     preset: &payload.preset,
                     crf: &payload.crf,
                 }),
-            });
-
-            let (retry_success, _) = run_sidecar_command(
-                &app,
-                &state,
-                "ffmpeg",
-                retry_args,
-                output_file_path.clone(),
-                &file_name,
             )
             .await?;
             file_success = retry_success;
@@ -469,31 +565,15 @@ async fn process_one_file(
         file_success = success;
 
         if !file_success && stderr_indicates_subtitle_incompatibility(&stderr_lines) {
-            append_log(
-                &app,
-                "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
-            );
-
-            if output_file_path.exists() {
-                let _ = std::fs::remove_file(&output_file_path);
-            }
-
-            let retry_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
-                input: &file_path,
-                output: &output_file_path,
-                subtitle_maps: &subtitle_maps,
-                mode: ConversionMode::Remux,
-                subtitle_codec: SubtitleCodec::Ass,
-                reencode: None,
-            });
-
-            let (retry_success, retry_stderr) = run_sidecar_command(
+            let (retry_success, retry_stderr) = retry_with_ass_conversion(
                 &app,
                 &state,
-                "ffmpeg",
-                retry_copy_args,
-                output_file_path.clone(),
+                &file_path,
+                &output_file_path,
+                &subtitle_maps,
                 &file_name,
+                ConversionMode::Remux,
+                None,
             )
             .await?;
             file_success = retry_success;
@@ -505,46 +585,15 @@ async fn process_one_file(
 
         if !file_success {
             res.ffmpeg_fallback_failures += 1;
-            append_log(
-                &app,
-                "  | [ERROR] ⚠️ FFmpeg stream copy failed. Initiating fallback to MKVMerge...",
-            );
-
-            if output_file_path.exists() {
-                let _ = std::fs::remove_file(&output_file_path);
-            }
-
-            let mut mkvmerge_args = vec![
-                "-o".to_string(),
-                output_file_path.to_string_lossy().into_owned(),
-            ];
-
-            if !subtitle_maps.is_empty() {
-                let mkv_track_ids: Vec<String> = subtitle_maps
-                    .iter()
-                    .filter_map(|s| s.split(':').next_back().map(|id| id.to_string()))
-                    .collect();
-                mkvmerge_args.push("--subtitle-tracks".to_string());
-                mkvmerge_args.push(mkv_track_ids.join(","));
-            } else {
-                mkvmerge_args.push("--no-subtitles".to_string());
-            }
-
-            mkvmerge_args.push("--title".to_string());
-            mkvmerge_args.push(String::new());
-
-            mkvmerge_args.push(file_path.to_string_lossy().into_owned());
-
-            let (mkvmerge_success, _) = run_sidecar_command(
+            file_success = run_mkvmerge_fallback(
                 &app,
                 &state,
-                "mkvmerge",
-                mkvmerge_args,
-                output_file_path.clone(),
+                &file_path,
+                &output_file_path,
+                &subtitle_maps,
                 &file_name,
             )
             .await?;
-            file_success = mkvmerge_success;
         }
     }
 
@@ -554,22 +603,8 @@ async fn process_one_file(
             res.output_size = metadata.len();
         }
         {
-            let app_clone = app.clone();
-            let path_str_clone = path_str.clone();
-
-            let _ = tokio::task::spawn_blocking(move || {
-                let state = app_clone.state::<AppState>();
-                let db_guard = state.db.blocking_lock();
-                if let Some(db) = db_guard.as_ref() {
-                    let _ = crate::history::mark_file_processed(
-                        db,
-                        &path_str_clone,
-                        original_size,
-                        modified_timestamp,
-                    );
-                }
-            })
-            .await;
+            mark_file_processed_async(&app, path_str.clone(), original_size, modified_timestamp)
+                .await;
         }
         {
             let mut session = state.process.lock().await;
