@@ -87,7 +87,7 @@ The frontend communicates with the backend exclusively through Tauri's `invoke` 
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| **Node.js** | v18+ | Required for Vite/SvelteKit |
+| **Node.js** | v24+ | Required for Vite/SvelteKit |
 | **pnpm** | v9+ | Workspace package manager |
 | **Rust** | 1.85+ (Edition 2024) | Via `rustup` |
 | **Rust Components** | `clippy`, `rustfmt` | `rustup component add clippy rustfmt` |
