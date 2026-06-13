@@ -24,8 +24,7 @@ export function isShortcutsDefault() {
 }
 
 export async function loadShortcuts() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  shortcutsStore = await load('shortcuts.json', { autoSave: false } as any);
+  shortcutsStore = await load('shortcuts.json', { autoSave: false, defaults: {} });
 
   for (const key of Object.keys(DEFAULT_SHORTCUTS)) {
     const val = await shortcutsStore!.get<unknown>(key);

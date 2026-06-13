@@ -348,18 +348,6 @@
         crf: String(config.crf)
       };
 
-      if (
-        config.conversion_mode === 'reencode' &&
-        !config.video_codec.includes('nvenc') &&
-        !config.video_codec.includes('amf') &&
-        !config.video_codec.includes('qsv') &&
-        !config.video_codec.includes('videotoolbox') &&
-        config.reencode_concurrency > 2
-      ) {
-        payload.reencode_concurrency = 2;
-        addToast('Lowered CPU re-encode concurrency to 2 for better performance.', 'info');
-        emitLog('ℹ️ System automatically optimized CPU re-encode concurrency to 2.');
-      }
       const rawSummary = await invoke('process_video_pipeline', { payload });
       const summary = PipelineSummarySchema.parse(rawSummary);
 
@@ -387,7 +375,7 @@
         console.warn('Failed to send desktop notification', e);
       }
     } catch (err: unknown) {
-      addToast('Pipeline execution failed. Check logs.', 'error');
+      addToast(`Pipeline execution failed: ${err}`, 'error');
       emitLog(`❌ Pipeline execution failure: ${err}`);
     } finally {
       pipeline.processingActive = false;

@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    name: Build, Lint, and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Install dependencies
+        run: corepack enable && pnpm install
+
+      - name: Frontend check
+        run: pnpm -F frontend check
+
+      - name: Rust format check
+        run: cargo fmt --manifest-path backend/Cargo.toml -- --check
+
+      - name: Rust clippy
+        run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
+
+      - name: Run tests
+        run: pnpm test

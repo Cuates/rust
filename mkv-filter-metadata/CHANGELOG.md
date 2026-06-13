@@ -5,9 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-06-12
 
 ### Added
+- **Parallel file processing** (JoinSet + Semaphore, configurable concurrency).
+- **SQLite-backed processing history** with WAL mode + schema versioning.
+- **Settings page** for shortcuts, performance/concurrency tuning, and reset-to-defaults.
+- **Configurable keyboard shortcuts** (default `Shift+Enter` / `Escape`).
+- **Recursive directory scanning toggle**.
+- **Stale queued-directory detection** and auto-removal on launch.
 - **Multi-directory processing queue** with drag-and-drop reorder and per-row status indicators.
 - **Dual conversion modes:** Remux (stream copy) and Reencode (full transcode).
 - **Hardware-accelerated encoder detection** — auto-detects NVENC, AMF, QSV, and VideoToolbox at startup.

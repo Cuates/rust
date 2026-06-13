@@ -83,8 +83,7 @@ let configStore: Store | null = null;
 export const configState = $state({ isLoaded: false });
 
 export async function loadConfig() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  configStore = await load('config.json', { autoSave: false } as any);
+  configStore = await load('config.json', { autoSave: false, defaults: {} });
 
   for (const key of Object.keys(DEFAULT_CONFIG)) {
     const val = await configStore!.get<unknown>(key);

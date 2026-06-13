@@ -17,7 +17,8 @@ A powerful batch-processing desktop application for filtering MKV metadata, stri
 9. [Frontend Component Architecture](#frontend-component-architecture)
 10. [Configuration & Capabilities](#configuration--capabilities)
 11. [Building for Production](#building-for-production)
-12. [Troubleshooting & Common Pitfalls](#troubleshooting--common-pitfalls)
+12. [Testing the CI Pipeline](#testing-the-ci-pipeline)
+13. [Troubleshooting & Common Pitfalls](#troubleshooting--common-pitfalls)
 
 ---
 
@@ -27,7 +28,7 @@ A powerful batch-processing desktop application for filtering MKV metadata, stri
 - **Dual Conversion Modes:** Remux (stream copy — fast, lossless) or Reencode (full transcode with codec/preset/CRF control).
 - **Hardware-Accelerated Encoding:** Auto-detects NVENC (NVIDIA), AMF (AMD), QSV (Intel), and VideoToolbox (macOS) at startup. The UI dynamically shows only available encoders.
 - **Dynamic Encoder Presets:** Preset dropdowns adapt per-encoder (e.g., `p1`–`p7` for NVENC, `speed`/`balanced`/`quality` for AMF, `ultrafast`–`veryslow` for software x264/x265).
-- **Subtitle Track Filtering:** Keep only specified subtitle languages (BCP-47 codes). FFprobe inspects each file's streams and maps only matching tracks.
+- **Subtitle Track Filtering:** Keep only specified subtitle languages (ISO 639 codes). FFprobe inspects each file's streams and maps only matching tracks.
 - **Self-Healing Fallback:** If FFmpeg rejects subtitle codecs for a target container, the pipeline automatically retries with ASS subtitle conversion — no user intervention needed.
 - **Output Deduplication:** Prevents silent overwrites when multiple input files would produce the same output filename.
 
@@ -36,7 +37,7 @@ A powerful batch-processing desktop application for filtering MKV metadata, stri
 - **Real-Time Pipeline Telemetry:** Live progress bars (overall + per-file), running timer, and ETA estimation.
 - **Storage Savings Metrics:** After completion, displays original vs. output size with percentage saved.
 - **Streaming Terminal Log:** Real-time FFmpeg output with auto-scroll, copy-to-clipboard, and save-to-file.
-- **Session Resumption:** Skips files whose output already exists from a prior aborted run.
+- **Session Resumption:** Tracks completed files in a local SQLite database (path, size, modified time) — re-running a batch skips unchanged files even across restarts, and re-processes any file that was modified.
 - **Dark/Light Theme Toggle:** Smooth CSS transitions with system preference detection and localStorage persistence.
 - **Per-Row Open Output Folder:** One-click button to open the `processed_files` directory in your file explorer after processing.
 - **OS Notifications:** Native desktop notification when the entire pipeline completes.
@@ -201,11 +202,11 @@ All commands are run from the workspace root:
 2. **Configure Processing:**
    - **Conversion Mode:** Choose "Remux Processing" (fast stream copy) or "Reencode Processing" (full transcode).
    - **File Extensions Filter:** Comma-separated list of extensions to process (e.g., `mkv, mp4, mov, avi`).
-   - **Subtitle Tracks to Keep:** Comma-separated BCP-47 language codes (e.g., `eng, spa, und`).
+   - **Subtitle Tracks to Keep:** Comma-separated ISO 639 language codes (e.g., `eng, spa, und`).
    - **Video Encoder:** Select from available hardware/software encoders (auto-detected at launch).
    - **Encoder Preset:** Quality/speed tradeoff (adapts to selected encoder).
    - **CRF:** Constant Rate Factor for quality control (0–51, lower = better quality).
-3. **Start Processing:** Click "Start Processing". The pipeline scans all queued directories, filters files by extension, and processes each one sequentially.
+3. **Start Processing:** Click "Start Processing". The pipeline scans all queued directories, filters files by extension, and processes files concurrently (configurable in Settings: 1-8 re-encode workers, 1-8 remux workers).
 4. **Monitor Progress:** Watch real-time progress bars, ETA, and streaming FFmpeg output in the terminal log.
 5. **Output Location:** Processed files are written to a `processed_files/` subdirectory within each source directory.
 6. **Open Results:** After completion, click the folder icon on any queue row to open its output directory.
@@ -312,6 +313,37 @@ This will:
 4. Output platform-specific installers in `backend/target/release/bundle/`
 
 Ensure your `tauri.conf.json` has a unique `identifier` (currently `com.cuates.mkv-filter-metadata-rust`).
+
+---
+
+## Testing the CI Pipeline
+
+Testing the GitHub Actions CI pipeline (`ci.yml`) can be done in two ways:
+
+### Method 1: Push to GitHub (Easiest)
+1. Commit the new workflow file:
+   ```bash
+   git add .github/workflows/ci.yml
+   git commit -m "Add CI pipeline"
+   ```
+2. Push your changes to your remote repository (or open a Pull Request):
+   ```bash
+   git push origin main
+   ```
+3. Open your repository on GitHub in your browser and click on the **"Actions"** tab at the top to watch the workflow run.
+
+### Method 2: Test Locally using `act` (Advanced/Faster)
+If you don't want to push your code to GitHub, you can run GitHub Actions locally using [act](https://github.com/nektos/act) (Requires Docker Desktop to be running).
+
+1. **Install `act`**:
+   * Windows (Winget): `winget install nektos.act`
+   * macOS (Homebrew): `brew install act`
+2. Open your terminal in the root of your project directory (`mkv-filter-metadata`).
+3. Run the pipeline by simulating a "push" event:
+   ```bash
+   act push
+   ```
+4. `act` will pull down a Docker container that mimics the `ubuntu-latest` GitHub runner and execute the `ci.yml` steps locally.
 
 ---
 

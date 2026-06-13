@@ -20,6 +20,7 @@
   "scopes": {
     "opener": [
       {
+        "//": "Wildcard is required: processed_files/ lives under whatever directory the user adds to the queue, which can be anywhere.",
         "path": "**"
       }
     ],

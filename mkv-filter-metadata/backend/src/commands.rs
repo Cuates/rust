@@ -166,6 +166,12 @@ fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
     if payload.conversion_mode == crate::models::ConversionMode::Reencode {
         validate_preset_codec_compat(&payload.video_codec, &payload.preset)?;
 
+        if payload.video_codec.is_software() && payload.reencode_concurrency > 2 {
+            return Err(AppError::Process(
+                "reencode_concurrency must be <= 2 for software encoders".into(),
+            ));
+        }
+
         let crf: u32 = payload
             .crf
             .parse()

@@ -86,6 +86,10 @@ pub fn flush_log_writer(app: &AppHandle) {
 }
 
 impl VideoCodec {
+    pub fn is_software(&self) -> bool {
+        matches!(self, VideoCodec::Libx264 | VideoCodec::Libx265)
+    }
+
     pub fn get_hwaccel_api(&self) -> &'static str {
         match self {
             VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => "cuda",
