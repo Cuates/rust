@@ -131,7 +131,9 @@ mkv-filter-metadata/
 ├── CHANGELOG.md                  # Version history
 ├── CONTRIBUTING.md               # Contribution guidelines
 ├── LICENSE                       # MIT License
-├── scripts/                      # Build helper scripts (sidecar download)
+├── scripts/                      # Build helper scripts
+│   ├── download-sidecars.mjs     # Fetches sidecars and validates checksums
+│   └── generate-hashes.mjs       # Generates SHA-256 checksums for new binary releases
 │
 ├── frontend/                     # Svelte 5 + SvelteKit + Vite UI Layer
 │   ├── package.json              # UI deps, test/lint/format scripts
