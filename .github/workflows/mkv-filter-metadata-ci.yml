@@ -1,15 +1,24 @@
-name: CI
+name: MKV Filter CI
 
 on:
   push:
     branches: [ "main", "master" ]
+    paths:
+      - 'mkv-filter-metadata/**'
+      - '.github/workflows/mkv-filter-metadata-ci.yml'
   pull_request:
     branches: [ "main", "master" ]
+    paths:
+      - 'mkv-filter-metadata/**'
+      - '.github/workflows/mkv-filter-metadata-ci.yml'
 
 jobs:
   test:
     name: Build, Lint, and Test
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mkv-filter-metadata
 
     steps:
       - name: Checkout repository

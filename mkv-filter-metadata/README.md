@@ -318,13 +318,13 @@ Ensure your `tauri.conf.json` has a unique `identifier` (currently `com.cuates.m
 
 ## Testing the CI Pipeline
 
-Testing the GitHub Actions CI pipeline (`ci.yml`) can be done in two ways:
+Testing the GitHub Actions CI pipeline (`mkv-filter-metadata-ci.yml`) can be done in two ways:
 
 ### Method 1: Push to GitHub (Easiest)
 1. Commit the new workflow file:
    ```bash
-   git add .github/workflows/ci.yml
-   git commit -m "Add CI pipeline"
+   git add .github/workflows/mkv-filter-metadata-ci.yml
+   git commit -m "Add MKV Filter CI pipeline"
    ```
 2. Push your changes to your remote repository (or open a Pull Request):
    ```bash
@@ -343,7 +343,7 @@ If you don't want to push your code to GitHub, you can run GitHub Actions locall
    ```bash
    act push
    ```
-4. `act` will pull down a Docker container that mimics the `ubuntu-latest` GitHub runner and execute the `ci.yml` steps locally.
+4. `act` will pull down a Docker container that mimics the `ubuntu-latest` GitHub runner and execute the `mkv-filter-metadata-ci.yml` steps locally.
 
 ---
 
