@@ -2128,7 +2128,7 @@ dependencies = [
 
 [[package]]
 name = "mkv-filter-metadata-rust"
-version = "0.2.5"
+version = "1.0.0"
 dependencies = [
  "regex",
  "rusqlite",

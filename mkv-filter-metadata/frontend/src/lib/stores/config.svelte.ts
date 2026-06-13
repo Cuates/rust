@@ -136,5 +136,8 @@ export const appState = $state({
     amf: false,
     videotoolbox: false,
     qsv: false
-  }
+  },
+  ffmpegVersion: '',
+  ffprobeVersion: '',
+  mkvmergeVersion: ''
 });

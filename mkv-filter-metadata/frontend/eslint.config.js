@@ -12,7 +12,13 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         ...globals.node,
-        ...globals.browser
+        ...globals.browser,
+        __APP_VERSION__: 'readonly',
+        __COMMIT_HASH__: 'readonly',
+        __BUILD_DATE__: 'readonly',
+        __TAURI_VERSION__: 'readonly',
+        __SVELTE_VERSION__: 'readonly',
+        __NODE_VERSION__: 'readonly'
       }
     }
   },

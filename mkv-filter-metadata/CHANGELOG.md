@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-06-13
+
+### Changed
+- Promoted application to version 1.0.0.
+- Updated main dashboard and settings page layouts to ensure fixed headers with scrollable content areas.
+- Added About modal with version, dependency information, and dynamically configured GitHub links.
+- Fixed dark mode and light mode contrast for top navigation icon buttons.
+
 ## [0.2.5] - 2026-06-13
 
 ### Refactored

@@ -44,6 +44,7 @@ A powerful batch-processing desktop application for filtering MKV metadata, stri
 - **Toast Notification System:** In-app toast messages with auto-dismiss and severity levels (success, warning, error, info).
 - **Abort & Cleanup:** Stop execution mid-pipeline. The backend kills active FFmpeg processes and scrubs partially written output files and empty directories.
 - **Directory Stats Tooltips:** Hover over queued directories to see file counts, names, and total sizes.
+- **About Modal:** Displays application version, commit hash, build date, and dependency versions with quick links to the repository and changelog.
 
 ### Code Quality
 - **Type-Safe End-to-End:** Rust enums for `VideoCodec`, `ConversionMode`, and `Preset` serialize directly into Svelte via Zod runtime validation schemas.

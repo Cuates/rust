@@ -19,6 +19,7 @@
   import MetricsPanel from '../lib/components/MetricsPanel.svelte';
   import TerminalLog from '../lib/components/TerminalLog.svelte';
   import ConfirmationModal from '../lib/components/ConfirmationModal.svelte';
+  import AboutModal from '../lib/components/AboutModal.svelte';
 
   let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
   let startTime = 0;
@@ -26,6 +27,7 @@
   let terminalComponent: ReturnType<typeof TerminalLog>;
   let isDraggingOS = $state(false);
   let showClearHistoryModal = $state(false);
+  let showAboutModal = $state(false);
   let initialDirCheckDone = false;
 
   async function scrollToTerminalBottom(delay = 0) {
@@ -516,6 +518,27 @@
       <!-- eslint-enable svelte/no-navigation-without-resolve -->
       <button
         class="theme-toggle-icon-btn"
+        onclick={() => (showAboutModal = true)}
+        aria-label="About Application"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          stroke="currentColor"
+          stroke-width="2"
+          fill="none"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      </button>
+      <button
+        class="theme-toggle-icon-btn"
         onclick={toggleTheme}
         aria-label="Toggle color display theme"
       >
@@ -524,38 +547,40 @@
     </div>
   </header>
 
-  <div class="form-workspace-card">
-    <DirectoryQueue bind:this={queueComponent} {isDraggingOS} />
-    <ConfigPanel onclearhistory={clearHistory} />
+  <div class="content-scroll-area">
+    <div class="form-workspace-card">
+      <DirectoryQueue bind:this={queueComponent} {isDraggingOS} />
+      <ConfigPanel onclearhistory={clearHistory} />
 
-    <div class="action-row">
-      {#if pipeline.processingActive}
-        <button class="action-abort-btn" onclick={abortPipeline}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            class="stop-icon"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
-          > Stop Execution
-        </button>
-      {:else}
-        <button
-          class="action-trigger-btn"
-          onclick={executePipeline}
-          disabled={config.input_directories.length === 0}
-        >
-          Start Processing
-        </button>
-      {/if}
+      <div class="action-row">
+        {#if pipeline.processingActive}
+          <button class="action-abort-btn" onclick={abortPipeline}>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              class="stop-icon"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
+            > Stop Execution
+          </button>
+        {:else}
+          <button
+            class="action-trigger-btn"
+            onclick={executePipeline}
+            disabled={config.input_directories.length === 0}
+          >
+            Start Processing
+          </button>
+        {/if}
+      </div>
     </div>
-  </div>
 
-  <div class="output-workspace-area">
-    {#if pipeline.showMetricsPanel}
-      <MetricsPanel />
-    {/if}
-    <TerminalLog bind:this={terminalComponent} />
+    <div class="output-workspace-area">
+      {#if pipeline.showMetricsPanel}
+        <MetricsPanel />
+      {/if}
+      <TerminalLog bind:this={terminalComponent} />
+    </div>
   </div>
 </main>
 
@@ -569,18 +594,29 @@
   onCancel={() => (showClearHistoryModal = false)}
 />
 
+<AboutModal show={showAboutModal} onClose={() => (showAboutModal = false)} />
+
 <style lang="scss">
   .app-container {
     box-sizing: border-box;
     max-width: 850px;
     height: 100vh;
     margin: 0 auto;
-    padding: 0 1rem 1rem 1rem;
+    padding: 0 1rem 0 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .content-scroll-area {
+    flex: 1;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    overflow-x: hidden;
-    overflow-y: auto;
+    padding-bottom: 1rem;
+    padding-right: 0.5rem;
+    margin-right: -0.5rem;
   }
 
   .navbar-layer {
@@ -609,6 +645,7 @@
   .theme-toggle-icon-btn {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 50%;
     cursor: pointer;
     font-size: 1rem;
@@ -618,6 +655,7 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+    transition: all 0.2s ease;
 
     &:hover {
       background: var(--border-color);
@@ -698,7 +736,6 @@
     flex-direction: column;
     gap: 0.6rem;
     flex: 1;
-    min-height: 0;
-    overflow: hidden;
+    min-height: 250px;
   }
 </style>

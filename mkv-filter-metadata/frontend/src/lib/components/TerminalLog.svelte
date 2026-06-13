@@ -172,7 +172,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    flex-shrink: 0;
+    flex: 1;
   }
 
   .terminal-header-row {
@@ -267,9 +267,8 @@
     font-family: monospace;
     padding: 0.75rem;
     border-radius: 6px;
-    height: 185px;
-    min-height: 185px;
-    max-height: 185px;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     font-size: 0.85rem;
     border: 1px solid var(--border-color);

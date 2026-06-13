@@ -90,116 +90,118 @@
     </div>
   </header>
 
-  <div class="form-workspace-card">
-    <h2>Keyboard Shortcuts</h2>
-    <p class="description">Customize the keyboard shortcuts for controlling the application.</p>
+  <div class="content-scroll-area">
+    <div class="form-workspace-card">
+      <h2>Keyboard Shortcuts</h2>
+      <p class="description">Customize the keyboard shortcuts for controlling the application.</p>
 
-    <div class="shortcut-row">
-      <span>Start Processing:</span>
-      {#if recordingFor === 'startPipeline'}
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          type="text"
-          value="Recording..."
-          class="shortcut-input recording"
-          onkeydown={(e) => handleKeydown(e, 'startPipeline')}
-          onblur={() => (recordingFor = null)}
-          autofocus
-        />
-      {:else}
-        <button class="shortcut-btn" onclick={() => startRecording('startPipeline')}>
-          {shortcuts.startPipeline}
-        </button>
-      {/if}
-    </div>
-
-    <div class="shortcut-row" style="border-bottom: none; padding-bottom: 0;">
-      <span>Abort Execution:</span>
-      {#if recordingFor === 'abortPipeline'}
-        <!-- svelte-ignore a11y_autofocus -->
-        <input
-          type="text"
-          value="Recording..."
-          class="shortcut-input recording"
-          onkeydown={(e) => handleKeydown(e, 'abortPipeline')}
-          onblur={() => (recordingFor = null)}
-          autofocus
-        />
-      {:else}
-        <button class="shortcut-btn" onclick={() => startRecording('abortPipeline')}>
-          {shortcuts.abortPipeline}
-        </button>
-      {/if}
-    </div>
-  </div>
-
-  <div class="form-workspace-card">
-    <h2>Performance Settings</h2>
-    <p class="description">
-      Adjust processing concurrency. Higher values process more files simultaneously but use more
-      system resources.
-    </p>
-
-    <div class="shortcut-row">
-      <div style="width: 200px; display: flex; flex-direction: column;">
-        <span>Re-encode Concurrency:</span>
-        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
-          >(Recommended: 1-2 CPU, 2-4 GPU)</span
-        >
+      <div class="shortcut-row">
+        <span>Start Processing:</span>
+        {#if recordingFor === 'startPipeline'}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            type="text"
+            value="Recording..."
+            class="shortcut-input recording"
+            onkeydown={(e) => handleKeydown(e, 'startPipeline')}
+            onblur={() => (recordingFor = null)}
+            autofocus
+          />
+        {:else}
+          <button class="shortcut-btn" onclick={() => startRecording('startPipeline')}>
+            {shortcuts.startPipeline}
+          </button>
+        {/if}
       </div>
-      <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
-        <input
-          type="range"
-          min="1"
-          max={config.video_codec === 'libx264' || config.video_codec === 'libx265'
-            ? 2
-            : Math.min(logicalCores, 8)}
-          bind:value={config.reencode_concurrency}
-          style="flex: 1;"
-        />
-        <span
-          style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
-        >
-          {config.reencode_concurrency} (Max: {config.video_codec === 'libx264' ||
-          config.video_codec === 'libx265'
-            ? 2
-            : Math.min(logicalCores, 8)})
-        </span>
+
+      <div class="shortcut-row" style="border-bottom: none; padding-bottom: 0;">
+        <span>Abort Execution:</span>
+        {#if recordingFor === 'abortPipeline'}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            type="text"
+            value="Recording..."
+            class="shortcut-input recording"
+            onkeydown={(e) => handleKeydown(e, 'abortPipeline')}
+            onblur={() => (recordingFor = null)}
+            autofocus
+          />
+        {:else}
+          <button class="shortcut-btn" onclick={() => startRecording('abortPipeline')}>
+            {shortcuts.abortPipeline}
+          </button>
+        {/if}
       </div>
     </div>
 
-    <div class="shortcut-row" style="border-bottom: none; padding-bottom: 0;">
-      <div style="width: 200px; display: flex; flex-direction: column;">
-        <span>Remux Concurrency:</span>
-        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
-          >(Recommended: 2-4 HDD, 4-8 SSD)</span
-        >
+    <div class="form-workspace-card">
+      <h2>Performance Settings</h2>
+      <p class="description">
+        Adjust processing concurrency. Higher values process more files simultaneously but use more
+        system resources.
+      </p>
+
+      <div class="shortcut-row">
+        <div style="width: 200px; display: flex; flex-direction: column;">
+          <span>Re-encode Concurrency:</span>
+          <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
+            >(Recommended: 1-2 CPU, 2-4 GPU)</span
+          >
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+          <input
+            type="range"
+            min="1"
+            max={config.video_codec === 'libx264' || config.video_codec === 'libx265'
+              ? 2
+              : Math.min(logicalCores, 8)}
+            bind:value={config.reencode_concurrency}
+            style="flex: 1;"
+          />
+          <span
+            style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
+          >
+            {config.reencode_concurrency} (Max: {config.video_codec === 'libx264' ||
+            config.video_codec === 'libx265'
+              ? 2
+              : Math.min(logicalCores, 8)})
+          </span>
+        </div>
       </div>
-      <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
-        <input
-          type="range"
-          min="1"
-          max="8"
-          bind:value={config.remux_concurrency}
-          style="flex: 1;"
-        />
-        <span
-          style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
-        >
-          {config.remux_concurrency} (Max: 8)
-        </span>
+
+      <div class="shortcut-row" style="border-bottom: none; padding-bottom: 0;">
+        <div style="width: 200px; display: flex; flex-direction: column;">
+          <span>Remux Concurrency:</span>
+          <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
+            >(Recommended: 2-4 HDD, 4-8 SSD)</span
+          >
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+          <input
+            type="range"
+            min="1"
+            max="8"
+            bind:value={config.remux_concurrency}
+            style="flex: 1;"
+          />
+          <span
+            style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
+          >
+            {config.remux_concurrency} (Max: 8)
+          </span>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="form-workspace-card">
-    <h2>Reset Defaults</h2>
-    <p class="description">
-      Restore all application settings, configurations, and keyboard shortcuts back to their
-      original state.
-    </p>
-    <div>
-      <button class="danger-btn" onclick={handleReset}>Reset to Defaults</button>
+    <div class="form-workspace-card">
+      <h2>Reset Defaults</h2>
+      <p class="description">
+        Restore all application settings, configurations, and keyboard shortcuts back to their
+        original state.
+      </p>
+      <div>
+        <button class="danger-btn" onclick={handleReset}>Reset to Defaults</button>
+      </div>
     </div>
   </div>
 </main>
@@ -220,10 +222,21 @@
     max-width: 850px;
     height: 100vh;
     margin: 0 auto;
-    padding: 0 1rem 1rem 1rem;
+    padding: 0 1rem 0 1rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .content-scroll-area {
+    flex: 1;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    padding-bottom: 1rem;
+    padding-right: 0.5rem;
+    margin-right: -0.5rem;
   }
 
   .navbar-layer {
@@ -232,6 +245,7 @@
     justify-content: space-between;
     border-bottom: 1px solid var(--border-color);
     padding: 1rem 0 0.5rem 0;
+    margin-bottom: 1rem;
     flex-shrink: 0;
 
     h1 {
@@ -251,6 +265,7 @@
   .theme-toggle-icon-btn {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 50%;
     cursor: pointer;
     font-size: 1rem;
@@ -260,6 +275,7 @@
     align-items: center;
     justify-content: center;
     padding: 0;
+    transition: all 0.2s ease;
 
     &:hover {
       background: var(--border-color);
