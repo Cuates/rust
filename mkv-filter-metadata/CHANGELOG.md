@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-06-13
+
+### Removed
+- Dead code cleanup: removed unused Tauri dependencies (`@tauri-apps/plugin-fs`, `@tauri-apps/plugin-opener`, `@tauri-apps/plugin-shell`) and `@eslint/compat` from frontend `package.json`.
+- Dead code cleanup: removed unused exports and types in `types.ts`, `config.svelte.ts`, and `shortcuts.svelte.ts`.
+- Added CI step and root script `check:deadcode` to automatically verify against frontend and backend dead code in future commits.
+
 ## [0.2.2] - 2026-06-13
 
 ### Documentation

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const FileStatSchema = z.object({
+const FileStatSchema = z.object({
   name: z.string(),
   size_bytes: z.number()
 });
@@ -19,6 +19,4 @@ export const EncoderCapabilitiesSchema = z.object({
   videotoolbox: z.boolean()
 });
 
-export type FileStat = z.infer<typeof FileStatSchema>;
 export type DirStats = z.infer<typeof DirStatsSchema>;
-export type EncoderCapabilities = z.infer<typeof EncoderCapabilitiesSchema>;

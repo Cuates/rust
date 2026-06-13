@@ -1,8 +1,8 @@
 import { load, type Store } from '@tauri-apps/plugin-store';
 
-export type ConversionMode = 'remux' | 'reencode';
+type ConversionMode = 'remux' | 'reencode';
 
-export type VideoCodec =
+type VideoCodec =
   | 'libx265'
   | 'libx264'
   | 'hevc_nvenc'
@@ -17,7 +17,7 @@ export type VideoCodec =
   | 'hevc_videotoolbox'
   | 'h264_videotoolbox';
 
-export type Preset =
+type Preset =
   | 'ultrafast'
   | 'superfast'
   | 'veryfast'

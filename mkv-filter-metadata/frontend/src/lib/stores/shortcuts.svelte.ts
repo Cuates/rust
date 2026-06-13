@@ -13,7 +13,7 @@ const DEFAULT_SHORTCUTS: ShortcutConfig = {
 export const shortcuts = $state<ShortcutConfig>({ ...DEFAULT_SHORTCUTS });
 
 let shortcutsStore: Store | null = null;
-export const shortcutsState = $state({ isLoaded: false });
+const shortcutsState = $state({ isLoaded: false });
 
 export function resetShortcutsToDefaults() {
   Object.assign(shortcuts, DEFAULT_SHORTCUTS);

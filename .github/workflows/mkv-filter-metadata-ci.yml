@@ -54,6 +54,9 @@ jobs:
       - name: Frontend check
         run: pnpm -F frontend check
 
+      - name: Check for dead code
+        run: pnpm run check:deadcode
+
       - name: Rust format check
         run: cargo fmt --manifest-path backend/Cargo.toml -- --check
 

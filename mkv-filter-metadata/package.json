@@ -1,12 +1,13 @@
 {
   "name": "mkv-filter-metadata-rust",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "type": "module",
   "scripts": {
     "prebuild": "node scripts/download-sidecars.mjs",
     "build": "tauri build",
     "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
+    "check:deadcode": "pnpm -F frontend exec knip && cargo clippy --manifest-path backend/Cargo.toml -- -D dead_code",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && npx --yes rimraf node_modules frontend/node_modules && pnpm install",
     "dev": "tauri dev",
     "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
