@@ -151,14 +151,19 @@
         <input
           type="range"
           min="1"
-          max={Math.min(logicalCores, 8)}
+          max={config.video_codec === 'libx264' || config.video_codec === 'libx265'
+            ? 2
+            : Math.min(logicalCores, 8)}
           bind:value={config.reencode_concurrency}
           style="flex: 1;"
         />
         <span
           style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
         >
-          {config.reencode_concurrency} (Max: {Math.min(logicalCores, 8)})
+          {config.reencode_concurrency} (Max: {config.video_codec === 'libx264' ||
+          config.video_codec === 'libx265'
+            ? 2
+            : Math.min(logicalCores, 8)})
         </span>
       </div>
     </div>

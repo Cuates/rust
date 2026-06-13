@@ -5,6 +5,11 @@
   let { onclearhistory }: { onclearhistory?: () => void } = $props();
 
   $effect(() => {
+    // Clamp concurrency for software codecs
+    if (config.video_codec === 'libx264' || config.video_codec === 'libx265') {
+      if (config.reencode_concurrency > 2) config.reencode_concurrency = 2;
+    }
+
     // Reactively update the preset if the current preset is incompatible with the new video_codec
     if (config.video_codec.includes('nvenc') && !config.preset.match(/^p[1-7]$/)) {
       config.preset = 'p4';

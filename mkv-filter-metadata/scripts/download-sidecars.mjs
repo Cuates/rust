@@ -5,6 +5,8 @@ import { Readable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 
 // Replace this with the URL of the GitHub Release you created in Phase 2
+// NOTE: The hash map below is tightly coupled to the binaries hosted at this URL.
+// If you update the URL or rebuild the binaries, you MUST regenerate and update the hashes below.
 const REPO_URL = "https://github.com/Cuates/rust/releases/download/v1.0.0-binaries";
 const TARGET_DIR = path.resolve(process.cwd(), 'backend/sidecars');
 

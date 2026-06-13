@@ -14,6 +14,11 @@ export default defineConfig(async () => ({
   build: {
     target: 'es2022'
   },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: 'es2022'
+    }
+  },
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
