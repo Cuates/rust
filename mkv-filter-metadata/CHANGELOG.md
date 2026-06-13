@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Vitest** frontend tests and **cargo test** backend tests.
 - **ARIA accessibility** — `aria-live` regions on terminal and metrics panels for screen readers.
 - **Tauri updater boilerplate** — plugin configuration for future auto-update support.
+- **GitHub Actions CI pipeline** (`mkv-filter-metadata-ci.yml`) for automated building, linting, and testing.
 - **CHANGELOG.md**, **CONTRIBUTING.md**, and **LICENSE** (MIT).
 
 ### Changed
