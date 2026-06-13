@@ -12,6 +12,7 @@
   import { DirStatsSchema, EncoderCapabilitiesSchema } from '$lib/types';
   import { z } from 'zod';
   import { formatDuration } from '../lib/utils/formatters';
+  import { TAURI_COMMANDS, TAURI_EVENTS } from '../lib/constants';
 
   import DirectoryQueue from '../lib/components/DirectoryQueue.svelte';
   import ConfigPanel from '../lib/components/ConfigPanel.svelte';
@@ -35,7 +36,7 @@
         const validDirs = [];
         for (const dir of config.input_directories) {
           try {
-            const rawStats = await invoke('get_directory_stats', {
+            const rawStats = await invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
               dirPath: dir,
               fileExtensions: config.file_extensions,
               recursive: config.recursive
@@ -64,28 +65,28 @@
 
     const init = async () => {
       try {
-        const rawEncoders = await invoke('get_encoder_capabilities');
+        const rawEncoders = await invoke(TAURI_COMMANDS.GET_ENCODER_CAPABILITIES);
         appState.hardwareEncoders = EncoderCapabilitiesSchema.parse(rawEncoders);
       } catch (e) {
         emitLog(`[ERROR] Failed querying hardware encoder API integrations: ${e}`);
       }
 
-      const unlistenDrag = await listen('tauri://drag-enter', () => {
+      const unlistenDrag = await listen(TAURI_EVENTS.DRAG_ENTER, () => {
         if (!pipeline.processingActive) isDraggingOS = true;
       });
 
-      const unlistenDragCancelled = await listen('tauri://drag-leave', () => {
+      const unlistenDragCancelled = await listen(TAURI_EVENTS.DRAG_LEAVE, () => {
         isDraggingOS = false;
       });
 
-      const unlistenDrop = await listen<{ paths: string[] }>('tauri://drag-drop', (event) => {
+      const unlistenDrop = await listen<{ paths: string[] }>(TAURI_EVENTS.DRAG_DROP, (event) => {
         isDraggingOS = false;
         if (!pipeline.processingActive && event.payload?.paths && queueComponent) {
           queueComponent.handleDragDrop(event.payload.paths);
         }
       });
 
-      const unlistenLogFn = await listen<string>('process-log', async (event) => {
+      const unlistenLogFn = await listen<string>(TAURI_EVENTS.PROCESS_LOG, async (event) => {
         addLogs(event.payload);
         if (event.payload.includes('Scanned file total:')) {
           const match = event.payload.match(/Scanned file total:\s*(\d+)/);
@@ -115,7 +116,7 @@
         file_completed?: string;
         root_directory?: string;
         success?: boolean;
-      }>('process-progress', (event) => {
+      }>(TAURI_EVENTS.PROCESS_PROGRESS, (event) => {
         if (event.payload.file_completed !== undefined) {
           pipeline.completedFilesCount++;
           delete pipeline.activeFiles[event.payload.file_completed];
@@ -156,14 +157,17 @@
         }
       });
 
-      const unlistenLargeBatchFn = await listen<number>('large-batch-warning', (event) => {
-        addToast(
-          `⚠️ Large batch detected (${event.payload} files). Please ensure sufficient disk space.`,
-          'warning'
-        );
-      });
+      const unlistenLargeBatchFn = await listen<number>(
+        TAURI_EVENTS.LARGE_BATCH_WARNING,
+        (event) => {
+          addToast(
+            `⚠️ Large batch detected (${event.payload} files). Please ensure sufficient disk space.`,
+            'warning'
+          );
+        }
+      );
 
-      const unlistenDbInit = await listen<string>('db-init-failed', (event) => {
+      const unlistenDbInit = await listen<string>(TAURI_EVENTS.DB_INIT_FAILED, (event) => {
         addToast(`History Database failed to initialize: ${event.payload}`, 'error');
         emitLog(`❌ History DB Error: ${event.payload}`);
       });
@@ -256,7 +260,7 @@
     const tools = ['ffmpeg', 'ffprobe', 'mkvmerge'];
     for (const tool of tools) {
       try {
-        const rawVer = await invoke('get_sidecar_version', { binaryName: tool });
+        const rawVer = await invoke(TAURI_COMMANDS.GET_SIDECAR_VERSION, { binaryName: tool });
         const ver = z.string().parse(rawVer);
         emitLog(`[Sidecar Asset] ${tool.toUpperCase()}: ${ver.trim()}`);
       } catch {
@@ -292,7 +296,7 @@
 
     const startDate = new Date();
     pipeline.consoleLogs = []; // Clear for new run
-    await invoke('initialize_session_log');
+    await invoke(TAURI_COMMANDS.INITIALIZE_SESSION_LOG);
     emitLog(
       'Pipeline initialization request authenticated...',
       `Session started at: ${startDate.toLocaleString()}`
@@ -315,7 +319,7 @@
       const tempDirStats: Record<string, DirStats> = {};
       for (const dir of config.input_directories) {
         try {
-          const rawStats = await invoke('get_directory_stats', {
+          const rawStats = await invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
             dirPath: dir,
             fileExtensions: config.file_extensions,
             recursive: config.recursive
@@ -348,7 +352,7 @@
         crf: String(config.crf)
       };
 
-      const rawSummary = await invoke('process_video_pipeline', { payload });
+      const rawSummary = await invoke(TAURI_COMMANDS.PROCESS_VIDEO_PIPELINE, { payload });
       const summary = PipelineSummarySchema.parse(rawSummary);
 
       pipeline.storageOriginalBytes = summary.original_size_bytes;
@@ -422,7 +426,7 @@
       await tick();
       if (terminalComponent) terminalComponent.scrollToBottom();
 
-      await invoke('abort_video_pipeline');
+      await invoke(TAURI_COMMANDS.ABORT_VIDEO_PIPELINE);
       emitLog('🛑 Processing execution stopped and partial files cleaned up.');
     } catch (err) {
       emitLog(`Error safely terminating workers: ${err}`);
@@ -444,7 +448,7 @@
   async function executeClearHistory() {
     showClearHistoryModal = false;
     try {
-      await invoke('clear_processing_history');
+      await invoke(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
       addToast('✅ Processing history cleared successfully.', 'success');
     } catch (e) {
       addToast(`❌ Failed to clear history: ${e}`, 'error');

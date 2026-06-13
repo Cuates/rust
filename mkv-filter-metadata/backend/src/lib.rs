@@ -1,4 +1,5 @@
 pub mod commands;
+pub mod constants;
 pub mod error;
 pub mod history;
 pub mod models;
@@ -39,7 +40,7 @@ pub fn run() {
                 }
                 Err(e) => {
                     tracing::error!("Failed to initialize history database: {:?}", e);
-                    let _ = handle.emit("db-init-failed", e.to_string());
+                    let _ = handle.emit(crate::constants::EVENT_DB_INIT_FAILED, e.to_string());
                 }
             }
             Ok(())

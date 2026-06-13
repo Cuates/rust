@@ -62,10 +62,11 @@ export const pipeline = $state({
 });
 
 import { invoke } from '@tauri-apps/api/core';
+import { TAURI_COMMANDS } from '../constants';
 
 export async function emitLog(...logs: string[]) {
   for (const log of logs) {
-    await invoke('log_message', { message: log });
+    await invoke(TAURI_COMMANDS.LOG_MESSAGE, { message: log });
   }
 }
 

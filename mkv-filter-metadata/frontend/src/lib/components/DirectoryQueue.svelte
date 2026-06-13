@@ -6,6 +6,7 @@
   import { pipeline, emitLog } from '../stores/pipeline.svelte';
   import { addToast } from '../stores/toast.svelte';
   import { buildTooltip } from '../utils/formatters';
+  import { TAURI_COMMANDS } from '../constants';
 
   let { isDraggingOS = false } = $props();
 
@@ -86,7 +87,7 @@
   async function openOutputFolder(dir: string) {
     try {
       const targetPath = await join(dir, 'processed_files');
-      await invoke('open_folder', { path: targetPath });
+      await invoke(TAURI_COMMANDS.OPEN_FOLDER, { path: targetPath });
     } catch (err) {
       addToast(`Failed to open folder: ${err}`, 'error');
     }

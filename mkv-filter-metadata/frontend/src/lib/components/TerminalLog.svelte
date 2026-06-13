@@ -4,6 +4,7 @@
   import { pipeline } from '../stores/pipeline.svelte';
   import { addToast } from '../stores/toast.svelte';
   import { getLogClass } from '../utils/logClassifier';
+  import { TAURI_COMMANDS } from '../constants';
 
   let copiedStatus = $state(false);
   let savedStatus = $state(false);
@@ -19,7 +20,7 @@
     if (pipeline.consoleLogs.length === 0) return;
 
     try {
-      const fullLogText = await invoke<string>('read_session_log');
+      const fullLogText = await invoke<string>(TAURI_COMMANDS.READ_SESSION_LOG);
       if (!fullLogText) {
         addToast('No session log found on disk to copy.', 'error');
         return;
@@ -37,7 +38,7 @@
   async function saveTerminalLogs() {
     if (pipeline.consoleLogs.length === 0) return;
     try {
-      const logExists = await invoke<boolean>('check_session_log');
+      const logExists = await invoke<boolean>(TAURI_COMMANDS.CHECK_SESSION_LOG);
       if (!logExists) {
         addToast('No active session log found to save.', 'error');
         return;
@@ -67,7 +68,7 @@
       });
 
       if (filePath) {
-        await invoke('save_log_file', { path: filePath });
+        await invoke(TAURI_COMMANDS.SAVE_LOG_FILE, { path: filePath });
 
         savedStatus = true;
         setTimeout(() => {

@@ -302,7 +302,7 @@ async fn process_one_file(
 
     let current_progress = ((current_index as f32 / total_files as f32) * 100.0) as u32;
     let _ = app.emit(
-        "process-progress",
+        crate::constants::EVENT_PROCESS_PROGRESS,
         serde_json::json!({
             "progress": current_progress,
             "current_index": current_index,
@@ -597,7 +597,7 @@ async fn process_one_file(
         .unwrap_or_default();
 
     let _ = app.emit(
-        "process-progress",
+        crate::constants::EVENT_PROCESS_PROGRESS,
         serde_json::json!({
             "file_completed": file_name,
             "root_directory": root_dir,
@@ -670,7 +670,7 @@ pub async fn process_video_pipeline(
     append_log(&app, format!("Scanned file total: {}", total_files));
 
     if total_files > 300 {
-        let _ = app.emit("large-batch-warning", total_files);
+        let _ = app.emit(crate::constants::EVENT_LARGE_BATCH_WARNING, total_files);
     }
 
     if total_files == 0 {
@@ -770,7 +770,7 @@ pub async fn process_video_pipeline(
     }
 
     let _ = app.emit(
-        "process-progress",
+        crate::constants::EVENT_PROCESS_PROGRESS,
         serde_json::json!({
             "progress": 100,
             "current_index": total_files,

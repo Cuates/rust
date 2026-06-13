@@ -26,7 +26,7 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
     } else {
         tracing::trace!("{}", msg);
     }
-    let _ = app.emit("process-log", msg);
+    let _ = app.emit(crate::constants::EVENT_PROCESS_LOG, msg);
     let state = app.state::<AppState>();
     if let Ok(mut guard) = state.log_writer.lock() {
         let mut rotate = false;
@@ -544,7 +544,7 @@ pub async fn run_sidecar_command(
                                     percent = 100.0;
                                 }
                                 let _ = app.emit(
-                                    "process-progress",
+                                    crate::constants::EVENT_PROCESS_PROGRESS,
                                     serde_json::json!({
                                         "intra_progress": percent,
                                         "current_filename": file_name
