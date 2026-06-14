@@ -13,13 +13,103 @@ on:
       - '.github/workflows/mkv-filter-metadata-ci.yml'
 
 jobs:
-  test:
-    name: Build, Lint, and Test
+  lint:
+    name: Lint & Check
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: mkv-filter-metadata
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: mkv-filter-metadata/pnpm-lock.yaml
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mkv-filter-metadata/backend
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Frontend check
+        run: pnpm -F frontend check
+
+      - name: Check for dead code
+        run: pnpm run check:deadcode
+
+      - name: Rust format check
+        run: cargo fmt --manifest-path backend/Cargo.toml -- --check
+
+      - name: Rust clippy
+        run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
+
+  test:
+    name: Test & Coverage
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mkv-filter-metadata
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: mkv-filter-metadata/pnpm-lock.yaml
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mkv-filter-metadata/backend
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install cargo-tarpaulin
+        uses: taiki-e/install-action@cargo-tarpaulin
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Enforce test coverage
+        run: pnpm run test:coverage
+
+  build:
+    name: Build Validation
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mkv-filter-metadata
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,8 +134,11 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          components: clippy, rustfmt
+          workspaces: mkv-filter-metadata/backend
 
       - name: Install dependencies
         run: pnpm install
@@ -61,23 +154,5 @@ jobs:
         if: steps.sidecar-cache.outputs.cache-hit != 'true'
         run: pnpm prebuild
 
-      - name: Frontend check
-        run: pnpm -F frontend check
-
-      - name: Check for dead code
-        run: pnpm run check:deadcode
-
-      - name: Rust format check
-        run: cargo fmt --manifest-path backend/Cargo.toml -- --check
-
-      - name: Rust clippy
-        run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
-
-      - name: Run tests
-        run: pnpm test
-
-      - name: Install cargo-tarpaulin
-        uses: taiki-e/install-action@cargo-tarpaulin
-        
-      - name: Enforce test coverage
-        run: pnpm run test:coverage
+      - name: Build Application
+        run: pnpm build

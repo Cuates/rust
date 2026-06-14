@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.1.2] - 2026-06-14
+
+### Changed
+- Added comprehensive backend Rust optimizations including `opt-level = 3`, `lto = true`, and stripped release binaries for maximum execution speed and reduced bundle size.
+- Configured Vite production builds to automatically drop all `console` and `debugger` outputs to keep frontend bundles lean.
+- Completely restructured the GitHub Actions CI pipeline to run Lint, Test, and Build jobs in parallel, and added `Swatinem/rust-cache@v2` for drastically reduced compilation times.
+
 ## [1.1.1] - 2026-06-14
 
 ### Added

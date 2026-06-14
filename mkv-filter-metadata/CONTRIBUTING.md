@@ -39,6 +39,15 @@ pnpm fix
 pnpm test
 ```
 
+## Building & Optimizations
+
+When building the application for production (e.g., via `pnpm build`), be aware of the following architectural decisions:
+
+* **Build Optimization**: We prioritize execution speed for the Rust backend by using `opt-level = 3` in our `[profile.release]` Cargo configuration. We can always adjust this to `"z"` in the future if binary size becomes a concern.
+* **What does `opt-level` do?**: The `opt-level` setting dictates how aggressively the Rust compiler (`rustc`) optimizes your code. 
+  * Setting it to `3` instructs the compiler to perform all possible optimizations to make the resulting binary execute as fast as possible. This includes aggressive loop unrolling, auto-vectorization, and function inlining. 
+  * While this produces the fastest running application—which is highly beneficial for our intensive FFmpeg command generation and telemetry processing—it can result in slightly larger binary sizes and longer compilation times compared to size-focused settings like `"z"` or `"s"`.
+
 ## Pull Request Process
 
 1. Run `pnpm check` and `pnpm fix` to ensure your code is well-typed and formatted.
