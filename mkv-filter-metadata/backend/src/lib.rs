@@ -28,6 +28,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let handle = app.handle().clone();
+
+            std::panic::set_hook(Box::new({
+                let handle = handle.clone();
+                move |info| {
+                    tracing::error!("FATAL PANIC: {}", info);
+                    crate::process::append_log(&handle, format!("  | [FATAL] PANIC: {}", info));
+                    crate::process::flush_log_writer(&handle);
+                }
+            }));
+
             let state = handle.state::<AppState>();
             match crate::history::init_db(&handle) {
                 Ok(conn) => {

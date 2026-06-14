@@ -78,6 +78,7 @@ jobs:
 
   test:
     name: Test & Coverage
+    needs: [lint]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -136,6 +137,7 @@ jobs:
 
   build:
     name: Build Validation
+    needs: [lint]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -185,4 +187,4 @@ jobs:
         run: pnpm prebuild
 
       - name: Build Application
-        run: pnpm exec tauri build --no-bundle
+        run: CARGO_PROFILE_RELEASE_LTO=false pnpm exec tauri build --no-bundle

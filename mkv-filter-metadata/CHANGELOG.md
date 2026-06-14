@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.1.3] - 2026-06-14
+
+### Added
+- Added a production panic hook to the Rust backend that synchronously flushes fatal crash errors to `session.log` before the application aborts.
+
+### Changed
+- Disabled Link-Time Optimization (LTO) in the GitHub Actions CI pipeline via `CARGO_PROFILE_RELEASE_LTO=false` to significantly speed up remote builds.
+- Refactored the CI workflow to chain the `test` and `build` jobs behind the `lint` job using `needs: [lint]`, preventing redundant job failures and saving runner minutes.
+
 ## [1.1.2] - 2026-06-14
 
 ### Changed
