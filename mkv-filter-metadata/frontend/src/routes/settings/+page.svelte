@@ -170,7 +170,8 @@
       <h2>Performance Settings</h2>
       <p class="description">
         Adjust processing concurrency. Higher values process more files simultaneously but use more
-        system resources.
+        system resources. The chosen concurrency value dictates how many files will actively process
+        at once in the main dashboard's UI Metrics Panel.
       </p>
 
       <div class="shortcut-row">
