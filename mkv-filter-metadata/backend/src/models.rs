@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::atomic::AtomicBool;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
 #[serde(rename_all = "snake_case")]
@@ -97,7 +96,6 @@ pub struct SessionLog {
 }
 
 pub struct AppState {
-    pub is_aborted: AtomicBool,
     pub process: tokio::sync::Mutex<ProcessSession>,
     pub log_writer: std::sync::Mutex<Option<SessionLog>>,
     pub encoder_caps: tokio::sync::OnceCell<EncoderCapabilities>,
@@ -116,7 +114,6 @@ pub struct ProcessSession {
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            is_aborted: AtomicBool::new(false),
             process: tokio::sync::Mutex::new(ProcessSession {
                 cancel: tokio_util::sync::CancellationToken::new(),
                 children: std::collections::HashMap::new(),
@@ -153,7 +150,6 @@ mod tests {
     #[test]
     fn test_app_state_default() {
         let state = AppState::default();
-        assert!(!state.is_aborted.load(std::sync::atomic::Ordering::SeqCst));
         assert!(state.log_writer.lock().unwrap().is_none());
         assert!(state.db.blocking_lock().is_none());
     }

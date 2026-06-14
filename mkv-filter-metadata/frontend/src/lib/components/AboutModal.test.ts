@@ -100,17 +100,57 @@ describe('AboutModal.svelte', () => {
     expect(img.style.display).toBe('none');
   });
 
-  it('formats timeAgo for 1 day', () => {
-    const ONE_DAY_MS = 24 * 60 * 60 * 1000 + 1000;
-    vi.stubGlobal('__BUILD_DATE__', new Date(Date.now() - ONE_DAY_MS).toISOString());
-    render(AboutModal, { props: { show: true, onClose: vi.fn() } });
-    expect(screen.getByText(/1 day ago/)).toBeInTheDocument();
+  it('closes modal on Escape key', async () => {
+    const onClose = vi.fn();
+    const { container } = render(AboutModal, { props: { show: true, onClose } });
+    const backdrop = container.querySelector('.modal-backdrop');
+    if (backdrop) {
+      await fireEvent.keyDown(backdrop, { key: 'Escape' });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    }
   });
 
-  it('formats timeAgo for multiple days', () => {
-    const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000 + 1000;
-    vi.stubGlobal('__BUILD_DATE__', new Date(Date.now() - FIVE_DAYS_MS).toISOString());
-    render(AboutModal, { props: { show: true, onClose: vi.fn() } });
-    expect(screen.getByText(/5 days ago/)).toBeInTheDocument();
+  it('traps focus on Tab key', async () => {
+    const { container } = render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+    const backdrop = container.querySelector('.modal-backdrop');
+    const focusableElements = backdrop?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+    
+    if (backdrop && focusableElements && focusableElements.length > 0) {
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      // Simulate focus on the last element and press Tab
+      lastElement.focus();
+      expect(document.activeElement).toBe(lastElement);
+
+      const preventDefault = vi.fn();
+      await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: false, preventDefault });
+      
+      expect(document.activeElement).toBe(firstElement);
+    }
+  });
+
+  it('traps focus on Shift+Tab key', async () => {
+    const { container } = render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+    const backdrop = container.querySelector('.modal-backdrop');
+    const focusableElements = backdrop?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+    
+    if (backdrop && focusableElements && focusableElements.length > 0) {
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      // Simulate focus on the first element and press Shift+Tab
+      firstElement.focus();
+      expect(document.activeElement).toBe(firstElement);
+
+      const preventDefault = vi.fn();
+      await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: true, preventDefault });
+      
+      expect(document.activeElement).toBe(lastElement);
+    }
   });
 });

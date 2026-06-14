@@ -142,3 +142,8 @@ export const appState = $state({
   ffprobeVersion: '',
   mkvmergeVersion: ''
 });
+
+export function toggleTheme() {
+  appState.isDarkMode = !appState.isDarkMode;
+  localStorage.setItem('app-theme', appState.isDarkMode ? 'dark' : 'light');
+}

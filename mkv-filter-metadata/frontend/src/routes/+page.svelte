@@ -4,7 +4,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { onMount, tick } from 'svelte';
 
-  import { config, appState, configState } from '../lib/stores/config.svelte';
+  import { config, appState, configState, toggleTheme } from '../lib/stores/config.svelte';
   import { shortcuts } from '../lib/stores/shortcuts.svelte';
   import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
@@ -82,6 +82,22 @@
         appState.hardwareEncoders = EncoderCapabilitiesSchema.parse(rawEncoders);
       } catch (e) {
         emitLog(`[ERROR] Failed querying hardware encoder API integrations: ${e}`);
+      }
+
+      const tools = ['ffmpeg', 'ffprobe', 'mkvmerge'];
+      for (const tool of tools) {
+        try {
+          const rawVer = await invoke(TAURI_COMMANDS.GET_SIDECAR_VERSION, { binaryName: tool });
+          const ver = z.string().parse(rawVer).trim();
+          if (tool === 'ffmpeg') appState.ffmpegVersion = ver;
+          if (tool === 'ffprobe') appState.ffprobeVersion = ver;
+          if (tool === 'mkvmerge') appState.mkvmergeVersion = ver;
+        } catch {
+          const errStr = 'Error or Embedded';
+          if (tool === 'ffmpeg') appState.ffmpegVersion = errStr;
+          if (tool === 'ffprobe') appState.ffprobeVersion = errStr;
+          if (tool === 'mkvmerge') appState.mkvmergeVersion = errStr;
+        }
       }
 
       const unlistenDrag = await listen(TAURI_EVENTS.DRAG_ENTER, () => {
@@ -260,11 +276,6 @@
 
   function stopTimer() {
     if (timerInterval) clearInterval(timerInterval);
-  }
-
-  function toggleTheme() {
-    appState.isDarkMode = !appState.isDarkMode;
-    localStorage.setItem('app-theme', appState.isDarkMode ? 'dark' : 'light');
   }
 
   async function displaySidecarVersions() {

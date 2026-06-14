@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_shell::ShellExt;
@@ -363,7 +362,7 @@ async fn process_one_file<R: tauri::Runtime>(
         reencode_subtitle_retry_successes: 0,
     };
 
-    if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
+    if cancel_token.is_cancelled() {
         return Err(AppError::Aborted);
     }
 
@@ -651,7 +650,6 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
 ) -> Result<PipelineSummary, AppError> {
     validate_payload(&payload)?;
 
-    state.is_aborted.store(false, Ordering::SeqCst);
     let cancel_token;
     {
         let mut session = state.process.lock().await;
@@ -669,15 +667,13 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
     let extensions = parse_comma_list(&payload.file_extensions);
     let input_directories = payload.input_directories.clone();
     let recursive = payload.recursive;
-    let app_clone = app.clone();
 
     let cancel_token_clone = cancel_token.clone();
     let target_files = tokio::task::spawn_blocking(move || {
         let mut target_files = Vec::new();
-        let state = app_clone.state::<AppState>();
 
         for dir_path in &input_directories {
-            if state.is_aborted.load(Ordering::SeqCst) || cancel_token_clone.is_cancelled() {
+            if cancel_token_clone.is_cancelled() {
                 return Err(AppError::Aborted);
             }
 
@@ -737,7 +733,7 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
     let mut set = tokio::task::JoinSet::new();
 
     for (index, (queue_dir, file_path)) in target_files.into_iter().enumerate() {
-        if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
+        if cancel_token.is_cancelled() {
             return Err(AppError::Aborted);
         }
 
@@ -800,7 +796,7 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
         }
     }
 
-    if state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled() {
+    if cancel_token.is_cancelled() {
         return Err(AppError::Aborted);
     }
 
@@ -1017,8 +1013,6 @@ pub async fn abort_video_pipeline<R: tauri::Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    state.is_aborted.store(true, Ordering::SeqCst);
-
     let (children, files_to_delete, dirs_to_check) = {
         let mut session = state.process.lock().await;
 

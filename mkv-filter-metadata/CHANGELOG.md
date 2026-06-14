@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [1.0.2] - 2026-06-14
+
+### Added
+- Implemented CI caching for Sidecar binaries and PNPM dependencies to significantly improve build speeds.
+
+### Changed
+- Centralized `toggleTheme` functionality in the Svelte frontend to reduce redundancy.
+- Improved frontend accessibility with focus trapping in the About Modal.
+- Simplified backend codebase by removing the redundant `is_aborted` state flag in favor of relying entirely on `CancellationToken`.
+
+### Fixed
+- Fixed an issue where the About Modal would inaccurately display "(today)" for previous day builds. It now displays the exact build date.
+- Fixed About Modal displaying "Loading..." instead of the exact version numbers for sidecar dependencies.
+- Resolved Svelte strict compiler warnings for tabindex and click-events-have-key-events.
+
 ## [1.0.1] - 2026-06-13
 
 ### Fixed

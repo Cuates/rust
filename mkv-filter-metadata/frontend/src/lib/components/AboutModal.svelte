@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
-  import { appState } from '$lib/stores/config.svelte';
+  import { appState, toggleTheme } from '$lib/stores/config.svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
 
   async function openExternal(url: string) {
@@ -21,39 +21,68 @@
     onClose: () => void;
   } = $props();
 
-  let timeAgo = $state('');
+  let closeBtn = $state<HTMLButtonElement>();
+  let modalContainer = $state<HTMLDivElement>();
 
-  function updateTimeAgo() {
-    const buildDate = new Date(__BUILD_DATE__);
-    const diffMs = Date.now() - buildDate.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) {
-      timeAgo = 'today';
-    } else if (diffDays === 1) {
-      timeAgo = '1 day ago';
-    } else {
-      timeAgo = `${diffDays} days ago`;
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      onClose();
+      return;
     }
-  }
 
-  function toggleTheme() {
-    appState.isDarkMode = !appState.isDarkMode;
-    localStorage.setItem('app-theme', appState.isDarkMode ? 'dark' : 'light');
+    if (e.key === 'Tab' && modalContainer) {
+      const focusableElements = modalContainer.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        // Shift + Tab
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
   }
 
   $effect(() => {
     if (show) {
-      updateTimeAgo();
+      // Use setTimeout to ensure DOM is updated before focusing
+      setTimeout(() => {
+        if (closeBtn) closeBtn.focus();
+      }, 0);
     }
   });
 </script>
 
 {#if show}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" transition:fade={{ duration: 150 }} onclick={onClose}>
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    tabindex="-1"
+    onkeydown={handleKeydown}
+    transition:fade={{ duration: 150 }}
+    onclick={onClose}
+    bind:this={modalContainer}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
       class="modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="about-title"
+      tabindex="-1"
       transition:scale={{ duration: 150, start: 0.95 }}
       onclick={(e) => e.stopPropagation()}
     >
@@ -65,7 +94,7 @@
             class="app-logo"
             onerror={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
           />
-          <h2>About MKV Filter Metadata</h2>
+          <h2 id="about-title">About MKV Filter Metadata</h2>
         </div>
         <button
           class="theme-toggle-icon-btn"
@@ -91,7 +120,7 @@
               <li><strong>Commit:</strong> {__COMMIT_HASH__}</li>
               <li>
                 <strong>Build Date:</strong>
-                {new Date(__BUILD_DATE__).toLocaleString()} ({timeAgo})
+                {new Date(__BUILD_DATE__).toLocaleString()}
               </li>
               <li><strong>Author:</strong> Produced by Cuates</li>
               <li><strong>Copyright:</strong> © {new Date().getFullYear()}</li>
@@ -170,7 +199,7 @@
       </div>
 
       <div class="modal-footer">
-        <button class="btn-cancel" onclick={onClose}>Close</button>
+        <button bind:this={closeBtn} class="btn-cancel" onclick={onClose}>Close</button>
       </div>
     </div>
   </div>
@@ -364,6 +393,12 @@
     &:hover {
       background-color: var(--hover-color, rgba(255, 255, 255, 0.1));
       color: var(--text-primary);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent-color, #4facfe);
+      outline-offset: 2px;
+      background-color: var(--hover-color, rgba(255, 255, 255, 0.1));
     }
   }
 </style>

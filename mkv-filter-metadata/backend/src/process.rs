@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 
@@ -576,8 +575,7 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
         }
     }
 
-    if aborted_mid_stream || state.is_aborted.load(Ordering::SeqCst) || cancel_token.is_cancelled()
-    {
+    if aborted_mid_stream || cancel_token.is_cancelled() {
         return Err(AppError::Aborted);
     }
 
