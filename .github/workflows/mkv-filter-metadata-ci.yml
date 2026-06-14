@@ -53,6 +53,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Cache sidecar binaries
+        uses: actions/cache@v4
+        id: sidecar-cache
+        with:
+          path: mkv-filter-metadata/backend/sidecars
+          key: sidecars-${{ hashFiles('mkv-filter-metadata/scripts/download-sidecars.mjs') }}
+
+      - name: Download sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: pnpm prebuild
+
       - name: Frontend check
         run: pnpm -F frontend check
 
@@ -102,6 +113,17 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Cache sidecar binaries
+        uses: actions/cache@v4
+        id: sidecar-cache
+        with:
+          path: mkv-filter-metadata/backend/sidecars
+          key: sidecars-${{ hashFiles('mkv-filter-metadata/scripts/download-sidecars.mjs') }}
+
+      - name: Download sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: pnpm prebuild
 
       - name: Install cargo-tarpaulin
         uses: taiki-e/install-action@cargo-tarpaulin
