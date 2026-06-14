@@ -116,7 +116,7 @@ describe('AboutModal.svelte', () => {
     const focusableElements = backdrop?.querySelectorAll<HTMLElement>(
       'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
     );
-    
+
     if (backdrop && focusableElements && focusableElements.length > 0) {
       const firstElement = focusableElements[0];
       const lastElement = focusableElements[focusableElements.length - 1];
@@ -127,7 +127,7 @@ describe('AboutModal.svelte', () => {
 
       const preventDefault = vi.fn();
       await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: false, preventDefault });
-      
+
       expect(document.activeElement).toBe(firstElement);
     }
   });
@@ -138,7 +138,7 @@ describe('AboutModal.svelte', () => {
     const focusableElements = backdrop?.querySelectorAll<HTMLElement>(
       'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
     );
-    
+
     if (backdrop && focusableElements && focusableElements.length > 0) {
       const firstElement = focusableElements[0];
       const lastElement = focusableElements[focusableElements.length - 1];
@@ -149,7 +149,7 @@ describe('AboutModal.svelte', () => {
 
       const preventDefault = vi.fn();
       await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: true, preventDefault });
-      
+
       expect(document.activeElement).toBe(lastElement);
     }
   });

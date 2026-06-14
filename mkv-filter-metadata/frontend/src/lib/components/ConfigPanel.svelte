@@ -84,21 +84,6 @@
   </div>
 </div>
 
-<div class="grid-layout-1" style="margin-bottom: 0.5rem;">
-  <div class="row toggle-row">
-    <label for="recursive-scan" class="toggle-label">Recursive Directory Scanning</label>
-    <label class="switch">
-      <input
-        id="recursive-scan"
-        type="checkbox"
-        bind:checked={config.recursive}
-        disabled={pipeline.processingActive}
-      />
-      <span class="slider round"></span>
-    </label>
-  </div>
-</div>
-
 <div class="advanced-wrapper" class:expanded={config.conversion_mode === 'reencode'}>
   <div class="reencode-advanced-panel">
     <div class="grid-layout-3">
@@ -208,67 +193,6 @@
       font-weight: 600;
       color: var(--text-secondary);
     }
-  }
-
-  .toggle-row {
-    flex-direction: row;
-    align-items: center;
-    gap: 1rem;
-
-    .toggle-label {
-      margin: 0;
-    }
-  }
-
-  /* Toggle Switch Styles */
-  .switch {
-    position: relative;
-    display: inline-block;
-    width: 36px;
-    height: 20px;
-  }
-
-  .switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: var(--border-color);
-    transition: 0.4s;
-    border-radius: 20px;
-  }
-
-  .slider:before {
-    position: absolute;
-    content: '';
-    height: 14px;
-    width: 14px;
-    left: 3px;
-    bottom: 3px;
-    background-color: white;
-    transition: 0.4s;
-    border-radius: 50%;
-  }
-
-  input:checked + .slider {
-    background-color: var(--accent-color);
-  }
-
-  input:disabled + .slider {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  input:checked + .slider:before {
-    transform: translateX(16px);
   }
 
   input,

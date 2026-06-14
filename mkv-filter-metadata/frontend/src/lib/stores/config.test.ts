@@ -29,6 +29,7 @@ describe('config.svelte', () => {
     expect(config.preset).toBe('faster');
     expect(config.crf).toBe(18);
     expect(config.recursive).toBe(false);
+    expect(config.save_queue_list).toBe(false);
     expect(config.input_directories).toEqual([]);
     expect(isConfigDefault()).toBe(true);
   });
@@ -66,6 +67,8 @@ describe('config.svelte', () => {
     expect(config.crf).toBe(22);
     // test bounds clamping
     expect(config.remux_concurrency).toBe(8);
+    // test save_queue_list clearing
+    expect(config.input_directories).toEqual([]);
     expect(configState.isLoaded).toBe(true);
   });
 
@@ -93,7 +96,15 @@ describe('config.svelte', () => {
     await vi.runAllTimersAsync();
 
     expect(mockStore.set).toHaveBeenCalled();
+    // Verify input_directories wasn't saved because save_queue_list was false
+    expect(mockStore.set).toHaveBeenCalledWith('input_directories', []);
     expect(mockStore.save).toHaveBeenCalled();
+
+    // Now turn it on and test it saves correctly
+    config.save_queue_list = true;
+    config.input_directories = ['/some/path'];
+    await vi.runAllTimersAsync();
+    expect(mockStore.set).toHaveBeenCalledWith('input_directories', ['/some/path']);
 
     vi.useRealTimers();
   });

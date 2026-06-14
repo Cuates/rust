@@ -43,6 +43,7 @@ export interface AppConfig {
   input_directories: string[];
   file_extensions: string;
   recursive: boolean;
+  save_queue_list: boolean;
   subtitle_tracks: string;
   output_extension: string;
   conversion_mode: ConversionMode;
@@ -57,6 +58,7 @@ const DEFAULT_CONFIG: AppConfig = {
   input_directories: [],
   file_extensions: 'mkv, mp4, mov, avi, ogm, wmv',
   recursive: false,
+  save_queue_list: false,
   subtitle_tracks: 'ang, eng, enm, zxx, und',
   output_extension: '.mkv',
   conversion_mode: 'remux',
@@ -92,6 +94,10 @@ export async function loadConfig() {
     }
   }
 
+  if (!config.save_queue_list) {
+    config.input_directories = [];
+  }
+
   if (config.remux_concurrency > 8) {
     config.remux_concurrency = 8;
   }
@@ -107,9 +113,10 @@ export function initConfigWatcher() {
 
     // access all properties to track them
     const currentConfig = {
-      input_directories: config.input_directories,
+      input_directories: config.save_queue_list ? config.input_directories : [],
       file_extensions: config.file_extensions,
       recursive: config.recursive,
+      save_queue_list: config.save_queue_list,
       subtitle_tracks: config.subtitle_tracks,
       output_extension: config.output_extension,
       conversion_mode: config.conversion_mode,
