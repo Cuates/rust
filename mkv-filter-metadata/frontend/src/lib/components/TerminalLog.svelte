@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { save } from '@tauri-apps/plugin-dialog';
-  import { pipeline } from '../stores/pipeline.svelte';
+  import { pipeline } from '$lib/stores/pipeline.svelte';
   import { addToast } from '../stores/toast.svelte';
   import { getLogClass } from '../utils/logClassifier';
   import { TAURI_COMMANDS } from '../constants';
@@ -172,7 +172,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
-    flex: 1;
+    height: 350px;
+    flex-shrink: 0;
   }
 
   .terminal-header-row {

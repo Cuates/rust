@@ -8,7 +8,7 @@ use crate::models::{AppState, ConversionMode, VideoCodec};
 
 /// Writes a log message to the cached writer and emits it to the frontend.
 /// The writer must be initialized via `initialize_session_log` before disk writes take effect.
-pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
+pub fn append_log<R: tauri::Runtime>(app: &AppHandle<R>, message: impl AsRef<str>) {
     let msg = message.as_ref();
     if msg.contains("[ERROR]")
         || msg.contains("[FATAL]")
@@ -75,7 +75,7 @@ pub fn append_log(app: &AppHandle, message: impl AsRef<str>) {
 
 /// Flushes the cached log writer to ensure all buffered data is written to disk.
 /// Must be called before reading the log file directly.
-pub fn flush_log_writer(app: &AppHandle) {
+pub fn flush_log_writer<R: tauri::Runtime>(app: &AppHandle<R>) {
     let state = app.state::<AppState>();
     if let Ok(mut guard) = state.log_writer.lock()
         && let Some(log) = guard.as_mut()
@@ -308,8 +308,8 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
 }
 
 /// Mimics the Python script's `get_matching_subtitle_maps` to extract exact numeric stream IDs using ffprobe
-pub async fn get_matching_subtitle_maps(
-    app: &AppHandle,
+pub async fn get_matching_subtitle_maps<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     file_path: &Path,
     allowed_langs: &[String],
 ) -> Result<Vec<String>, AppError> {
@@ -417,8 +417,8 @@ pub fn parse_ffmpeg_time(time_str: &str) -> Option<f64> {
 }
 
 /// Helper function to execute a sidecar command and handle its events.
-pub async fn run_sidecar_command(
-    app: &AppHandle,
+pub async fn run_sidecar_command<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     state: &tauri::State<'_, AppState>,
     binary_name: &str,
     args: Vec<String>,

@@ -32,8 +32,8 @@ fn validate_character_list(
     Ok(())
 }
 
-async fn check_file_processed(
-    app: &AppHandle,
+async fn check_file_processed<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     path_str: String,
     original_size: u64,
     modified_timestamp: u64,
@@ -53,8 +53,8 @@ async fn check_file_processed(
     .unwrap_or(false)
 }
 
-async fn mark_file_processed_async(
-    app: &AppHandle,
+async fn mark_file_processed_async<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     path_str: String,
     original_size: u64,
     modified_timestamp: u64,
@@ -76,8 +76,8 @@ async fn mark_file_processed_async(
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn retry_with_ass_conversion<'a>(
-    app: &AppHandle,
+async fn retry_with_ass_conversion<'a, R: tauri::Runtime>(
+    app: &AppHandle<R>,
     state: &tauri::State<'_, AppState>,
     file_path: &std::path::Path,
     output_file_path: &std::path::Path,
@@ -115,8 +115,8 @@ async fn retry_with_ass_conversion<'a>(
     .await
 }
 
-async fn run_mkvmerge_fallback(
-    app: &AppHandle,
+async fn run_mkvmerge_fallback<R: tauri::Runtime>(
+    app: &AppHandle<R>,
     state: &tauri::State<'_, AppState>,
     file_path: &std::path::Path,
     output_file_path: &std::path::Path,
@@ -342,8 +342,8 @@ struct ProcessResult {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn process_one_file(
-    app: AppHandle,
+async fn process_one_file<R: tauri::Runtime>(
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     payload: VideoPipelinePayload,
     queue_dir: String,
@@ -644,8 +644,8 @@ async fn process_one_file(
 }
 
 #[tauri::command]
-pub async fn process_video_pipeline(
-    app: AppHandle,
+pub async fn process_video_pipeline<R: tauri::Runtime>(
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     payload: VideoPipelinePayload,
 ) -> Result<PipelineSummary, AppError> {
@@ -868,7 +868,10 @@ pub async fn process_video_pipeline(
 }
 
 #[tauri::command]
-pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<String, AppError> {
+pub async fn get_sidecar_version<R: tauri::Runtime>(
+    app: AppHandle<R>,
+    binary_name: String,
+) -> Result<String, AppError> {
     let shell = app.shell();
     let args = if binary_name == "mkvmerge" {
         vec!["--version".to_string()]
@@ -902,7 +905,9 @@ pub async fn get_sidecar_version(app: AppHandle, binary_name: String) -> Result<
 }
 
 #[tauri::command]
-pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderCapabilities {
+pub async fn get_encoder_capabilities<R: tauri::Runtime>(
+    app: AppHandle<R>,
+) -> crate::models::EncoderCapabilities {
     let state = app.state::<AppState>();
     if let Some(caps) = state.encoder_caps.get() {
         return caps.clone();
@@ -926,7 +931,7 @@ pub async fn get_encoder_capabilities(app: AppHandle) -> crate::models::EncoderC
         let has_qsv = stdout.contains("_qsv");
         let has_videotoolbox = stdout.contains("_videotoolbox");
 
-        let test_codec = |app: AppHandle, codec: &'static str| async move {
+        let test_codec = |app: AppHandle<R>, codec: &'static str| async move {
             if let Ok(test_cmd) = app.shell().sidecar("ffmpeg")
                 && let Ok(test_out) = test_cmd
                     .args([
@@ -1008,8 +1013,8 @@ async fn retry_remove_file(path: &std::path::Path) -> std::io::Result<()> {
 }
 
 #[tauri::command]
-pub async fn abort_video_pipeline(
-    app: AppHandle,
+pub async fn abort_video_pipeline<R: tauri::Runtime>(
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
     state.is_aborted.store(true, Ordering::SeqCst);
@@ -1083,7 +1088,7 @@ pub async fn abort_video_pipeline(
 }
 
 #[tauri::command]
-pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
+pub fn save_log_file<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result<(), AppError> {
     flush_log_writer(&app);
     if let Ok(log_dir) = app.path().app_log_dir() {
         let mut target_file = std::fs::File::create(&path)
@@ -1109,7 +1114,7 @@ pub fn save_log_file(app: AppHandle, path: String) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub fn read_session_log(app: AppHandle) -> Result<String, AppError> {
+pub fn read_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, AppError> {
     flush_log_writer(&app);
     let mut content = String::new();
     if let Ok(log_dir) = app.path().app_log_dir() {
@@ -1126,7 +1131,7 @@ pub fn read_session_log(app: AppHandle) -> Result<String, AppError> {
 }
 
 #[tauri::command]
-pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
+pub fn initialize_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
     if let Ok(log_dir) = app.path().app_log_dir() {
         if !log_dir.exists() {
             let _ = std::fs::create_dir_all(&log_dir);
@@ -1157,13 +1162,13 @@ pub fn initialize_session_log(app: AppHandle) -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub fn log_message(app: AppHandle, message: String) {
+pub fn log_message<R: tauri::Runtime>(app: AppHandle<R>, message: String) {
     crate::process::append_log(&app, message);
     flush_log_writer(&app);
 }
 
 #[tauri::command]
-pub fn check_session_log(app: AppHandle) -> Result<bool, AppError> {
+pub fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<bool, AppError> {
     flush_log_writer(&app);
     if let Ok(log_dir) = app.path().app_log_dir() {
         let log_file = log_dir.join("session.log");
@@ -1175,7 +1180,7 @@ pub fn check_session_log(app: AppHandle) -> Result<bool, AppError> {
 }
 
 #[tauri::command]
-pub fn open_folder(app: AppHandle, path: String) -> Result<(), AppError> {
+pub fn open_folder<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result<(), AppError> {
     app.opener()
         .open_path(path, None::<&str>)
         .map_err(|e| AppError::Process(format!("Failed to open folder: {}", e)))?;

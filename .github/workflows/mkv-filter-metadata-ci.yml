@@ -65,3 +65,9 @@ jobs:
 
       - name: Run tests
         run: pnpm test
+
+      - name: Install cargo-tarpaulin
+        uses: taiki-e/install-action@cargo-tarpaulin
+        
+      - name: Enforce test coverage
+        run: pnpm run test:coverage

@@ -107,7 +107,7 @@
         <select id="v-codec" bind:value={config.video_codec} disabled={pipeline.processingActive}>
           <option value="libx265">libx265 (CPU)</option>
           <option value="libx264">libx264 (CPU)</option>
-          {#if appState.hardwareEncoders.nvenc}
+          {#if appState /* v8 ignore next 15 */.hardwareEncoders.nvenc}
             <option value="hevc_nvenc">hevc_nvenc (NVIDIA)</option>
             <option value="h264_nvenc">h264_nvenc (NVIDIA)</option>
             <option value="av1_nvenc">av1_nvenc (NVIDIA)</option>

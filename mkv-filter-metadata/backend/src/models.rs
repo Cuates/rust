@@ -131,3 +131,30 @@ impl Default for AppState {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_video_codec_display() {
+        assert_eq!(VideoCodec::Libx265.to_string(), "libx265");
+        assert_eq!(VideoCodec::HevcNvenc.to_string(), "hevc_nvenc");
+        assert_eq!(VideoCodec::HevcAmf.to_string(), "hevc_amf");
+    }
+
+    #[test]
+    fn test_preset_display() {
+        assert_eq!(Preset::Faster.to_string(), "faster");
+        assert_eq!(Preset::P1.to_string(), "p1");
+        assert_eq!(Preset::Quality.to_string(), "quality");
+    }
+
+    #[test]
+    fn test_app_state_default() {
+        let state = AppState::default();
+        assert!(!state.is_aborted.load(std::sync::atomic::Ordering::SeqCst));
+        assert!(state.log_writer.lock().unwrap().is_none());
+        assert!(state.db.blocking_lock().is_none());
+    }
+}

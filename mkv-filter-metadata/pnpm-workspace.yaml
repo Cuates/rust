@@ -2,7 +2,10 @@ packages:
   - 'frontend'
 allowBuilds:
   '@parcel/watcher': true
+  edgedriver: true
   esbuild: true
+  geckodriver: true
 overrides:
   cookie: ">=0.7.0"
   esbuild: "^0.28.1"
+  serialize-javascript: "^7.0.5"

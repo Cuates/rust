@@ -735,7 +735,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
-    flex: 1;
-    min-height: 250px;
+    flex-shrink: 0;
   }
 </style>

@@ -24,3 +24,44 @@ impl Serialize for AppError {
         serializer.serialize_str(&self.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_serialization() {
+        let err = AppError::Aborted;
+        assert_eq!(
+            serde_json::to_string(&err).unwrap(),
+            "\"Pipeline aborted by user\""
+        );
+
+        let err2 = AppError::Sidecar("failed".to_string());
+        assert_eq!(
+            serde_json::to_string(&err2).unwrap(),
+            "\"Sidecar error: failed\""
+        );
+
+        let err3 = AppError::FfprobeFailed("broken".to_string());
+        assert_eq!(
+            serde_json::to_string(&err3).unwrap(),
+            "\"FFprobe failure: broken\""
+        );
+
+        let err4 = AppError::Process("err".to_string());
+        assert_eq!(
+            serde_json::to_string(&err4).unwrap(),
+            "\"Process error: err\""
+        );
+
+        let err5 = AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "not found",
+        ));
+        assert_eq!(
+            serde_json::to_string(&err5).unwrap(),
+            "\"IO error: not found\""
+        );
+    }
+}

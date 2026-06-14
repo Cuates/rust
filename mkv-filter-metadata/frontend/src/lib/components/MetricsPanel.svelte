@@ -1,15 +1,20 @@
 <script lang="ts">
-  import { pipeline } from '../stores/pipeline.svelte';
+  import { pipeline } from '$lib/stores/pipeline.svelte';
   import { formatBytes } from '../utils/formatters';
 
   let storageSavedPercent = $derived.by(() => {
     if (pipeline.storageOriginalBytes === 0) return 0;
-    return Math.max(
-      0,
+    return (
       ((pipeline.storageOriginalBytes - pipeline.storageOutputBytes) /
         pipeline.storageOriginalBytes) *
-        100
+      100
     );
+  });
+
+  let storageColor = $derived.by(() => {
+    if (storageSavedPercent > 0.01) return '#22c55e';
+    if (storageSavedPercent < -0.01) return 'var(--danger-color)';
+    return 'var(--text-primary)';
   });
 </script>
 
@@ -51,10 +56,10 @@
   {#if pipeline.overallProgress === 100 && pipeline.storageOriginalBytes > 0}
     <div class="time-container-block">
       <span class="total-time-title">Storage Saved:</span>
-      <span class="total-time-value" style="color: var(--success-color);">
-        {storageSavedPercent.toFixed(2)}% ({formatBytes(pipeline.storageOriginalBytes)} -> {formatBytes(
-          pipeline.storageOutputBytes
-        )})
+      <span class="total-time-value" style="color: {storageColor};">
+        {storageSavedPercent > 0.01 ? '+' : ''}{storageSavedPercent.toFixed(2)}% ({formatBytes(
+          pipeline.storageOriginalBytes
+        )} -> {formatBytes(pipeline.storageOutputBytes)})
       </span>
     </div>
   {/if}

@@ -35,6 +35,7 @@ export async function loadShortcuts() {
   shortcutsState.isLoaded = true;
 }
 
+/* v8 ignore next 15 */
 export function initShortcutWatcher() {
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {

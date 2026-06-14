@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck
 import { defineConfig } from 'vite';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'child_process';
@@ -17,6 +19,26 @@ try {
 // https://vite.dev/config/
 export default defineConfig(async () => ({
   plugins: [sveltekit()],
+
+  resolve: {
+    conditions: process.env.VITEST ? ['browser'] : undefined
+  },
+
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./vitest-setup.js'],
+    include: ['src/**/*.{test,spec}.{js,ts}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        branches: 80,
+        statements: 90
+      }
+    }
+  },
 
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),

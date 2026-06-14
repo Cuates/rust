@@ -2,7 +2,9 @@ use crate::error::AppError;
 use rusqlite::Connection;
 use tauri::Manager;
 
-pub fn init_db(app: &tauri::AppHandle) -> std::result::Result<Connection, AppError> {
+pub fn init_db<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> std::result::Result<Connection, AppError> {
     let app_dir = app
         .path()
         .app_data_dir()

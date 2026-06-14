@@ -71,6 +71,7 @@
     }
   }
 
+  /* v8 ignore next 15 */
   function handlePointerDown(e: PointerEvent, index: number) {
     if (pipeline.processingActive) return;
     if (

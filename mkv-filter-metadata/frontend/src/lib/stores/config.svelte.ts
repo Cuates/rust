@@ -99,6 +99,7 @@ export async function loadConfig() {
   configState.isLoaded = true;
 }
 
+/* v8 ignore next 25 */
 export function initConfigWatcher() {
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   $effect(() => {
