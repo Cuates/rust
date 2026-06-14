@@ -74,17 +74,28 @@ async fn mark_file_processed_async<R: tauri::Runtime>(
     .await;
 }
 
-#[allow(clippy::too_many_arguments)]
+struct RetryAssContext<'a> {
+    file_path: &'a std::path::Path,
+    output_file_path: &'a std::path::Path,
+    subtitle_maps: &'a [String],
+    file_name: &'a str,
+    mode: ConversionMode,
+    reencode_config: Option<ReencodeConfig<'a>>,
+}
+
 async fn retry_with_ass_conversion<'a, R: tauri::Runtime>(
     app: &AppHandle<R>,
     state: &tauri::State<'_, AppState>,
-    file_path: &std::path::Path,
-    output_file_path: &std::path::Path,
-    subtitle_maps: &[String],
-    file_name: &str,
-    mode: ConversionMode,
-    reencode_config: Option<ReencodeConfig<'a>>,
+    context: RetryAssContext<'a>,
 ) -> Result<(bool, Vec<String>), AppError> {
+    let RetryAssContext {
+        file_path,
+        output_file_path,
+        subtitle_maps,
+        file_name,
+        mode,
+        reencode_config,
+    } = context;
     append_log(
         app,
         "  | [ERROR] ⚠️ Subtitle codec incompatible with container. Retrying with ASS conversion...",
@@ -340,17 +351,27 @@ struct ProcessResult {
     reencode_subtitle_retry_successes: usize,
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn process_one_file<R: tauri::Runtime>(
-    app: AppHandle<R>,
-    state: tauri::State<'_, AppState>,
+struct ProcessFileContext {
     payload: VideoPipelinePayload,
     queue_dir: String,
-    file_path: std::path::PathBuf,
     current_index: usize,
     total_files: usize,
     cancel_token: tokio_util::sync::CancellationToken,
+}
+
+async fn process_one_file<R: tauri::Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    file_path: std::path::PathBuf,
+    context: ProcessFileContext,
 ) -> Result<ProcessResult, AppError> {
+    let ProcessFileContext {
+        payload,
+        queue_dir,
+        current_index,
+        total_files,
+        cancel_token,
+    } = context;
     let mut res = ProcessResult {
         success: false,
         skipped: false,
@@ -514,16 +535,18 @@ async fn process_one_file<R: tauri::Runtime>(
             let (retry_success, _) = retry_with_ass_conversion(
                 &app,
                 &state,
-                &file_path,
-                &output_file_path,
-                &subtitle_maps,
-                &file_name,
-                ConversionMode::Reencode,
-                Some(ReencodeConfig {
-                    video_codec: &payload.video_codec,
-                    preset: &payload.preset,
-                    crf: &payload.crf,
-                }),
+                RetryAssContext {
+                    file_path: &file_path,
+                    output_file_path: &output_file_path,
+                    subtitle_maps: &subtitle_maps,
+                    file_name: &file_name,
+                    mode: ConversionMode::Reencode,
+                    reencode_config: Some(ReencodeConfig {
+                        video_codec: &payload.video_codec,
+                        preset: &payload.preset,
+                        crf: &payload.crf,
+                    }),
+                },
             )
             .await?;
             file_success = retry_success;
@@ -567,12 +590,14 @@ async fn process_one_file<R: tauri::Runtime>(
             let (retry_success, retry_stderr) = retry_with_ass_conversion(
                 &app,
                 &state,
-                &file_path,
-                &output_file_path,
-                &subtitle_maps,
-                &file_name,
-                ConversionMode::Remux,
-                None,
+                RetryAssContext {
+                    file_path: &file_path,
+                    output_file_path: &output_file_path,
+                    subtitle_maps: &subtitle_maps,
+                    file_name: &file_name,
+                    mode: ConversionMode::Remux,
+                    reencode_config: None,
+                },
             )
             .await?;
             file_success = retry_success;
@@ -751,12 +776,14 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
             let result = process_one_file(
                 app_clone.clone(), // we need app_clone to live longer
                 state.clone(), // state can be cloned since tauri::State implements Clone internally if we just pass a ref, but tauri::State doesn't implement Clone.
-                payload_clone,
-                queue_dir,
                 file_path,
-                index + 1,
-                total_files,
-                cancel_token_clone,
+                ProcessFileContext {
+                    payload: payload_clone,
+                    queue_dir,
+                    current_index: index + 1,
+                    total_files,
+                    cancel_token: cancel_token_clone,
+                },
             )
             .await;
             drop(permit);
