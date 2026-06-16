@@ -41,6 +41,7 @@ export default tseslint.config(
   {
     rules: {
       // Add custom rules here if needed
+      'svelte/no-navigation-without-resolve': 'off'
     }
   },
   {

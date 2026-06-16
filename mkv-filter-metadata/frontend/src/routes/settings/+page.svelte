@@ -76,7 +76,6 @@
 <main class="app-container">
   <header class="navbar-layer">
     <div style="display: flex; align-items: center; gap: 1rem;">
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
       <a class="back-btn" href="/" style="text-decoration: none;">←</a>
       <h1>Settings</h1>
     </div>

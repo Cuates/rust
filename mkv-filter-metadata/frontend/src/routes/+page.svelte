@@ -519,7 +519,6 @@
   <header class="navbar-layer">
     <h1>MKV Filter Metadata</h1>
     <div class="nav-actions">
-      <!-- eslint-disable svelte/no-navigation-without-resolve -->
       <a
         class="theme-toggle-icon-btn"
         href="/guide"
@@ -548,7 +547,6 @@
         aria-label="Settings"
         style="text-decoration: none;">⚙️</a
       >
-      <!-- eslint-enable svelte/no-navigation-without-resolve -->
       <button
         class="theme-toggle-icon-btn"
         onclick={() => (showAboutModal = true)}

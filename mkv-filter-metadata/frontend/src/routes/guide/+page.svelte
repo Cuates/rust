@@ -9,7 +9,6 @@
 <main class="app-container">
   <header class="navbar-layer">
     <div style="display: flex; align-items: center; gap: 1rem;">
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
       <a class="back-btn" href="/" style="text-decoration: none;">←</a>
       <h1>How To Use</h1>
     </div>
@@ -85,7 +84,6 @@
           application. If you'd like your queue to persist across reboots, you can enable the
           <span class="highlight">"Save Queue List Between Sessions"</span>
           option located in the
-          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
           <a href="/settings" class="guide-link">Settings (⚙️)</a> page.
         </li>
       </ul>

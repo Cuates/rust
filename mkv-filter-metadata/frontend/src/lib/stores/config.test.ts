@@ -86,9 +86,6 @@ describe('config.svelte', () => {
     );
     await loadConfig();
 
-    // @ts-expect-error - Svelte property assignment
-    appState.storeReady = true;
-
     render(TestWrapper);
 
     config.crf = 20;

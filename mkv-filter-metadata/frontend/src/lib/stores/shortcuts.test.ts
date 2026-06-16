@@ -2,7 +2,7 @@ import TestWrapper from '../components/TestWrapper.svelte';
 import { render } from '@testing-library/svelte';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shortcuts, resetShortcutsToDefaults, loadShortcuts } from './shortcuts.svelte';
-import { appState } from './config.svelte';
+
 import { load } from '@tauri-apps/plugin-store';
 import {} from 'svelte';
 
@@ -46,8 +46,6 @@ describe('shortcuts.svelte', () => {
     );
     await loadShortcuts();
 
-    // @ts-expect-error - Svelte property assignment
-    appState.storeReady = true;
     render(TestWrapper);
 
     shortcuts.startPipeline = 'Ctrl+R';
