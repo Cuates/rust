@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-// @ts-nocheck
-import { defineConfig } from 'vite';
+/// <reference types="vitest" />
+import { defineConfig } from 'vitest/config';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'child_process';
 import { readFileSync } from 'fs';
@@ -9,15 +8,17 @@ const host = process.env.TAURI_DEV_HOST;
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'));
 
-let commitHash = 'unknown';
-try {
-  commitHash = execSync('git rev-parse --short HEAD').toString().trim();
-} catch (e) {
-  console.warn('Failed to get commit hash', e);
-}
+const commitHash: string = (() => {
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch (e) {
+    console.warn('Failed to get commit hash', e);
+    return 'unknown';
+  }
+})();
 
 // https://vite.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(() => ({
   plugins: [sveltekit()],
 
   resolve: {
@@ -29,7 +30,7 @@ export default defineConfig(async () => ({
     setupFiles: ['./vitest-setup.js'],
     include: ['src/**/*.{test,spec}.{js,ts}'],
     coverage: {
-      provider: 'v8',
+      provider: 'v8' as const,
       reporter: ['text', 'json', 'html'],
       thresholds: {
         lines: 90,
@@ -58,7 +59,10 @@ export default defineConfig(async () => ({
   // 1. prevent Vite from obscuring rust errors
   clearScreen: false,
   esbuild: {
-    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : []
+    drop:
+      process.env.NODE_ENV === 'production'
+        ? (['console', 'debugger'] as ('console' | 'debugger')[])
+        : []
   },
   build: {
     target: 'es2022'

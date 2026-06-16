@@ -98,4 +98,72 @@ describe('ConfirmationModal.svelte', () => {
       expect(onCancel).not.toHaveBeenCalled();
     }
   });
+  it('calls onCancel when Escape key is pressed', async () => {
+    const onCancel = vi.fn();
+    const { container } = render(ConfirmationModal, {
+      props: { show: true, onConfirm: vi.fn(), onCancel }
+    });
+
+    const backdrop = container.querySelector('.modal-backdrop');
+    if (backdrop) {
+      await fireEvent.keyDown(backdrop, { key: 'Escape' });
+      expect(onCancel).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('traps focus inside the modal with Tab', async () => {
+    const { container } = render(ConfirmationModal, {
+      props: { show: true, onConfirm: vi.fn(), onCancel: vi.fn() }
+    });
+
+    const backdrop = container.querySelector('.modal-backdrop');
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
+
+    confirmBtn.focus();
+    if (backdrop) {
+      await fireEvent.keyDown(backdrop, { key: 'Tab' });
+      expect(document.activeElement).toBe(cancelBtn);
+    }
+  });
+
+  it('traps focus inside the modal with Shift+Tab', async () => {
+    const { container } = render(ConfirmationModal, {
+      props: { show: true, onConfirm: vi.fn(), onCancel: vi.fn() }
+    });
+
+    const backdrop = container.querySelector('.modal-backdrop');
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
+
+    cancelBtn.focus();
+    if (backdrop) {
+      await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: true });
+      expect(document.activeElement).toBe(confirmBtn);
+    }
+  });
+
+  it('ignores other keys for focus trap', async () => {
+    const { container } = render(ConfirmationModal, {
+      props: { show: true, onConfirm: vi.fn(), onCancel: vi.fn() }
+    });
+    const backdrop = container.querySelector('.modal-backdrop');
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    cancelBtn.focus();
+
+    if (backdrop) {
+      await fireEvent.keyDown(backdrop, { key: 'Enter' });
+      expect(document.activeElement).toBe(cancelBtn);
+    }
+  });
+
+  it('focuses cancel button automatically on mount', async () => {
+    render(ConfirmationModal, {
+      props: { show: true, onConfirm: vi.fn(), onCancel: vi.fn() }
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    expect(document.activeElement).toBe(cancelBtn);
+  });
 });

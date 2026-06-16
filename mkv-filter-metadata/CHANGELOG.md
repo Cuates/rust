@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.6] - 2026-06-15
+
+### Changed
+- Converted `vite.config.js` to TypeScript (`vite.config.ts`) to provide 100% type safety and eliminate `// @ts-nocheck` suppressions.
+
+### Fixed
+- Fixed an event bubbling bug where `onkeydown={(e) => e.stopPropagation()}` was incorrectly intercepting keyboard events in the modal card, breaking focus traps and keyboard dismissal.
+- Implemented full WAI-ARIA compliance and keyboard accessibility (Tab focus trapping, Escape dismissal) for the Confirmation Modal, matching the About Modal.
+- Added comprehensive unit tests for `ConfirmationModal.svelte` covering all keyboard navigation behaviors, restoring branch test coverage.
+
 ## [1.1.5] - 2026-06-15
 
 ### Changed

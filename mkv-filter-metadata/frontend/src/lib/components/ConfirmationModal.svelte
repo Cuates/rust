@@ -18,25 +18,80 @@
     onConfirm: () => void;
     onCancel: () => void;
   } = $props();
+
+  let cancelBtn = $state<HTMLButtonElement>();
+  let modalContainer = $state<HTMLDivElement>();
+
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      onCancel();
+      return;
+    }
+
+    if (e.key === 'Tab' && modalContainer) {
+      const focusableElements = modalContainer.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+      );
+
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        // Shift + Tab
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        // Tab
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    }
+  }
+
+  $effect(() => {
+    if (show) {
+      // Use setTimeout to ensure DOM is updated before focusing
+      setTimeout(() => {
+        if (cancelBtn) cancelBtn.focus();
+      }, 0);
+    }
+  });
 </script>
 
 {#if show}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="modal-backdrop" transition:fade={{ duration: 150 }} onclick={onCancel}>
+  <div
+    class="modal-backdrop"
+    role="presentation"
+    tabindex="-1"
+    onkeydown={handleKeydown}
+    transition:fade={{ duration: 150 }}
+    onclick={onCancel}
+    bind:this={modalContainer}
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
       class="modal-card"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
+      tabindex="-1"
       transition:scale={{ duration: 150, start: 0.95 }}
       onclick={(e) => e.stopPropagation()}
     >
       <div class="modal-header">
-        <h2>{title}</h2>
+        <h2 id="confirm-title">{title}</h2>
       </div>
       <div class="modal-body">
         <p>{message}</p>
       </div>
       <div class="modal-footer">
-        <button class="btn-cancel" onclick={onCancel}>{cancelText}</button>
+        <button bind:this={cancelBtn} class="btn-cancel" onclick={onCancel}>{cancelText}</button>
         <button class="btn-confirm" onclick={onConfirm}>{confirmText}</button>
       </div>
     </div>
