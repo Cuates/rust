@@ -57,25 +57,29 @@ mkv-subtitle-converter/
 ├── 
 │   ├── frontend/                  # Decoupled Webview Client (SvelteKit / Svelte 5)
 │   │   ├── package.json
-│   │   ├── svelte.config.js       # Outfitted with Adapter-Static constraints (outputs to dist/)
+│   │   ├── svelte.config.js       # Outfitted with Adapter-Static constraints (outputs to build/)
 │   │   ├── tsconfig.json          # TypeScript compiler configuration
-│   │   ├── vite.config.js         # Vite bundler configurations
+│   │   ├── vite.config.ts         # Vite bundler configurations
 │   │   ├── static/                # Uncompiled raw static assets
 │   │   │   ├── favicon.png
 │   │   │   ├── svelte.svg
 │   │   │   ├── tauri.svg
 │   │   │   └── vite.svg
 │   │   └── src/
+│   │       ├── lib/               # Reusable UI components, stores, and utilities
+│   │       │   ├── components/
+│   │       │   ├── stores/
+│   │       │   └── utils/
 │   │       ├── styles/            # Global SCSS styling architecture
 │   │       │   ├── _variables.scss
 │   │       │   └── app.scss
-│   │       └── routes/            # UI components and Tauri async IPC invocations
+│   │       └── routes/            # SvelteKit layout and page routing
 │   │           ├── +layout.svelte # Root layout shell
 │   │           ├── +layout.ts     # Static pre-rendering enforcer (SSR false)
 │   │           └── +page.svelte   # Primary application interaction view
 │   └── backend/                   # Decoupled Native Desktop Layer (Tauri v2 + Rust)
 │       ├── Cargo.toml             # System crate workspace dependencies
-│       ├── tauri.conf.json        # Main Tauri application layout and compilation schema (reads dist/)
+│       ├── tauri.conf.json        # Main Tauri application layout and compilation schema (reads build/)
 │       ├── capabilities/
 │       │   └── default.json       # Security layer access token configuration
 │       ├── binaries/              # Embedded cross-platform system sidecars
@@ -109,15 +113,36 @@ packages:
 
 ```json
 {
-  "name": "mkv-subtitle-converter-root",
-  "private": true,
+  "name": "mkv-subtitle-extractor-converter-rust",
+  "version": "1.3.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "dev": "tauri dev",
+    "prebuild": "node scripts/download-sidecars.mjs",
     "build": "tauri build",
-    "clean": "pnpm -r exec rm -rf node_modules dist .svelte-kit target && pnpm install"
+    "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
+    "check:deadcode": "pnpm -F frontend exec knip && cargo clippy --manifest-path backend/Cargo.toml -- -D dead_code",
+    "clean": "cargo clean --manifest-path backend/Cargo.toml && npx --yes rimraf node_modules frontend/node_modules && pnpm install",
+    "dev": "tauri dev",
+    "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
+    "app-info": "tauri info",
+    "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
+    "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
+    "test:coverage": "pnpm -F frontend coverage && cargo tarpaulin --manifest-path backend/Cargo.toml --out Html"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "^11.3.0",
+      "onFail": "download"
+    }
+  },
+  "type": "module",
   "devDependencies": {
-    "@tauri-apps/cli": "latest"
+    "@tauri-apps/cli": "^2.11.3"
   }
 }
 ```
@@ -191,7 +216,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "2.0.0"
+  "version": "1.3.0"
 }
 
 ```
@@ -202,7 +227,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "2.0.0"
+  "version": "1.3.0"
 }
 ```
 
@@ -270,11 +295,11 @@ Update **`backend/tauri.conf.json`**:
   "beforeDevCommand": "pnpm --filter frontend dev",
   "beforeBuildCommand": "pnpm --filter frontend build",
   "devUrl": "http://localhost:5173",
-  "frontendDist": "../frontend/dist"
+  "frontendDist": "../frontend/build"
 }
 ```
 
-Simultaneously, enforce static generation rules on your client configuration so it produces individual asset documents instead of node system server scripts, routing the compiler output straight into the standard `dist` folder.
+Simultaneously, enforce static generation rules on your client configuration so it produces individual asset documents instead of node system server scripts, routing the compiler output straight into the standard `build` folder.
 
 Update **`frontend/svelte.config.js`**:
 
@@ -287,8 +312,8 @@ const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      pages: 'dist',
-      assets: 'dist',
+      pages: 'build',
+      assets: 'build',
       fallback: 'index.html', // Required for SPA. (Will throw a safe overwrite warning during build)
       precompress: false,
       strict: true
@@ -410,7 +435,7 @@ You can completely bypass the installer and provide a raw, portable folder that 
 ### ❌ Issue: App opens to a white screen / "asset not found: index.html"
 
 * **Cause:** The `tauri.conf.json` is looking for `index.html` as its entry point, but `svelte.config.js` generated a different fallback file name, or `frontendDist` is misconfigured.
-* **Resolution:** Ensure `fallback: 'index.html'` is explicitly set in `svelte.config.js`. Ensure `frontendDist` in `tauri.conf.json` points to the `dist` folder (`"../frontend/dist"`), not a specific file.
+* **Resolution:** Ensure `fallback: 'index.html'` is explicitly set in `svelte.config.js`. Ensure `frontendDist` in `tauri.conf.json` points to the `build` folder (`"../frontend/build"`), not a specific file.
 
 ### ❌ Issue: System terminal output UI reports old engine versions after file upgrades
 

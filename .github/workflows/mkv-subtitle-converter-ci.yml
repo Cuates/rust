@@ -1,0 +1,190 @@
+name: MKV Subtitle Converter CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    paths:
+      - 'mkv-subtitle-converter/**'
+      - '.github/workflows/mkv-subtitle-converter-ci.yml'
+  pull_request:
+    branches: [ "main", "master" ]
+    paths:
+      - 'mkv-subtitle-converter/**'
+      - '.github/workflows/mkv-subtitle-converter-ci.yml'
+
+jobs:
+  lint:
+    name: Lint & Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mkv-subtitle-converter
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Tauri OS Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: mkv-subtitle-converter/pnpm-lock.yaml
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mkv-subtitle-converter/backend
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Cache sidecar binaries
+        uses: actions/cache@v4
+        id: sidecar-cache
+        with:
+          path: mkv-subtitle-converter/backend/sidecars
+          key: sidecars-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+
+      - name: Download sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: pnpm prebuild
+
+      - name: Frontend check
+        run: pnpm -F frontend check
+
+      - name: Check for dead code
+        run: pnpm run check:deadcode
+
+      - name: Rust format check
+        run: cargo fmt --manifest-path backend/Cargo.toml -- --check
+
+      - name: Rust clippy
+        run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
+
+  test:
+    name: Test & Coverage
+    needs: [lint]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mkv-subtitle-converter
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Tauri OS Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: mkv-subtitle-converter/pnpm-lock.yaml
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mkv-subtitle-converter/backend
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Cache sidecar binaries
+        uses: actions/cache@v4
+        id: sidecar-cache
+        with:
+          path: mkv-subtitle-converter/backend/sidecars
+          key: sidecars-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+
+      - name: Download sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: pnpm prebuild
+
+      - name: Install cargo-tarpaulin
+        uses: taiki-e/install-action@cargo-tarpaulin
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Enforce test coverage
+        run: pnpm run test:coverage
+
+  build:
+    name: Build Validation
+    needs: [lint]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mkv-subtitle-converter
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Tauri OS Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: mkv-subtitle-converter/pnpm-lock.yaml
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mkv-subtitle-converter/backend
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Cache sidecar binaries
+        uses: actions/cache@v4
+        id: sidecar-cache
+        with:
+          path: mkv-subtitle-converter/backend/sidecars
+          key: sidecars-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+
+      - name: Download sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: pnpm prebuild
+
+      - name: Build Application
+        run: CARGO_PROFILE_RELEASE_LTO=false pnpm exec tauri build --no-bundle

@@ -1,25 +1,59 @@
 [package]
 name = "mkv-subtitle-extractor-converter-rust"
-version = "0.1.0"
-edition = "2021"
+version = "1.3.0"
+description = "A desktop app for batch-extracting and converting MKV embedded subtitles to ASS format"
+authors = ["Cuates"]
+edition = "2024"
 
+# The `_lib` suffix prevents a name collision between the lib and the bin on Windows.
+# See https://github.com/rust-lang/cargo/issues/8519
 [lib]
 name = "backend_lib"
 path = "src/lib.rs"
-
-[dependencies]
-tauri = { version = "2.1.1", features = [] }
-tauri-plugin-opener = "2.2.5"
-tauri-plugin-dialog = "2.2.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.38", features = ["full"] }
-regex = "1.10"
-chrono = "0.4"
-which = "6.0"
-indexmap = { version = "2.0", features = ["serde"] }
-tauri-plugin-fs = "2.5.1"
-tauri-plugin-shell = "2.3.5"
+crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2.0.3", features = [] }
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri          = { version = "2.11.3", features = [] }
+tauri-plugin-dialog       = "2.2.0"
+tauri-plugin-opener       = "2.2.5"
+tauri-plugin-shell        = "2.3.5"
+tauri-plugin-store        = "2.2.0"
+tauri-plugin-notification = "2.3.3"
+
+serde       = { version = "1.0", features = ["derive"] }
+serde_json  = "1.0"
+
+# Only pull the Tokio subsystems we actually use — not "full".
+tokio      = { version = "1.38", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+tokio-util = { version = "0.7" }
+
+walkdir  = "2.5"
+thiserror = "2.0"
+tracing  = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+regex    = "1.10"
+chrono   = "0.4"
+indexmap = { version = "2.0", features = ["serde"] }
+
+# rusqlite bundled: compiles SQLite from source for cross-platform consistency.
+# Expected impact: +30-60s on a clean compile, +~500 KB binary. This is intentional.
+rusqlite = { version = "0.31", features = ["bundled"] }
+
+[dev-dependencies]
+tempfile = "3.10"
+
+# ─── Release profile: smaller, faster binary ───────────────────────────────
+[profile.release]
+opt-level     = 3
+lto           = true
+codegen-units = 1
+panic         = "abort"
+strip         = true
+
+# Speed up incremental dev builds by pre-optimising third-party crates.
+[profile.dev.package."*"]
+opt-level = 1

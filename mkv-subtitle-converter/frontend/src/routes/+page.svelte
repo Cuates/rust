@@ -1,610 +1,674 @@
 <script lang="ts">
-	import { invoke, Channel } from '@tauri-apps/api/core';
-	import { open } from '@tauri-apps/plugin-dialog';
+  import { onMount } from 'svelte';
+  import { invoke, Channel } from '@tauri-apps/api/core';
+  import { listen } from '@tauri-apps/api/event';
+  import { open } from '@tauri-apps/plugin-dialog';
+  import { sendNotification } from '@tauri-apps/plugin-notification';
 
-	// State Management
-	let selectedFolders = $state<string[]>([]);
-	let isProcessing = $state(false);
-	let isStopping = $state(false);
-	let logs = $state<string[]>([]);
+  import DirectoryQueue from '$lib/components/DirectoryQueue.svelte';
+  import MetricsPanel from '$lib/components/MetricsPanel.svelte';
+  import TerminalLog from '$lib/components/TerminalLog.svelte';
+  import AboutModal from '$lib/components/AboutModal.svelte';
+  import ConfirmationModal from '$lib/components/ConfirmationModal.svelte';
 
-	let terminalElement = $state<HTMLElement | null>(null);
+  import { config, configState } from '$lib/stores/config.svelte';
+  import { toast } from '$lib/stores/toast.svelte';
+  import {
+    pipeline,
+    resetPipeline,
+    handleStartedScanned,
+    handleFileProcessed,
+    handleFinished,
+    handleCancelled,
+    handleFolderStatusUpdate
+  } from '$lib/stores/pipeline.svelte';
+  import { registerShortcut } from '$lib/stores/shortcuts.svelte';
 
-	let startTime = $state<number | null>(null);
-	let tickerInterval: ReturnType<typeof setInterval> | null = null;
+  import { FileProcessedDataSchema, FinishedDataSchema } from '$lib/types';
+  import {
+    CMD_PROCESS_MKV_DIRECTORY,
+    CMD_ABORT_PROCESSING,
+    CMD_SHOW_ITEM_IN_FOLDER,
+    CMD_CLEAR_PROCESSING_HISTORY,
+    EVENT_LARGE_BATCH_WARNING
+  } from '$lib/constants';
 
-	// Progress & Metrics State
-	let totalFiles = $state(0);
-	let processedFiles = $state(0);
-	let targetConvertedCount = $state(0);
-	let convertedCount = $state(0);
-	let elapsedSeconds = $state(0);
-	let elapsedMilliseconds = $state(0);
+  // UI state
+  let showAbout = $state(false);
+  let showClearHistoryConfirm = $state(false);
 
-	let folderReports = $state<Record<string, { hasSuccess: boolean; hasFailure: boolean }>>({});
-	let progressPercent = $derived(totalFiles > 0 ? (processedFiles / totalFiles) * 100 : 0);
+  // Derived from config
+  const selectedFolders = $derived(config.input_directories);
 
-	let humanReadableTime = $derived.by(() => {
-		if (elapsedSeconds === 0 && elapsedMilliseconds === 0) return '0s';
-		let segments = [];
-		if (elapsedSeconds >= 60) {
-			const mins = Math.floor(elapsedSeconds / 60);
-			const secs = elapsedSeconds % 60;
-			segments.push(`${mins}m`);
-			if (secs > 0) segments.push(`${secs}s`);
-		} else if (elapsedSeconds > 0) {
-			segments.push(`${elapsedSeconds}s`);
-		}
-		if (elapsedMilliseconds > 0) {
-			segments.push(`${elapsedMilliseconds}ms`);
-		}
-		return segments.join(' ');
-	});
+  // Derived from pipeline
+  const isProcessing = $derived(pipeline.status === 'processing' || pipeline.status === 'scanning');
+  const pipelineProgress = $derived(
+    pipeline.totalFiles > 0
+      ? Math.min(100, (pipeline.filesProcessed / pipeline.totalFiles) * 100)
+      : 0
+  );
 
-	$effect(() => {
-		if (convertedCount < targetConvertedCount) {
-			const timer = setTimeout(() => {
-				convertedCount += 1;
-			}, 50);
-			return () => clearTimeout(timer);
-		}
-	});
+  // -------------------------------------------------------------------------
+  // Folder Management
+  // -------------------------------------------------------------------------
 
-	$effect(() => {
-		if (logs.length && terminalElement) {
-			terminalElement.scrollTop = terminalElement.scrollHeight;
-		}
-	});
+  async function addFolder() {
+    if (isProcessing) return;
+    try {
+      const selected = await open({ directory: true, multiple: true });
+      if (!selected) return;
+      const paths = Array.isArray(selected) ? selected : [selected];
+      let added = false;
+      for (const p of paths) {
+        if (!config.input_directories.includes(p)) {
+          config.input_directories = [...config.input_directories, p];
+          added = true;
+        }
+      }
+      if (added && pipeline.status === 'done') {
+        pipeline.status = 'idle';
+      }
+    } catch (e) {
+      toast.error(`Failed to open folder dialog: ${e}`);
+    }
+  }
 
-	function buildPath(baseFolderPath: string, fileName: string): string {
-		const isWindows = baseFolderPath.includes('\\');
-		const separator = isWindows ? '\\' : '/';
-		return baseFolderPath.endsWith(separator)
-			? `${baseFolderPath}${fileName}`
-			: `${baseFolderPath}${separator}${fileName}`;
-	}
+  function removeFolder(folder: string) {
+    config.input_directories = config.input_directories.filter((f) => f !== folder);
+    if (config.input_directories.length === 0) {
+      resetPipeline();
+    }
+  }
 
-	async function verifyGeneratedReports() {
-		if (selectedFolders.length === 0) return;
-		try {
-			const result = await invoke<Record<string, { hasSuccess: boolean; hasFailure: boolean }>>(
-				'check_folder_reports',
-				{ paths: selectedFolders }
-			);
-			folderReports = result;
-		} catch (err) {
-			logs = [...logs, `⚠️ Failed to execute native backend folder report check: ${err}`];
-		}
-	}
+  function clearAllFolders() {
+    config.input_directories = [];
+    resetPipeline();
+  }
 
-	async function addDirectoryToQueue() {
-		const selected = await open({
-			directory: true,
-			multiple: false
-		});
-		if (selected && typeof selected === 'string') {
-			if (!selectedFolders.includes(selected)) {
-				selectedFolders = [...selectedFolders, selected];
-				await verifyGeneratedReports();
-			}
-		}
-	}
+  function reorderFolders(newFolders: string[]) {
+    config.input_directories = newFolders;
+  }
 
-	function removeDirectoryFromQueue(indexToRemove: number) {
-		const folderToRemove = selectedFolders[indexToRemove];
-		selectedFolders = selectedFolders.filter((_, index) => index !== indexToRemove);
+  async function openFolder(folder: string) {
+    try {
+      await invoke(CMD_SHOW_ITEM_IN_FOLDER, { path: folder });
+    } catch (e) {
+      toast.error(`Could not highlight file in Explorer: ${e}`);
+    }
+  }
 
-		if (folderReports[folderToRemove]) {
-			const copy = { ...folderReports };
-			delete copy[folderToRemove];
-			folderReports = copy;
-		}
+  // -------------------------------------------------------------------------
+  // Drag & Drop
+  // -------------------------------------------------------------------------
 
-		if (selectedFolders.length === 0) {
-			stopProgressTicker();
-			resetState();
-		}
-	}
+  onMount(() => {
+    let unlistenDragEnter: (() => void) | undefined;
+    let unlistenBatch: (() => void) | undefined;
 
-	function resetState(keepFolderReports = false, keepLogs = false, keepMetrics = false) {
-		if (!keepLogs) {
-			logs = [];
-		}
+    (async () => {
+      try {
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+        const webview = getCurrentWebview();
 
-		if (!keepMetrics) {
-			totalFiles = 0;
-			processedFiles = 0;
-			targetConvertedCount = 0;
-			convertedCount = 0;
-			elapsedSeconds = 0;
-			elapsedMilliseconds = 0;
-		}
+        unlistenDragEnter = await webview.onDragDropEvent((event) => {
+          if (event.payload.type === 'drop') {
+            if (event.payload.paths && !isProcessing) {
+              let added = false;
+              for (const p of event.payload.paths) {
+                if (!config.input_directories.includes(p)) {
+                  config.input_directories = [...config.input_directories, p];
+                  added = true;
+                }
+              }
+              if (added && pipeline.status === 'done') {
+                pipeline.status = 'idle';
+              }
+            }
+          }
+        });
 
-		isProcessing = false;
-		isStopping = false;
+        // Large-batch warning event.
+        unlistenBatch = await listen<number>(EVENT_LARGE_BATCH_WARNING, (e) => {
+          toast.warning(
+            `⚠️ Large batch detected: ${e.payload} MKV files. This may take a while.`,
+            0 // sticky
+          );
+        });
+      } catch {
+        /* not in Tauri context */
+      }
+    })();
 
-		if (!keepFolderReports) {
-			folderReports = {};
-		}
-	}
+    return () => {
+      if (unlistenDragEnter) unlistenDragEnter();
+      if (unlistenBatch) unlistenBatch();
+    };
+  });
 
-	function startProgressTicker() {
-		startTime = performance.now();
-		tickerInterval = setInterval(() => {
-			if (startTime) {
-				const durationMs = performance.now() - startTime;
-				elapsedSeconds = Math.floor(durationMs / 1000);
-				elapsedMilliseconds = Math.round(durationMs % 1000);
-			}
-		}, 100);
-	}
+  $effect(() => {
+    if (!configState.isLoaded) return;
 
-	function stopProgressTicker() {
-		if (tickerInterval) {
-			clearInterval(tickerInterval);
-			tickerInterval = null;
-		}
-		if (startTime) {
-			const durationMs = performance.now() - startTime;
-			elapsedSeconds = Math.floor(durationMs / 1000);
-			elapsedMilliseconds = Math.round(durationMs % 1000);
-		}
-	}
+    const deregister = [
+      registerShortcut({
+        id: 'addFolder',
+        pattern: config.shortcuts.addFolder || 'Ctrl+o',
+        action: addFolder
+      }),
+      registerShortcut({
+        id: 'startConversion',
+        pattern: config.shortcuts.startConversion || 'Ctrl+Enter',
+        action: startProcessing
+      }),
+      registerShortcut({
+        id: 'stopConversion',
+        pattern: config.shortcuts.stopConversion || 'Escape',
+        action: stopProcessing
+      }),
+      registerShortcut({
+        id: 'resetQueue',
+        pattern: config.shortcuts.resetQueue || 'Ctrl+r',
+        action: () => {
+          if (!isProcessing) {
+            config.input_directories = [];
+            resetPipeline();
+          }
+        }
+      }),
+      registerShortcut({
+        id: 'openAbout',
+        pattern: config.shortcuts.openAbout || 'F1',
+        action: () => {
+          showAbout = !showAbout;
+        }
+      })
+    ];
 
-	async function runConversion() {
-		if (selectedFolders.length === 0) return;
-		resetState(true); // --- FIX: Keep existing folder reports visible until refreshed ---
+    return () => {
+      deregister.forEach((d) => d());
+    };
+  });
 
-		startProgressTicker();
-		isProcessing = true;
-		logs = [
-			...logs,
-			`Initializing batch pipeline for ${selectedFolders.length} target directories.`
-		];
+  // -------------------------------------------------------------------------
+  // Processing
+  // -------------------------------------------------------------------------
 
-		const onProgressChannel = new Channel<{ event: string; data: unknown }>();
-		onProgressChannel.onmessage = (message) => {
-			switch (message.event) {
-				case 'StartedScanned':
-					totalFiles = message.data as number;
-					logs = [
-						...logs,
-						`Analysis complete: Found a total of ${totalFiles} MKV file(s) across all folders.`
-					];
-					break;
-				case 'FileProcessed': {
-					const payload = message.data as { processed: number; converted: number };
-					processedFiles = payload.processed;
-					targetConvertedCount = payload.converted;
-					break;
-				}
-				case 'LogMessage':
-					logs = [...logs, message.data as string];
-					break;
-				case 'Finished':
-					stopProgressTicker();
-					// --- FIX: Safely parse inner data attributes returned from backend maps ---
-					logs = [
-						...logs,
-						`Pipeline finished safely. Total elapsed processing runtime: ${humanReadableTime}`
-					];
-					isProcessing = false;
-					isStopping = false;
-					startTime = null;
-					setTimeout(() => {
-						verifyGeneratedReports();
-					}, 200);
-					break;
-				case 'Cancelled':
-					stopProgressTicker();
-					logs = [
-						...logs,
-						`🛑 Processing aborted. Subtitles and session JSON registries have been cleared from the target folders.`
-					];
-					resetState(true, true, true);
-					startTime = null;
-					setTimeout(() => {
-						verifyGeneratedReports();
-					}, 200);
-					break;
-				case 'Error':
-					stopProgressTicker();
-					logs = [...logs, `Critical Error encountered: ${message.data}`];
-					isProcessing = false;
-					isStopping = false;
-					startTime = null;
-					break;
-			}
-		};
+  let elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
-		try {
-			await invoke('process_mkv_directory', {
-				paths: selectedFolders,
-				onProgress: onProgressChannel
-			});
-		} catch (err) {
-			stopProgressTicker();
-			logs = [...logs, `Critical Framework Error: ${err}`];
-			isProcessing = false;
-			isStopping = false;
-			startTime = null;
-		}
-	}
+  async function startProcessing() {
+    if (isProcessing) return;
+    if (selectedFolders.length === 0) {
+      toast.warning('Please add at least one folder to the queue.');
+      return;
+    }
 
-	async function triggerEarlyTermination() {
-		if (isStopping) return;
-		isStopping = true;
-		logs = [...logs, `Attempting to send clean kill signal...`];
+    resetPipeline();
+    pipeline.status = 'scanning';
 
-		try {
-			await invoke('abort_mkv_directory_processing');
-		} catch (err) {
-			logs = [...logs, `Failed to cleanly send kill signal: ${err}`];
-			isStopping = false;
-		}
-	}
+    if (elapsedTimer) clearInterval(elapsedTimer);
+    const startTime = Date.now();
+    elapsedTimer = setInterval(() => {
+      const diff = Date.now() - startTime;
+      pipeline.elapsedSeconds = Math.floor(diff / 1000);
+      pipeline.elapsedMs = diff % 1000;
+    }, 100);
 
-	async function revealTargetJsonReport(
-		baseFolderPath: string,
-		reportFileName: 'converted_files.json' | 'failed_files.json'
-	) {
-		if (!baseFolderPath) return;
-		const structuralReportPath = buildPath(baseFolderPath, reportFileName);
-		try {
-			await invoke('show_item_in_folder', { path: structuralReportPath });
-		} catch (err) {
-			logs = [...logs, `Failed to highlight item in explorer window layout: ${err}`];
-		}
-	}
+    const channel = new Channel<{ event: string; data: unknown }>();
+
+    channel.onmessage = (payload) => {
+      const { event, data } = payload;
+
+      if (event === 'StartedScanned') {
+        const payloadData = data as {
+          total_count?: number;
+          folder_counts?: Record<string, number>;
+        };
+        if (typeof data === 'number') {
+          handleStartedScanned(data);
+        } else if (payloadData && typeof payloadData.total_count === 'number') {
+          handleStartedScanned(payloadData.total_count, payloadData.folder_counts);
+        }
+      } else if (event === 'FileProcessed') {
+        const parsed = FileProcessedDataSchema.safeParse(data);
+        if (parsed.success) {
+          handleFileProcessed(
+            parsed.data.processed,
+            parsed.data.converted,
+            parsed.data.root_directory
+          );
+        }
+      } else if (event === 'FolderStatusUpdate') {
+        const payloadData = data as { folder?: string; status?: string };
+        if (payloadData && payloadData.folder && payloadData.status) {
+          handleFolderStatusUpdate(payloadData.folder, payloadData.status);
+        }
+      } else if (event === 'Cancelled') {
+        if (elapsedTimer) clearInterval(elapsedTimer);
+        handleCancelled();
+        toast.info('Processing was cancelled.');
+      }
+    };
+
+    try {
+      const rawSummary = await invoke(CMD_PROCESS_MKV_DIRECTORY, {
+        paths: selectedFolders,
+        recursive: config.recursive,
+        concurrency: config.concurrency,
+        onProgress: channel
+      });
+
+      if (rawSummary) {
+        if (elapsedTimer) clearInterval(elapsedTimer);
+        const parsed = FinishedDataSchema.safeParse(rawSummary);
+        if (parsed.success) {
+          handleFinished(parsed.data);
+          onFinished();
+        } else {
+          toast.error('Finished payload failed validation! ' + String(parsed.error));
+          handleFinished(rawSummary as import('$lib/types').FinishedData);
+          onFinished();
+        }
+      } else {
+        toast.error('Raw summary was empty/undefined!');
+      }
+    } catch (e) {
+      toast.error(`Processing failed: ${e}`);
+      pipeline.status = 'idle';
+    }
+  }
+
+  async function stopProcessing() {
+    if (!isProcessing) return;
+    try {
+      await invoke(CMD_ABORT_PROCESSING);
+    } catch (e) {
+      toast.error(`Failed to abort: ${e}`);
+    }
+  }
+
+  async function onFinished() {
+    const msg =
+      pipeline.tracksConverted > 0
+        ? `✅ Done! Converted ${pipeline.tracksConverted} track(s).`
+        : `✅ Done. No subtitle tracks were converted.`;
+
+    toast.success(msg);
+
+    try {
+      await sendNotification({
+        title: 'MKV Subtitle Converter',
+        body: msg
+      });
+    } catch {
+      /* notification permission not granted */
+    }
+  }
+
+  async function clearHistory() {
+    try {
+      await invoke(CMD_CLEAR_PROCESSING_HISTORY);
+      toast.success('Processing history cleared. All files will be re-processed on the next run.');
+    } catch (e) {
+      toast.error(`Failed to clear history: ${e}`);
+    } finally {
+      showClearHistoryConfirm = false;
+    }
+  }
 </script>
 
-<main class="container">
-	<h1>MKV Subtitle Extract Converter</h1>
+<svelte:head>
+  <title>MKV Subtitle Extractor Converter</title>
+  <meta name="description" content="Batch-convert embedded MKV subtitle tracks to ASS format" />
+</svelte:head>
 
-	<div class="card">
-		<button class="btn" onclick={addDirectoryToQueue} disabled={isProcessing}>
-			➕ Add Folder to Queue
-		</button>
+<main class="page">
+  <!-- ===== HEADER ===== -->
+  <header class="app-header">
+    <div class="header-brand">
+      <span class="header-icon" aria-hidden="true">🎬</span>
+      <div>
+        <h1 class="header-title">MKV Subtitle Extractor</h1>
+        <p class="header-subtitle">Batch-convert embedded subtitle tracks to ASS format</p>
+      </div>
+    </div>
 
-		<div class="queue-container">
-			<h3>Target Processing Queue ({selectedFolders.length})</h3>
-			{#if selectedFolders.length === 0}
-				<p class="empty-queue-msg">
-					No folders selected. Add target folders above to begin multi-batch execution.
-				</p>
-			{:else}
-				<ul class="queue-list">
-					{#each selectedFolders as folder, i (folder)}
-						<li class="queue-item" title={folder}>
-							<div class="queue-item-left">
-								<code class="folder-path-text">{folder}</code>
-							</div>
-							<div class="queue-item-actions">
-								{#if folderReports[folder]?.hasSuccess}
-									<button
-										class="btn btn-secondary btn-inline-open success-action-btn"
-										onclick={() => revealTargetJsonReport(folder, 'converted_files.json')}
-										title="Reveal converted_files.json in explorer"
-									>
-										📁 Converted
-									</button>
-								{/if}
+    <div class="header-actions">
+      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+      <a href="/guide" class="icon-btn" title="How To Use" aria-label="Open Guide">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </a>
 
-								{#if folderReports[folder]?.hasFailure}
-									<button
-										class="btn btn-secondary btn-inline-open failure-action-btn"
-										onclick={() => revealTargetJsonReport(folder, 'failed_files.json')}
-										title="Reveal failed_files.json in explorer"
-									>
-										📁 Failed
-									</button>
-								{/if}
+      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+      <a href="/settings" class="icon-btn" title="Settings" aria-label="Settings">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="3"></circle>
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+          ></path>
+        </svg>
+      </a>
 
-								<button
-									class="btn-remove"
-									onclick={() => removeDirectoryFromQueue(i)}
-									disabled={isProcessing}
-									title="Remove folder from queue"
-								>
-									✕
-								</button>
-							</div>
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		</div>
+      <button
+        class="icon-btn"
+        onclick={() => (showClearHistoryConfirm = true)}
+        disabled={isProcessing}
+        title="Clear Processing History"
+        aria-label="Clear processing history"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+          <path d="M10 11v6M14 11v6M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+        </svg>
+      </button>
 
-		{#if selectedFolders.length > 0}
-			<div class="action-row">
-				<button class="btn processing-btn" onclick={runConversion} disabled={isProcessing}>
-					{#if isProcessing}
-						<div class="spinner"></div>
-						<span>PROCESSING QUEUE...</span>
-					{:else}
-						<span>Start Multi-Folder Conversion</span>
-					{/if}
-				</button>
+      <button
+        class="icon-btn"
+        onclick={() => (showAbout = true)}
+        title="About (F1)"
+        aria-label="Open About"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="16" x2="12" y2="12"></line>
+          <line x1="12" y1="8" x2="12.01" y2="8"></line>
+        </svg>
+      </button>
+    </div>
+  </header>
 
-				{#if isProcessing}
-					<button
-						class="btn tactile-stop-btn"
-						class:stopping-active={isStopping}
-						onclick={triggerEarlyTermination}
-						disabled={isStopping}
-					>
-						{isStopping ? 'STOPPING...' : 'STOP'}
-					</button>
-				{/if}
-			</div>
-		{/if}
+  <!-- ===== FOLDER QUEUE ===== -->
+  <div class="scrollable-content">
+    <section class="section">
+      <DirectoryQueue
+        folders={selectedFolders}
+        disabled={isProcessing}
+        directoryStatuses={pipeline.directoryStatuses}
+        isDragging={false}
+        onAdd={addFolder}
+        onRemove={removeFolder}
+        onOpenFolder={openFolder}
+        onClearAll={clearAllFolders}
+        onReorder={reorderFolders}
+      />
+    </section>
 
-		{#if selectedFolders.length > 0 && (isProcessing || totalFiles > 0)}
-			<div class="progress-container">
-				<div class="progress-bar" style="width: {progressPercent}%"></div>
-			</div>
-			<div class="progress-meta">
-				<div>Total Scanned: <b>{processedFiles}</b> / {totalFiles} file(s)</div>
-				<div>Overall Progress: <b>{Math.round(progressPercent)}%</b></div>
-			</div>
-		{/if}
-	</div>
+    <!-- ===== ACTION BAR ===== -->
+    <div class="action-bar">
+      {#if isProcessing}
+        <button
+          class="btn btn-danger"
+          onclick={(e) => {
+            stopProcessing();
+            e.currentTarget.blur();
+          }}
+          id="btn-stop"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="6" width="12" height="12" rx="2" />
+          </svg>
+          Stop (Esc)
+        </button>
+      {:else}
+        <button
+          class="btn btn-primary"
+          onclick={(e) => {
+            startProcessing();
+            e.currentTarget.blur();
+          }}
+          disabled={selectedFolders.length === 0}
+          id="btn-start"
+          title="Start Conversion (Ctrl+Enter)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3" />
+          </svg>
+          {pipeline.status === 'idle' ||
+          pipeline.status === 'done' ||
+          pipeline.status === 'cancelled'
+            ? 'Start Conversion'
+            : 'Processing…'}
+        </button>
+      {/if}
+    </div>
 
-	{#if selectedFolders.length > 0 && (totalFiles > 0 || elapsedSeconds > 0 || elapsedMilliseconds > 0)}
-		<div class="metrics-grid">
-			<div class="metric-box">Total Converted Files: <span>{convertedCount}</span></div>
-			<div class="metric-box">Total Conversion Time: <span>{humanReadableTime}</span></div>
-		</div>
-	{/if}
+    <!-- ===== METRICS ===== -->
+    <section class="section">
+      <MetricsPanel
+        totalFiles={pipeline.totalFiles}
+        filesProcessed={pipeline.filesProcessed}
+        tracksConverted={pipeline.tracksConverted}
+        progress={pipelineProgress}
+        elapsedSeconds={pipeline.elapsedSeconds}
+        elapsedMs={pipeline.elapsedMs}
+        status={pipeline.status}
+      />
+    </section>
 
-	{#if selectedFolders.length > 0 && logs.length > 0}
-		<div class="card terminal-logger-box" bind:this={terminalElement}>
-			{#each logs as log, i (i)}
-				<div class="terminal-line">📡 {log}</div>
-			{/each}
-		</div>
-	{/if}
+    <!-- ===== TERMINAL LOG ===== -->
+    <section class="section terminal-section">
+      <TerminalLog logs={pipeline.logs} maxHeight="280px" />
+    </section>
+  </div>
 </main>
 
+<!-- ===== MODALS ===== -->
+{#if showAbout}
+  <AboutModal onClose={() => (showAbout = false)} />
+{/if}
+
+{#if showClearHistoryConfirm}
+  <ConfirmationModal
+    title="Clear Processing History"
+    message="This will delete all records of previously processed files. All files in your queue will be re-processed on the next run. This cannot be undone."
+    confirmLabel="Clear History"
+    dangerous={true}
+    onConfirm={clearHistory}
+    onCancel={() => (showClearHistoryConfirm = false)}
+  />
+{/if}
+
 <style lang="scss">
-	:global(html, body) {
-		margin: 0 !important;
-		padding: 0 !important;
-		overflow: hidden !important;
-		height: 100%;
-		width: 100%;
-		background-color: var(--bg-color);
-	}
-	.container {
-		max-width: 860px;
-		margin: 0 auto;
-		padding: 0.5rem 1rem 1rem 1rem;
-		box-sizing: border-box;
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-		max-height: 100vh;
-		justify-content: flex-start;
-	}
-	h1 {
-		margin: 0.25rem 0 0.5rem 0 !important;
-		font-size: 1.85rem;
-	}
-	.card {
-		background: var(--bg-card);
-		border: 1px solid var(--border-color);
-		border-radius: 10px;
-		padding: 0.85rem;
-	}
-	.queue-container {
-		margin-top: 0.5rem;
-		background: rgba(128, 128, 128, 0.04);
-		border: 1px solid var(--border-color);
-		border-radius: 8px;
-		padding: 0.75rem;
-	}
-	.queue-container h3 {
-		margin: 0 0 0.5rem 0;
-		font-size: 0.95rem;
-		opacity: 0.9;
-	}
-	.empty-queue-msg {
-		margin: 0;
-		font-size: 0.85rem;
-		color: #8e8e93;
-		font-style: italic;
-	}
-	.queue-list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.4rem;
-		max-height: 200px;
-		overflow-y: auto;
-		padding-right: 12px;
-	}
-	.queue-item {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		background: var(--bg-color);
-		border: 1px solid var(--border-color);
-		border-radius: 6px;
-		padding: 0.35rem 0.65rem;
-		gap: 1rem;
-	}
-	.queue-item-left {
-		flex: 1;
-		min-width: 0;
-	}
-	.queue-item-actions {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		flex-shrink: 0;
-	}
-	.btn-inline-open {
-		padding: 0.2rem 0.45rem !important;
-		font-size: 0.8rem !important;
-		font-weight: 500 !important;
-		&.success-action-btn {
-			color: #34c759;
-			border-color: rgba(52, 199, 89, 0.3);
-			&:hover {
-				background-color: rgba(52, 199, 89, 0.1);
-			}
-		}
-		&.failure-action-btn {
-			color: #ff3b30;
-			border-color: rgba(255, 59, 48, 0.3);
-			&:hover {
-				background-color: rgba(255, 59, 48, 0.1);
-			}
-		}
-	}
-	.folder-path-text {
-		font-family: 'Consolas', 'Courier New', monospace;
-		font-size: 0.85rem;
-		display: block;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.btn-remove {
-		background: transparent;
-		color: #ff3b30;
-		border: none;
-		padding: 0.2rem 0.5rem;
-		font-size: 0.9rem;
-		cursor: pointer;
-		font-weight: bold;
-		border-radius: 4px;
-		transition: background 0.2s;
-		&:hover:not(:disabled) {
-			background: rgba(255, 59, 48, 0.1);
-		}
-		&:disabled {
-			opacity: 0.3;
-			cursor: not-allowed;
-		}
-	}
-	.action-row {
-		display: flex;
-		gap: 1rem;
-		margin-top: 0.75rem;
-	}
-	.progress-container {
-		margin-top: 0.75rem;
-		background: var(--border-color);
-		border-radius: 4px;
-		height: 8px;
-		overflow: hidden;
-	}
-	.progress-bar {
-		background: var(--accent-color);
-		height: 100%;
-		transition: width 0.2s ease;
-	}
-	.progress-meta {
-		display: flex;
-		justify-content: space-between;
-		font-size: 0.8rem;
-		margin-top: 0.4rem;
-		opacity: 0.8;
-	}
-	.metrics-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.75rem;
-		margin-top: 0.25rem;
-	}
-	.metric-box {
-		background: var(--bg-card);
-		border: 1px solid var(--border-color);
-		border-radius: 8px;
-		padding: 0.6rem 0.85rem;
-		font-size: 0.9rem;
-		color: var(--text-color);
-		span {
-			font-weight: bold;
-			color: var(--accent-color);
-		}
-	}
-	.terminal-logger-box {
-		background-color: var(--terminal-bg);
-		color: var(--terminal-text);
-		font-family: 'Consolas', monospace;
-		border: 1px solid var(--border-color);
-		max-height: 120px;
-		overflow-y: auto;
-		word-break: break-all;
-		padding: 0.5rem;
-		margin-top: 0.25rem;
-		border-radius: 6px;
-		box-sizing: border-box;
-	}
-	.terminal-line {
-		margin-bottom: 0.2rem;
-		font-size: 0.85rem;
-	}
-	.btn.processing-btn:disabled {
-		background-color: var(--border-color);
-		color: #8e8e93;
-		opacity: 0.8;
-	}
+  .page {
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    height: 100vh;
+    overflow: hidden;
+  }
 
-	.btn.tactile-stop-btn {
-		background-color: transparent;
-		color: #ff453a;
-		border: 1px solid rgba(255, 69, 58, 0.4);
-		border-radius: 6px;
-		font-weight: 600;
-		letter-spacing: 0.02em;
-		padding: 0.5rem 1.25rem;
-		cursor: pointer;
-		transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  // ── Header ──────────────────────────────────────────────────────────
+  .app-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding-top: 8px;
+    padding-right: 52px; // leave room for theme toggle button
+    margin-bottom: 16px;
+  }
 
-		&:hover:not(:disabled) {
-			background-color: rgba(255, 69, 58, 0.1);
-			border-color: #ff453a;
-		}
+  .scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-right: 8px; /* space for scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+  }
 
-		&.stopping-active {
-			background-color: rgba(255, 69, 58, 0.15) !important;
-			color: #ff453a !important;
-			border-color: rgba(255, 69, 58, 0.6) !important;
-			animation: pulse-text-opacity 1.5s infinite ease-in-out;
-			cursor: not-allowed;
-		}
-	}
+  .header-brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
 
-	@keyframes pulse-text-opacity {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.4;
-		}
-	}
+  .header-icon {
+    font-size: 2.2rem;
+    line-height: 1;
+  }
 
-	.queue-list::-webkit-scrollbar,
-	.terminal-logger-box::-webkit-scrollbar {
-		width: 6px;
-	}
-	.queue-list::-webkit-scrollbar-track,
-	.terminal-logger-box::-webkit-scrollbar-track {
-		background: transparent;
-	}
-	.queue-list::-webkit-scrollbar-thumb,
-	.terminal-logger-box::-webkit-scrollbar-thumb {
-		background: var(--border-color);
-		border-radius: 10px;
-	}
-	.queue-list::-webkit-scrollbar-thumb:hover,
-	.terminal-logger-box::-webkit-scrollbar-thumb:hover {
-		background: var(--accent-color);
-	}
+  .header-title {
+    font-size: 1.35rem;
+    font-weight: 700;
+    margin: 0;
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-color) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+  }
+
+  .header-subtitle {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin: 4px 0 0;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  // ── Sections ─────────────────────────────────────────────────────────
+
+  .terminal-section {
+    flex: 1;
+  }
+
+  // ── Settings strip removed ───────────────────────────────────────────────────
+
+  // ── Report links removed ─────────────────────────────────────────────────────
+
+  // ── Action bar ────────────────────────────────────────────────────────
+  .action-bar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding-top: 4px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: none;
+    transition: all 0.18s;
+    letter-spacing: 0.02em;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
+
+  .btn-primary {
+    background: var(--accent-color);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+
+    &:hover:not(:disabled) {
+      filter: brightness(1.1);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+      transform: translateY(-1px);
+    }
+
+    &:active:not(:disabled) {
+      transform: translateY(0);
+    }
+  }
+
+  .btn-danger {
+    background: var(--danger-color);
+    color: #fff;
+    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+
+    &:hover {
+      filter: brightness(1.1);
+      box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4);
+      transform: translateY(-1px);
+    }
+  }
+
+  // ── Icon buttons ─────────────────────────────────────────────────────
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 7px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    transition: all 0.15s;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    &:hover {
+      background: var(--bg-hover-panel);
+      border-color: var(--accent-color);
+      color: var(--text-primary);
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+  }
 </style>
