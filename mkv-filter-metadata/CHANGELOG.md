@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.7] - 2026-06-19
+
+### Changed
+- Updated `tauri` to version `2.11.3` and `tauri-build` to version `2.6.3` in the Rust backend.
+- Updated `@tauri-apps/api` to `2.11.1` and `@tauri-apps/cli` to `2.11.3`.
+- Added pnpm override to force `undici` to `^7.28.0` to resolve multiple high-severity vulnerabilities in development dependencies.
+
 ## [1.1.6] - 2026-06-15
 
 ### Changed
