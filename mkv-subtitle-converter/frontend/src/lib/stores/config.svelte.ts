@@ -47,8 +47,10 @@ export function initConfigWatcher(): void {
         input_directories: config.save_queue_list ? config.input_directories : [],
         recursive: config.recursive,
         save_queue_list: config.save_queue_list,
+        notifications: config.notifications,
         concurrency: config.concurrency,
-        shortcuts: $state.snapshot(config.shortcuts)
+        shortcuts: $state.snapshot(config.shortcuts),
+        theme: config.theme
       };
 
       if (saveTimeout) clearTimeout(saveTimeout);
@@ -64,13 +66,7 @@ export function initConfigWatcher(): void {
 
 // Global app/UI state
 export const appState = $state({
-  isDarkMode: true,
   ffmpegVersion: '',
   ffprobeVersion: '',
-  appVersion: '1.0.0'
+  appVersion: __APP_VERSION__
 });
-
-export function toggleTheme(): void {
-  appState.isDarkMode = !appState.isDarkMode;
-  localStorage.setItem('app-theme', appState.isDarkMode ? 'dark' : 'light');
-}

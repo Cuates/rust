@@ -44,7 +44,20 @@
           <strong>Managing the Queue:</strong> You can remove individual directories from the queue
           by clicking the <span class="highlight">Trash</span> icon next to them. Or, you can clear
           the entire queue at once by clicking the
-          <span class="highlight">Trash (Clear All)</span> icon at the top of the queue list.
+          <span class="highlight">Trash (Clear All)</span> icon at the top of the queue list. Additionally,
+          you can drag and drop folders directly within the list to re-order them and prioritize which
+          folders get processed first.
+        </li>
+        <li>
+          <strong>Folder Insights & Reports:</strong> Each folder displays a badge showing its total
+          file count. Once processing finishes or encounters an error, a
+          <span class="highlight">"View Report"</span>
+          button appears. Clicking it expands an inline drawer detailing exactly which files succeeded
+          and which failed, without leaving the app.
+          <em
+            >Note: If you manually delete or corrupt the underlying report files, the app will
+            gracefully handle it and notify you that the data is no longer available.</em
+          >
         </li>
         <li>
           <strong>Queue Persistence:</strong> By default, your queue is cleared when you close the
@@ -116,8 +129,19 @@
       <p class="text-sm">
         The application keeps track of which files have already been successfully processed to
         prevent redundant work. If you need to re-process files that were already completed in the
-        past, you can click the <span class="highlight">"Clear All"</span> button in the metrics panel.
-        This resets the application's internal memory of completed files.
+        past, you can click the <span class="highlight">"Clear History"</span> button in the
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+        <a href="/settings" class="guide-link">Settings</a> Data Management section. This resets the application's
+        internal memory of completed files.
+      </p>
+
+      <h3 class="mt-4">Live Metrics & ETA</h3>
+      <p class="text-sm">
+        As your files are converting, the global metrics panel at the bottom of the screen tracks
+        the exact number of files and subtitle tracks processed. It also displays a dynamic <strong
+          >ETA (Estimated Time of Arrival)</strong
+        >, actively calculating the remaining hours, minutes, seconds, and milliseconds until the
+        entire queue finishes.
       </p>
 
       <h3 class="mt-4">Toast Notifications</h3>

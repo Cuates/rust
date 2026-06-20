@@ -95,7 +95,9 @@ pub fn run() {
             commands::read_session_log,
             commands::save_log_file,
             commands::log_message,
+            commands::get_history_count,
             commands::clear_processing_history,
+            commands::read_report_file,
             commands::open_folder,
         ])
         .run(tauri::generate_context!())

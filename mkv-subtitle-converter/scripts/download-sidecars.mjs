@@ -24,7 +24,9 @@ const sidecars = {
 };
 
 async function verifyChecksum(filePath, expectedHash) {
-    if (!expectedHash) return true; // Skip if no hash provided
+    if (!expectedHash || expectedHash === "FILE_NOT_FOUND") {
+        throw new Error("Strict hash verification failed: No valid hash provided.");
+    }
 
     return new Promise((resolve, reject) => {
         const hash = crypto.createHash('sha256');

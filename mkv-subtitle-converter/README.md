@@ -1,5 +1,13 @@
 # 🎬 MKV Subtitle Converter (Tauri v2 + SvelteKit Workspace)
 
+[![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
+[![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
+[![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 A professional-grade, high-performance desktop utility designed to scan local directories, parse layout tracks inside multi-stream MKV video containers, and batch-extract embedded SubRip (SRT) files into highly formatted, custom-styled Advanced SubStation Alpha (ASS) subtitles.
 
 Built on top of a highly optimized **pnpm monorepo workspace architecture**, the app cleanly splits its responsibilities across a reactive **Svelte 5 / SvelteKit** web-view frontend layout layer and a native **Tauri v2 / Rust** system execution backend layer. Crucially, the app ships completely self-contained by embedding cross-platform, static **FFmpeg** and **FFprobe** architecture sidecars, completely removing the requirement for users to have global dependencies installed on their operating systems.
@@ -76,7 +84,9 @@ mkv-subtitle-converter/
 │   │       └── routes/            # SvelteKit layout and page routing
 │   │           ├── +layout.svelte # Root layout shell
 │   │           ├── +layout.ts     # Static pre-rendering enforcer (SSR false)
-│   │           └── +page.svelte   # Primary application interaction view
+│   │           ├── +page.svelte   # Primary application interaction view
+│   │           ├── guide/         # In-app user guide routes
+│   │           └── settings/      # Application settings routes
 │   └── backend/                   # Decoupled Native Desktop Layer (Tauri v2 + Rust)
 │       ├── Cargo.toml             # System crate workspace dependencies
 │       ├── tauri.conf.json        # Main Tauri application layout and compilation schema (reads build/)
@@ -85,15 +95,16 @@ mkv-subtitle-converter/
 │       ├── binaries/              # Embedded cross-platform system sidecars
 │       │   ├── ffmpeg-x86_64-pc-windows-msvc.exe
 │       │   ├── ffprobe-x86_64-pc-windows-msvc.exe
-│       │   ├── ffmpeg-x86_64-apple-darwin
-│       │   ├── ffprobe-x86_64-apple-darwin
-│       │   ├── ffmpeg-aarch64-apple-darwin
-│       │   ├── ffprobe-aarch64-apple-darwin
-│       │   ├── ffmpeg-x86_64-unknown-linux-gnu
-│       │   └── ffprobe-x86_64-unknown-linux-gnu
+│       │   └── ... (macOS & Linux sidecars)
 │       └── src/
 │           ├── main.rs            # Application execution root entryway
-│           └── lib.rs             # Transcoding logic, sidecar streaming, and IPC definitions
+│           ├── lib.rs             # Application lib and main tauri builder
+│           ├── commands.rs        # IPC definitions and backend actions
+│           ├── process.rs         # Transcoding and streaming thread logic
+│           ├── models.rs          # Data models, structs, and payloads
+│           ├── history.rs         # Processing history report generator
+│           ├── constants.rs       # Static constants and configurations
+│           └── error.rs           # Application error structures
 ```
 
 ---
@@ -114,7 +125,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -216,7 +227,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.3.0"
+  "version": "1.4.0"
 }
 
 ```
@@ -227,7 +238,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.3.0"
+  "version": "1.4.0"
 }
 ```
 

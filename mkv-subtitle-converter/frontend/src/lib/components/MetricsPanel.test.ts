@@ -123,5 +123,101 @@ describe('MetricsPanel Component', () => {
     });
 
     expect(screen.getByText('—')).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('renders cancelled status properly', () => {
+    const { container } = render(MetricsPanel, {
+      props: {
+        totalFiles: 10,
+        filesProcessed: 5,
+        filesSucceeded: 4,
+        filesFailed: 1,
+        filesSkipped: 0,
+        tracksConverted: 5,
+        progress: 0,
+        elapsedSeconds: 0,
+        elapsedMs: 0,
+        status: 'cancelled'
+      }
+    });
+
+    expect(screen.getByText('Cancelled')).toBeInTheDocument();
+
+    // The progress bar should have cancelled class
+    const fill = container.querySelector('.progress-fill');
+    expect(fill).toHaveClass('cancelled');
+    expect(fill).not.toHaveClass('done');
+  });
+
+  it('renders ETA properly when hours, minutes, and seconds exist', () => {
+    vi.useFakeTimers();
+
+    render(MetricsPanel, {
+      props: {
+        totalFiles: 2,
+        filesProcessed: 1,
+        filesSucceeded: 0,
+        filesFailed: 0,
+        filesSkipped: 0,
+        tracksConverted: 0,
+        progress: 50,
+        elapsedSeconds: 3723,
+        elapsedMs: 0,
+        status: 'processing'
+      }
+    });
+
+    // 1 processed, 1 remaining.
+    // Elapsed = 3723000 ms.
+    // ETA = 3723000 * 1 = 3723000 ms.
+    // Which is 1h 2m 3s 0ms
+    expect(screen.getByText(/\(ETA: 1h 2m 3s 0ms\)/)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('renders ETA properly when only milliseconds exist', () => {
+    vi.useFakeTimers();
+
+    render(MetricsPanel, {
+      props: {
+        totalFiles: 2,
+        filesProcessed: 1,
+        filesSucceeded: 0,
+        filesFailed: 0,
+        filesSkipped: 0,
+        tracksConverted: 0,
+        progress: 50,
+        elapsedSeconds: 0,
+        elapsedMs: 500,
+        status: 'processing'
+      }
+    });
+
+    // 1 processed, 1 remaining.
+    // Elapsed = 500 ms.
+    // ETA = 500 * 1 = 500 ms.
+    expect(screen.getByText(/\(ETA: 500ms\)/)).toBeInTheDocument();
+    vi.useRealTimers();
+  });
+
+  it('renders no ETA when processing but no files are processed yet', () => {
+    render(MetricsPanel, {
+      props: {
+        totalFiles: 10,
+        filesProcessed: 0,
+        filesSucceeded: 0,
+        filesFailed: 0,
+        filesSkipped: 0,
+        tracksConverted: 0,
+        progress: 0,
+        elapsedSeconds: 5,
+        elapsedMs: 0,
+        status: 'processing'
+      }
+    });
+
+    expect(screen.getByText('Processing…')).toBeInTheDocument();
+    expect(screen.queryByText(/\(ETA:/)).not.toBeInTheDocument();
   });
 });

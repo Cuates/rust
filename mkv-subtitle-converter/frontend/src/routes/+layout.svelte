@@ -1,11 +1,18 @@
 <script lang="ts">
+  import '@fontsource/inter/300.css';
+  import '@fontsource/inter/400.css';
+  import '@fontsource/inter/500.css';
+  import '@fontsource/inter/600.css';
+  import '@fontsource/inter/700.css';
+  import '@fontsource/jetbrains-mono/400.css';
+  import '@fontsource/jetbrains-mono/500.css';
   import '../styles/app.scss';
   import { onMount } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
   import { handleKeydown } from '$lib/stores/shortcuts.svelte';
-  import { appState, toggleTheme, loadConfig, initConfigWatcher } from '$lib/stores/config.svelte';
+  import { appState, config, loadConfig, initConfigWatcher } from '$lib/stores/config.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import { appendLog } from '$lib/stores/pipeline.svelte';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
@@ -27,10 +34,22 @@
     }
   }
 
+  function resolveTheme() {
+    if (config.theme === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return config.theme;
+  }
+
+  $effect(() => {
+    const resolved = resolveTheme();
+    document.documentElement.setAttribute('data-theme', resolved);
+    syncNativeTitleBar(resolved);
+  });
+
   function handleToggleTheme() {
-    toggleTheme();
-    document.documentElement.setAttribute('data-theme', appState.isDarkMode ? 'dark' : 'light');
-    syncNativeTitleBar(appState.isDarkMode ? 'dark' : 'light');
+    const current = resolveTheme();
+    config.theme = current === 'dark' ? 'light' : 'dark';
   }
 
   onMount(() => {
@@ -55,11 +74,7 @@
         /* store unavailable in browser */
       }
 
-      // Apply saved theme.
-      const savedTheme = localStorage.getItem('app-theme') ?? 'dark';
-      appState.isDarkMode = savedTheme === 'dark';
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      await syncNativeTitleBar(savedTheme);
+      // Theme is automatically applied by $effect now.
 
       // Initialize session log file.
       try {
@@ -102,15 +117,15 @@
   });
 </script>
 
-<div class="app-wrapper" data-theme={appState.isDarkMode ? 'dark' : 'light'}>
+<div class="app-wrapper" data-theme={resolveTheme()}>
   <div class="titlebar-actions">
     <button
       class="theme-toggle"
       onclick={handleToggleTheme}
-      aria-label={appState.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-      title={appState.isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      aria-label={resolveTheme() === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+      title={resolveTheme() === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
     >
-      {appState.isDarkMode ? '☀️' : '🌙'}
+      {resolveTheme() === 'dark' ? '☀️' : '🌙'}
     </button>
   </div>
 

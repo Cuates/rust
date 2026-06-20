@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 use serde_json::json;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -51,15 +51,26 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
     );
     append_log(&app, "🚀 Initializing Core Engine Components...");
 
-    for binary in &["ffmpeg", "ffprobe"] {
-        match get_sidecar_version(app.clone(), binary.to_string()).await {
+    // Fetch sidecar versions concurrently (L-2)
+    let (ffmpeg_res, ffprobe_res) = tokio::join!(
+        get_sidecar_version(app.clone(), "ffmpeg".to_string()),
+        get_sidecar_version(app.clone(), "ffprobe".to_string())
+    );
+
+    for (binary, res) in [("ffmpeg", ffmpeg_res), ("ffprobe", ffprobe_res)] {
+        match res {
             Ok(ver) => append_log(&app, format!("📦 Sidecar {}: {}", binary, ver)),
             Err(_) => append_log(&app, format!("📦 Sidecar {}: Unknown", binary)),
         }
     }
 
-    // --- Discover MKV files ---
-    let all_files = discover_mkv_files(&paths, recursive);
+    // --- Discover MKV files (C-3: Wrap in spawn_blocking) ---
+    let paths_clone = paths.clone();
+    let all_files =
+        tokio::task::spawn_blocking(move || discover_mkv_files(&paths_clone, recursive))
+            .await
+            .unwrap_or_default();
+
     let total_count = all_files.len();
 
     let mut folder_counts = HashMap::new();
@@ -92,16 +103,32 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
             "folder_statuses": {}
         });
 
-        let _ = on_progress.send(ProgressPayload {
-            event: "Finished".into(),
-            data: empty_payload.clone(),
-        });
+        // M-2: Removed redundant Finished emit
         return Ok(empty_payload);
     }
 
     if total_count > 300 {
         let _ = app.emit(EVENT_LARGE_BATCH_WARNING, total_count);
     }
+
+    // --- History Cache (P-4) ---
+    let history_cache = tokio::task::spawn_blocking({
+        let app_clone = app.clone();
+        move || {
+            let st = app_clone.state::<AppState>();
+            let guard = st.db.blocking_lock();
+            if let Some(db) = guard.as_ref() {
+                crate::history::load_cache(db).unwrap_or_default()
+            } else {
+                HashSet::new()
+            }
+        }
+    })
+    .await
+    .unwrap_or_default();
+
+    let history_cache = Arc::new(history_cache);
+    let new_history_records = Arc::new(tokio::sync::Mutex::new(HashSet::new()));
 
     // --- Shared counters ---
     let files_processed = Arc::new(AtomicUsize::new(0));
@@ -126,6 +153,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
     let actual_concurrency = if concurrency > 0 { concurrency } else { 1 };
     let sem = Arc::new(Semaphore::new(actual_concurrency));
     let mut join_set: JoinSet<String> = JoinSet::new();
+    let mut announced_folders = HashSet::new(); // H-4: Deduplicate FolderStatusUpdate
 
     for path_str in &paths {
         for (file_path, folder_path) in all_files.iter().filter(|(_, f)| f == path_str) {
@@ -138,13 +166,17 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                 Err(_) => break,
             };
 
-            let _ = on_progress.send(ProgressPayload {
-                event: "FolderStatusUpdate".into(),
-                data: json!({
-                    "folder": folder_path,
-                    "status": "processing"
-                }),
-            });
+            // H-4: Only announce folder processing once
+            if !announced_folders.contains(folder_path) {
+                announced_folders.insert(folder_path.clone());
+                let _ = on_progress.send(ProgressPayload {
+                    event: "FolderStatusUpdate".into(),
+                    data: json!({
+                        "folder": folder_path,
+                        "status": "processing"
+                    }),
+                });
+            }
 
             let app_clone = app.clone();
             let cancel_clone = cancel_token.clone();
@@ -155,33 +187,37 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
             let fs_clone = files_success.clone();
             let ff_clone = files_failed.clone();
             let fsk_clone = files_skipped.clone();
+            let history_cache_clone = history_cache.clone();
+            let new_history_records_clone = new_history_records.clone();
             let folder_owned = folder_path.clone();
             let file_owned = file_path.clone();
 
             join_set.spawn(async move {
-                let _permit = permit; // Released when this task completes.
+                let _permit = permit;
 
                 if cancel_clone.is_cancelled() {
                     return folder_owned;
                 }
 
-                match process_one_mkv_file(
-                    &app_clone,
-                    &file_owned,
-                    &folder_owned,
-                    &cancel_clone,
-                    &on_progress_clone,
-                    &fp_clone,
-                    &tc_clone,
-                )
+                match process_one_mkv_file(crate::process::ProcessContext {
+                    app: &app_clone,
+                    file_path: &file_owned,
+                    root_dir: &folder_owned,
+                    cancel_token: &cancel_clone,
+                    on_progress: &on_progress_clone,
+                    files_processed: &fp_clone,
+                    tracks_converted: &tc_clone,
+                    history_cache: &history_cache_clone,
+                    new_history_records: &new_history_records_clone,
+                })
                 .await
                 {
-                    Ok((convs, fails)) => {
-                        if convs.is_empty() && fails.is_empty() {
-                            fsk_clone.fetch_add(1, Ordering::Relaxed);
+                    Ok((convs, fails, skipped_count)) => {
+                        if skipped_count > 0 {
+                            fsk_clone.fetch_add(skipped_count, Ordering::Relaxed);
                         } else if convs.is_empty() && !fails.is_empty() {
                             ff_clone.fetch_add(1, Ordering::Relaxed);
-                        } else {
+                        } else if !convs.is_empty() {
                             fs_clone.fetch_add(1, Ordering::Relaxed);
                         }
 
@@ -191,7 +227,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                             entry.1.extend(fails);
                         }
                     }
-                    Err(AppError::Aborted) => {} // Expected on cancel.
+                    Err(AppError::Aborted) => {}
                     Err(e) => {
                         ff_clone.fetch_add(1, Ordering::Relaxed);
                         append_log(
@@ -276,10 +312,12 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                     );
                     report.insert("files", json!(conv_list));
 
-                    let _ = std::fs::write(
+                    tokio::fs::write(
                         root_path.join("converted_files.json"),
                         serde_json::to_string_pretty(&report).unwrap_or_default(),
-                    );
+                    )
+                    .await
+                    .ok();
                     if any_success_dir.is_empty() {
                         any_success_dir = folder_path.clone();
                     }
@@ -296,10 +334,12 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                     );
                     report.insert("failed_files", json!(fail_list));
 
-                    let _ = std::fs::write(
+                    tokio::fs::write(
                         root_path.join("failed_files.json"),
                         serde_json::to_string_pretty(&report).unwrap_or_default(),
-                    );
+                    )
+                    .await
+                    .ok();
                     if any_failure_dir.is_empty() {
                         any_failure_dir = folder_path.clone();
                     }
@@ -318,9 +358,27 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         }
     }
 
+    // --- Flush history cache (P-4) ---
+    {
+        let new_records = new_history_records.lock().await.clone();
+        if !new_records.is_empty() {
+            tokio::task::spawn_blocking({
+                let app_clone = app.clone();
+                move || {
+                    let st = app_clone.state::<AppState>();
+                    let mut guard = st.db.blocking_lock();
+                    if let Some(db) = guard.as_mut() {
+                        let _ = crate::history::flush_cache(db, &new_records);
+                    }
+                }
+            })
+            .await
+            .unwrap_or_default();
+        }
+    }
+
     // --- Post-processing ---
     if cancel_token.is_cancelled() {
-        // Clean up only files created during this session — no wildcard sweeps.
         {
             let mut session = state.process.lock().await;
             for path in session.session_output_files.drain(..) {
@@ -328,7 +386,6 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                     let _ = std::fs::remove_file(&path);
                 }
             }
-            // Remove report files generated in this session.
             for path_str in &session.active_paths.clone() {
                 let dir = Path::new(path_str);
                 let _ = std::fs::remove_file(dir.join("converted_files.json"));
@@ -393,15 +450,14 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
             "failure_file": any_failure_dir,
             "seconds": delta.as_secs(),
             "milliseconds": delta.subsec_millis(),
-            "folder_statuses": folder_statuses
+            "folder_statuses": folder_statuses,
+            "succeeded_files": f_success, // L-1 / U-1 breakdown
+            "failed_files": f_failed,
+            "skipped_files": f_skipped,
         });
 
-        let _ = on_progress.send(ProgressPayload {
-            event: "Finished".into(),
-            data: final_payload.clone(),
-        });
+        // M-2: Removed redundant Finished emit. Frontend uses invoke result.
 
-        // Clear session tracking.
         {
             let mut session = state.process.lock().await;
             session.active_paths.clear();
@@ -410,7 +466,6 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         return Ok(final_payload);
     }
 
-    // Clear session tracking.
     {
         let mut session = state.process.lock().await;
         session.active_paths.clear();
@@ -428,7 +483,6 @@ pub async fn abort_mkv_directory_processing(state: tauri::State<'_, AppState>) -
     let mut session = state.process.lock().await;
     session.cancel.cancel();
 
-    // Kill all running sidecar child processes immediately.
     for (_, child) in session.children.drain() {
         let _ = child.kill();
     }
@@ -504,7 +558,19 @@ pub fn check_folder_reports(
 }
 
 // =============================================================================
-// DIRECTORY STATS
+// DIRECTORY STATS & REPORTS
+// =============================================================================
+
+#[tauri::command]
+pub async fn read_report_file(dir_path: String, report_type: String) -> Result<String, AppError> {
+    let filename = if report_type == "success" {
+        "converted_files.json"
+    } else {
+        "failed_files.json"
+    };
+    let path = Path::new(&dir_path).join(filename);
+    tokio::fs::read_to_string(path).await.map_err(AppError::Io)
+}
 // =============================================================================
 
 #[tauri::command]
@@ -662,7 +728,9 @@ pub async fn save_log_file<R: tauri::Runtime>(
     let log_path = log_dir.join("session.log");
     let content = std::fs::read_to_string(&log_path).map_err(AppError::Io)?;
 
-    std::fs::write(Path::new(&path), content).map_err(AppError::Io)?;
+    tokio::fs::write(Path::new(&path), content)
+        .await
+        .map_err(AppError::Io)?;
 
     Ok(())
 }
@@ -675,6 +743,21 @@ pub fn log_message<R: tauri::Runtime>(app: AppHandle<R>, message: String) {
 // =============================================================================
 // PROCESSING HISTORY
 // =============================================================================
+
+#[tauri::command]
+pub async fn get_history_count<R: tauri::Runtime>(app: AppHandle<R>) -> Result<usize, AppError> {
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let db_mutex = state.db.blocking_lock();
+        if let Some(db) = db_mutex.as_ref() {
+            crate::history::get_history_count(db)
+        } else {
+            Ok(0)
+        }
+    })
+    .await
+    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))?
+}
 
 #[tauri::command]
 pub async fn clear_processing_history<R: tauri::Runtime>(

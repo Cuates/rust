@@ -14,6 +14,9 @@ interface PipelineState {
   directoryStatuses: Record<string, string>;
   folderCounts: Record<string, number>;
   completedFilesPerDir: Record<string, number>;
+  filesSucceeded: number;
+  filesFailed: number;
+  filesSkipped: number;
 }
 
 export const pipeline = $state<PipelineState>({
@@ -29,7 +32,10 @@ export const pipeline = $state<PipelineState>({
   largeBatchWarning: false,
   directoryStatuses: {},
   folderCounts: {},
-  completedFilesPerDir: {}
+  completedFilesPerDir: {},
+  filesSucceeded: 0,
+  filesFailed: 0,
+  filesSkipped: 0
 });
 
 export function resetPipeline(): void {
@@ -46,6 +52,9 @@ export function resetPipeline(): void {
   pipeline.directoryStatuses = {};
   pipeline.folderCounts = {};
   pipeline.completedFilesPerDir = {};
+  pipeline.filesSucceeded = 0;
+  pipeline.filesFailed = 0;
+  pipeline.filesSkipped = 0;
 }
 
 export function appendLog(message: string): void {
@@ -81,6 +90,9 @@ export function handleFinished(data: FinishedData): void {
   if (data.folder_statuses) {
     pipeline.directoryStatuses = data.folder_statuses;
   }
+  pipeline.filesSucceeded = data.succeeded_files ?? 0;
+  pipeline.filesFailed = data.failed_files ?? 0;
+  pipeline.filesSkipped = data.skipped_files ?? 0;
 }
 
 export function handleCancelled(): void {

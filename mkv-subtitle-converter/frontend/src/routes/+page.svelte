@@ -28,7 +28,6 @@
   import {
     CMD_PROCESS_MKV_DIRECTORY,
     CMD_ABORT_PROCESSING,
-    CMD_SHOW_ITEM_IN_FOLDER,
     CMD_CLEAR_PROCESSING_HISTORY,
     EVENT_LARGE_BATCH_WARNING
   } from '$lib/constants';
@@ -36,6 +35,7 @@
   // UI state
   let showAbout = $state(false);
   let showClearHistoryConfirm = $state(false);
+  let isDragging = $state(false);
 
   // Derived from config
   const selectedFolders = $derived(config.input_directories);
@@ -89,14 +89,6 @@
     config.input_directories = newFolders;
   }
 
-  async function openFolder(folder: string) {
-    try {
-      await invoke(CMD_SHOW_ITEM_IN_FOLDER, { path: folder });
-    } catch (e) {
-      toast.error(`Could not highlight file in Explorer: ${e}`);
-    }
-  }
-
   // -------------------------------------------------------------------------
   // Drag & Drop
   // -------------------------------------------------------------------------
@@ -111,7 +103,12 @@
         const webview = getCurrentWebview();
 
         unlistenDragEnter = await webview.onDragDropEvent((event) => {
-          if (event.payload.type === 'drop') {
+          if (event.payload.type === 'enter' || event.payload.type === 'over') {
+            if (!isProcessing) isDragging = true;
+          } else if (event.payload.type === 'leave') {
+            isDragging = false;
+          } else if (event.payload.type === 'drop') {
+            isDragging = false;
             if (event.payload.paths && !isProcessing) {
               let added = false;
               for (const p of event.payload.paths) {
@@ -293,13 +290,15 @@
 
     toast.success(msg);
 
-    try {
-      await sendNotification({
-        title: 'MKV Subtitle Converter',
-        body: msg
-      });
-    } catch {
-      /* notification permission not granted */
+    if (config.notifications) {
+      try {
+        await sendNotification({
+          title: 'MKV Subtitle Converter',
+          body: msg
+        });
+      } catch {
+        /* notification permission not granted */
+      }
     }
   }
 
@@ -419,10 +418,9 @@
         folders={selectedFolders}
         disabled={isProcessing}
         directoryStatuses={pipeline.directoryStatuses}
-        isDragging={false}
+        {isDragging}
         onAdd={addFolder}
         onRemove={removeFolder}
-        onOpenFolder={openFolder}
         onClearAll={clearAllFolders}
         onReorder={reorderFolders}
       />
@@ -472,6 +470,9 @@
       <MetricsPanel
         totalFiles={pipeline.totalFiles}
         filesProcessed={pipeline.filesProcessed}
+        filesSucceeded={pipeline.filesSucceeded}
+        filesFailed={pipeline.filesFailed}
+        filesSkipped={pipeline.filesSkipped}
         tracksConverted={pipeline.tracksConverted}
         progress={pipelineProgress}
         elapsedSeconds={pipeline.elapsedSeconds}

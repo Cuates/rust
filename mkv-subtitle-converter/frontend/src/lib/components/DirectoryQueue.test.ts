@@ -8,6 +8,41 @@ vi.mock('$lib/utils/formatters', () => ({
   baseName: (path: string) => path.split(/[/\\\\]/).pop() || path
 }));
 
+vi.mock('@tauri-apps/api/core', () => {
+  return {
+    invoke: vi.fn().mockImplementation((cmd: string, args: Record<string, unknown>) => {
+      if (cmd === 'get_directory_stats') {
+        if (args?.dirPath === '/test/folder_many') {
+          return Promise.resolve({
+            file_count: 15,
+            files: Array.from({ length: 15 }).map((_, i) => ({ name: `file${i}.mkv` }))
+          });
+        }
+        return Promise.resolve({ file_count: 5, files: [{ name: 'file1.mkv' }] });
+      }
+      if (cmd === 'read_report_file') {
+        if (args?.dirPath === '/test/folder_empty') {
+          return Promise.resolve(JSON.stringify({ files: [], failed_files: [] }));
+        }
+        if (args?.dirPath === '/test/folder_corrupt') {
+          return Promise.resolve('{ invalid_json: 123 ]');
+        }
+        if (args?.reportType === 'success') {
+          return Promise.resolve(JSON.stringify({ files: [{ path: '/test/success.mkv' }] }));
+        }
+        if (args?.reportType === 'failure') {
+          return Promise.resolve(
+            JSON.stringify({
+              failed_files: [{ path: '/test/fail.mkv', error: 'bad' }, '/test/string_fail.mkv']
+            })
+          );
+        }
+      }
+      return Promise.resolve();
+    })
+  };
+});
+
 describe('DirectoryQueue Component', () => {
   it('renders empty state correctly', () => {
     render(DirectoryQueue, {
@@ -16,7 +51,6 @@ describe('DirectoryQueue Component', () => {
         disabled: false,
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -35,7 +69,7 @@ describe('DirectoryQueue Component', () => {
         disabled: false,
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
+
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -54,7 +88,7 @@ describe('DirectoryQueue Component', () => {
         disabled: false,
         onAdd,
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
+
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -73,7 +107,6 @@ describe('DirectoryQueue Component', () => {
         disabled: false,
         onAdd: vi.fn(),
         onRemove,
-        onOpenFolder: vi.fn(),
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -91,7 +124,7 @@ describe('DirectoryQueue Component', () => {
         disabled: true,
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
+
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -111,7 +144,7 @@ describe('DirectoryQueue Component', () => {
         completedFilesPerDir: { '/test/folder': 5 },
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
+
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -121,7 +154,6 @@ describe('DirectoryQueue Component', () => {
   });
 
   it('renders Highlight report in Explorer button when folder is done', async () => {
-    const onOpenFolder = vi.fn();
     render(DirectoryQueue, {
       props: {
         folders: ['/test/folder'],
@@ -129,15 +161,13 @@ describe('DirectoryQueue Component', () => {
         directoryStatuses: { '/test/folder': 'done' },
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder,
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
     });
 
-    const highlightBtn = screen.getByTitle('Highlight report in Explorer');
+    const highlightBtn = screen.getByTitle('Toggle Report');
     await fireEvent.click(highlightBtn);
-    expect(onOpenFolder).toHaveBeenCalled();
   });
 
   it('renders error, warning, and skipped statuses correctly', () => {
@@ -154,7 +184,7 @@ describe('DirectoryQueue Component', () => {
         },
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
+
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -174,7 +204,7 @@ describe('DirectoryQueue Component', () => {
         isDragging: true,
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
+
         onClearAll: vi.fn(),
         onReorder: vi.fn()
       }
@@ -193,7 +223,7 @@ describe('DirectoryQueue Component', () => {
         disabled: false,
         onAdd: vi.fn(),
         onRemove: vi.fn(),
-        onOpenFolder: vi.fn(),
+
         onClearAll: vi.fn(),
         onReorder
       }
@@ -221,5 +251,204 @@ describe('DirectoryQueue Component', () => {
     await fireEvent.pointerMove(window, { clientY: 140 }); // delta = -60
     await fireEvent.pointerUp(window);
     // Assuming we hit the branches, no need to assert onReorder if it fails due to JSDOM issues.
+  });
+
+  it('toggles report drawer and renders successfully converted and failed lists', async () => {
+    const folders = ['/test/folder1'];
+    render(DirectoryQueue, {
+      props: {
+        folders,
+        disabled: false,
+        directoryStatuses: { '/test/folder1': 'done' },
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const highlightBtn = screen.getByTitle('Toggle Report');
+    await fireEvent.click(highlightBtn);
+
+    // After clicking, the mock returns success and failure data, and it renders
+    // successful file '/test/success.mkv'
+    const successTitle = await screen.findByText('Successfully Converted (1)');
+    expect(successTitle).toBeInTheDocument();
+    expect(screen.getByText('success.mkv')).toBeInTheDocument();
+
+    // and failed file '/test/fail.mkv' and 'string_fail.mkv'
+    const failedTitle = await screen.findByText('Failed (2)');
+    expect(failedTitle).toBeInTheDocument();
+    expect(screen.getByText('fail.mkv')).toBeInTheDocument();
+    expect(screen.getByText('/test/string_fail.mkv')).toBeInTheDocument();
+
+    // Double-click to close
+    await fireEvent.click(highlightBtn);
+    expect(screen.queryByText('Successfully Converted (1)')).not.toBeInTheDocument();
+  });
+
+  it('renders "No files were processed" when report is empty', async () => {
+    const folders = ['/test/folder_empty'];
+    render(DirectoryQueue, {
+      props: {
+        folders,
+        disabled: false,
+        directoryStatuses: { '/test/folder_empty': 'done' },
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const highlightBtn = screen.getByTitle('Toggle Report');
+    await fireEvent.click(highlightBtn);
+
+    const emptyMsg = await screen.findByText('No files were processed.');
+    expect(emptyMsg).toBeInTheDocument();
+  });
+
+  it('does not trigger drag logic when disabled', async () => {
+    const { container } = render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder1'],
+        disabled: true,
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const items = container.querySelectorAll('.folder-item');
+    await fireEvent.pointerDown(items[0], { clientY: 100 });
+    // pointerDraggingIndex wouldn't be set, meaning no drag classes applied
+    expect(items[0]).not.toHaveClass('dragging');
+  });
+
+  it('ignores pointer down on icon buttons', async () => {
+    const { container } = render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder1'],
+        disabled: false,
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const removeBtn = screen.getByTitle('Remove from queue');
+    await fireEvent.pointerDown(removeBtn, { clientY: 100 });
+    const items = container.querySelectorAll('.folder-item');
+    expect(items[0]).not.toHaveClass('dragging');
+  });
+
+  it('handles empty tooltips correctly', async () => {
+    // filesCache returns empty array for folder_empty if we wait
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder_empty'],
+        disabled: false,
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    // Just verifying it doesn't crash on hover
+    const folderName = screen.getByText('folder_empty');
+    await fireEvent.mouseOver(folderName);
+  });
+
+  it('handles tooltips with >10 files correctly', async () => {
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder_many'],
+        disabled: false,
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const folderName = screen.getByText('folder_many');
+    await fireEvent.mouseOver(folderName);
+    // Title is set dynamically via svelte block, we just ensure no crashes
+  });
+
+  it('handles corrupt JSON in reports gracefully', async () => {
+    const folders = ['/test/folder_corrupt'];
+    render(DirectoryQueue, {
+      props: {
+        folders,
+        disabled: false,
+        directoryStatuses: { '/test/folder_corrupt': 'done' },
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const highlightBtn = screen.getByTitle('Toggle Report');
+    await fireEvent.click(highlightBtn);
+
+    // Should fall back to empty report logic
+    const emptyMsg = await screen.findByText('No files were processed.');
+    expect(emptyMsg).toBeInTheDocument();
+  });
+
+  it('triggers onAdd, onRemove, onClearAll', async () => {
+    const onAdd = vi.fn();
+    const onRemove = vi.fn();
+    const onClearAll = vi.fn();
+
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder1'],
+        disabled: false,
+        onAdd,
+        onRemove,
+        onClearAll,
+        onReorder: vi.fn()
+      }
+    });
+
+    await fireEvent.click(screen.getByTitle('Add Folder (Ctrl+O)'));
+    expect(onAdd).toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByTitle('Clear All (Ctrl+R)'));
+    expect(onClearAll).toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByTitle('Remove from queue'));
+    expect(onRemove).toHaveBeenCalledWith('/test/folder1');
+  });
+
+  it('disables buttons when disabled prop is true', async () => {
+    const onAdd = vi.fn();
+    const onRemove = vi.fn();
+    const onClearAll = vi.fn();
+
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder1'],
+        disabled: true,
+        onAdd,
+        onRemove,
+        onClearAll,
+        onReorder: vi.fn()
+      }
+    });
+
+    const addBtn = screen.getByTitle('Add Folder (Ctrl+O)');
+    const clearBtn = screen.getByTitle('Clear All (Ctrl+R)');
+    const removeBtn = screen.getByTitle('Remove from queue');
+
+    expect(addBtn).toBeDisabled();
+    expect(clearBtn).toBeDisabled();
+    expect(removeBtn).toBeDisabled();
   });
 });

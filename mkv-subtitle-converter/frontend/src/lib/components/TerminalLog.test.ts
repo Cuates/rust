@@ -205,6 +205,24 @@ describe('TerminalLog Component', () => {
     vi.useRealTimers();
   });
 
+  it('keeps auto-scroll enabled when scrolling near the bottom', async () => {
+    const logs = ['Line 1', 'Line 2'];
+    const { container } = render(TerminalLog, { props: { logs } });
+
+    const scrollContainer = container.querySelector('.terminal') as HTMLElement;
+
+    // Simulate scrolling near the bottom (within 40px)
+    Object.defineProperty(scrollContainer, 'scrollTop', { value: 890, writable: true });
+    Object.defineProperty(scrollContainer, 'scrollHeight', { value: 1000, writable: true });
+    Object.defineProperty(scrollContainer, 'clientHeight', { value: 100, writable: true });
+
+    await fireEvent.scroll(scrollContainer);
+
+    // Button should NOT appear since autoScroll should still be true
+    const resumeBtn = screen.queryByTitle('Resume auto-scroll');
+    expect(resumeBtn).not.toBeInTheDocument();
+  });
+
   it('handles scroll events to pause and resume auto-scroll', async () => {
     const { container, rerender } = render(TerminalLog, {
       props: { logs: ['test log'] }

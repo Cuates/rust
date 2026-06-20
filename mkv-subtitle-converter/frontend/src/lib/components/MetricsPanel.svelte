@@ -4,6 +4,9 @@
   interface Props {
     totalFiles: number;
     filesProcessed: number;
+    filesSucceeded?: number;
+    filesFailed?: number;
+    filesSkipped?: number;
     tracksConverted: number;
     progress: number; // 0-100
     elapsedSeconds: number;
@@ -14,6 +17,9 @@
   let {
     totalFiles,
     filesProcessed,
+    filesSucceeded = 0,
+    filesFailed = 0,
+    filesSkipped = 0,
     tracksConverted,
     progress,
     elapsedSeconds,
@@ -24,6 +30,34 @@
   const elapsed = $derived(
     elapsedSeconds > 0 || elapsedMs > 0 ? formatDuration(elapsedSeconds, elapsedMs) : '—'
   );
+
+  const eta = $derived.by(() => {
+    if (
+      status !== 'processing' ||
+      filesProcessed === 0 ||
+      totalFiles === 0 ||
+      filesProcessed === totalFiles
+    ) {
+      return '';
+    }
+    const elapsedTotSec = elapsedSeconds + elapsedMs / 1000;
+    const timePerFile = elapsedTotSec / filesProcessed;
+    const remainingFiles = totalFiles - filesProcessed;
+    const remainingMs = Math.round(timePerFile * remainingFiles * 1000);
+
+    const h = Math.floor(remainingMs / 3600000);
+    const m = Math.floor((remainingMs % 3600000) / 60000);
+    const s = Math.floor((remainingMs % 60000) / 1000);
+    const ms = remainingMs % 1000;
+
+    let parts = [];
+    if (h > 0) parts.push(`${h}h`);
+    if (m > 0) parts.push(`${m}m`);
+    if (s > 0) parts.push(`${s}s`);
+    parts.push(`${ms}ms`);
+
+    return `ETA: ${parts.join(' ')}`;
+  });
 </script>
 
 <div class="metrics-grid">
@@ -52,16 +86,32 @@
   </div>
 </div>
 
+{#if status === 'done' || status === 'cancelled'}
+  <div class="metrics-grid breakdown-grid">
+    <div class="metric-card">
+      <span class="metric-label">Succeeded</span>
+      <span class="metric-value success-text">{filesSucceeded}</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Failed</span>
+      <span class="metric-value danger-text">{filesFailed}</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">Skipped</span>
+      <span class="metric-value secondary-text">{filesSkipped}</span>
+    </div>
+  </div>
+{/if}
+
 {#if status === 'processing' || status === 'done' || status === 'cancelled'}
   <div class="progress-section">
     <div class="progress-label">
-      <span
-        >{status === 'processing'
-          ? 'Processing…'
-          : status === 'done'
-            ? 'Complete'
-            : 'Cancelled'}</span
-      >
+      <span>
+        {status === 'processing' ? 'Processing…' : status === 'done' ? 'Complete' : 'Cancelled'}
+        {#if eta}
+          <span class="eta"> ({eta})</span>
+        {/if}
+      </span>
       <span>{Math.round(progress)}%</span>
     </div>
     <div class="progress-bar">
@@ -70,6 +120,10 @@
         class:done={status === 'done'}
         class:cancelled={status === 'cancelled'}
         style:width="{progress}%"
+        role="progressbar"
+        aria-valuenow={progress}
+        aria-valuemin="0"
+        aria-valuemax="100"
       ></div>
     </div>
   </div>
@@ -80,11 +134,16 @@
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 
     @media (max-width: 680px) {
       grid-template-columns: repeat(2, 1fr);
     }
+  }
+
+  .breakdown-grid {
+    grid-template-columns: repeat(3, 1fr);
+    margin-bottom: 16px;
   }
 
   .metric-card {
@@ -132,6 +191,23 @@
         font-size: 1.15rem;
       }
     }
+
+    &.success-text {
+      color: #22c55e;
+    }
+
+    &.danger-text {
+      color: var(--danger-color);
+    }
+
+    &.secondary-text {
+      color: var(--text-secondary);
+    }
+  }
+
+  .eta {
+    color: var(--text-secondary);
+    font-size: 0.8em;
   }
 
   .progress-section {

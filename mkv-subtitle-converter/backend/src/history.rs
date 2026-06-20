@@ -95,6 +95,62 @@ pub fn mark_file_processed(
     Ok(())
 }
 
+/// Loads all history records into an in-memory HashSet for fast lookups.
+pub fn load_cache(
+    db: &Connection,
+) -> std::result::Result<std::collections::HashSet<(String, u64, u64)>, AppError> {
+    let mut stmt = db
+        .prepare("SELECT file_path, original_size, modified_timestamp FROM processed_files")
+        .map_err(|e| AppError::Process(format!("DB prepare error: {}", e)))?;
+
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| AppError::Process(format!("DB query error: {}", e)))?;
+
+    let mut cache = std::collections::HashSet::new();
+    while let Some(row) = rows
+        .next()
+        .map_err(|e| AppError::Process(format!("DB row error: {}", e)))?
+    {
+        let path: String = row.get(0).unwrap_or_default();
+        let size: u64 = row.get(1).unwrap_or(0);
+        let modified: u64 = row.get(2).unwrap_or(0);
+        cache.insert((path, size, modified));
+    }
+
+    Ok(cache)
+}
+
+/// Inserts a batch of new records into the history database.
+pub fn flush_cache(
+    db: &mut Connection,
+    new_records: &std::collections::HashSet<(String, u64, u64)>,
+) -> std::result::Result<(), AppError> {
+    let tx = db
+        .transaction()
+        .map_err(|e| AppError::Process(format!("DB transaction error: {}", e)))?;
+    {
+        let mut stmt = tx
+            .prepare("INSERT OR REPLACE INTO processed_files (file_path, original_size, modified_timestamp) VALUES (?1, ?2, ?3)")
+            .map_err(|e| AppError::Process(format!("DB prepare error: {}", e)))?;
+        for (path, size, modified) in new_records {
+            stmt.execute(rusqlite::params![path, size, modified])
+                .map_err(|e| AppError::Process(format!("DB insert error: {}", e)))?;
+        }
+    }
+    tx.commit()
+        .map_err(|e| AppError::Process(format!("DB commit error: {}", e)))?;
+    Ok(())
+}
+
+/// Returns the total number of processed file records in the database.
+pub fn get_history_count(db: &Connection) -> std::result::Result<usize, AppError> {
+    let count: usize = db
+        .query_row("SELECT COUNT(*) FROM processed_files", [], |row| row.get(0))
+        .unwrap_or(0);
+    Ok(count)
+}
+
 /// Removes all history entries, forcing every file to be re-processed on the next run.
 pub fn clear_history(db: &Connection) -> std::result::Result<(), AppError> {
     db.execute("DELETE FROM processed_files", [])

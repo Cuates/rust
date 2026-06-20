@@ -1,5 +1,15 @@
 <script lang="ts">
   import { baseName } from '$lib/utils/formatters';
+  import { invoke } from '@tauri-apps/api/core';
+  import { config } from '$lib/stores/config.svelte';
+  import { CMD_GET_DIRECTORY_STATS, CMD_READ_REPORT_FILE } from '$lib/constants';
+
+  interface ReportItem {
+    path?: string;
+    file?: string;
+    name?: string;
+    error?: string;
+  }
 
   interface Props {
     folders: string[];
@@ -9,7 +19,6 @@
     completedFilesPerDir?: Record<string, number>;
     onAdd: () => void;
     onRemove: (folder: string) => void;
-    onOpenFolder: (folder: string) => void;
     onClearAll: () => void;
     onReorder: (newFolders: string[]) => void;
     isDragging?: boolean;
@@ -23,7 +32,6 @@
     completedFilesPerDir = {},
     onAdd,
     onRemove,
-    onOpenFolder,
     onClearAll,
     onReorder,
     isDragging = false
@@ -33,14 +41,75 @@
   let pointerStartY = $state(0);
   let pointerCurrentY = $state(0);
 
-  // The physical pixel distance between the top of one row and the top of the next (Height ~46px + gap 8px)
-  const ITEM_OFFSET = 54;
-  // Swap when we cross the halfway point
-  const SWAP_THRESHOLD = 27;
-
   let autoScrollDirection = 0;
   let autoScrollRAF: number | null = null;
   let queueBoxEl = $state<HTMLElement | null>(null);
+  let statsCache = $state<Record<string, number>>({});
+  let filesCache = $state<Record<string, string[]>>({});
+  let expandedReports = $state<
+    Record<string, { converted: ReportItem[]; failed: (ReportItem | string)[] } | null>
+  >({});
+
+  $effect(() => {
+    folders.forEach(async (folder) => {
+      if (statsCache[folder] === undefined) {
+        try {
+          const stats = await invoke<{ file_count: number; files: { name: string }[] }>(
+            CMD_GET_DIRECTORY_STATS,
+            {
+              dirPath: folder,
+              recursive: config.recursive
+            }
+          );
+          statsCache = { ...statsCache, [folder]: stats.file_count };
+          filesCache = { ...filesCache, [folder]: stats.files.map((f) => f.name) };
+        } catch (e) {
+          console.error('Failed to get directory stats', e);
+        }
+      }
+    });
+  });
+
+  function getTooltip(folder: string): string | undefined {
+    const files = filesCache[folder];
+    if (!files || files.length === 0) return undefined;
+    if (files.length <= 10) return files.join('\n');
+    return [...files.slice(0, 10), `...and ${files.length - 10} more`].join('\n');
+  }
+
+  async function toggleReport(folder: string) {
+    if (expandedReports[folder]) {
+      expandedReports[folder] = null;
+      return;
+    }
+
+    let converted: ReportItem[] = [];
+    let failed: (ReportItem | string)[] = [];
+
+    try {
+      const c = await invoke<string>(CMD_READ_REPORT_FILE, {
+        dirPath: folder,
+        reportType: 'success'
+      });
+      const parsed = JSON.parse(c);
+      converted = parsed.files || [];
+    } catch {
+      // ignore empty or missing report
+    }
+
+    try {
+      const f = await invoke<string>(CMD_READ_REPORT_FILE, {
+        dirPath: folder,
+        reportType: 'failure'
+      });
+      const parsed = JSON.parse(f);
+      failed = parsed.failed_files || [];
+    } catch {
+      // ignore empty or missing report
+    }
+
+    expandedReports = { ...expandedReports, [folder]: { converted, failed } };
+  }
 
   function handlePointerDown(e: PointerEvent, index: number) {
     if (disabled) return;
@@ -89,25 +158,49 @@
   }
 
   function checkSwapLogic() {
-    if (pointerDraggingIndex === null) return;
+    if (pointerDraggingIndex === null || !queueBoxEl) return;
     let deltaY = pointerCurrentY - pointerStartY;
 
-    if (deltaY > SWAP_THRESHOLD && pointerDraggingIndex < folders.length - 1) {
-      const newDirs = [...folders];
-      const temp = newDirs[pointerDraggingIndex];
-      newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex + 1];
-      newDirs[pointerDraggingIndex + 1] = temp;
-      onReorder(newDirs);
-      pointerDraggingIndex++;
-      pointerStartY += ITEM_OFFSET;
-    } else if (deltaY < -SWAP_THRESHOLD && pointerDraggingIndex > 0) {
-      const newDirs = [...folders];
-      const temp = newDirs[pointerDraggingIndex];
-      newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex - 1];
-      newDirs[pointerDraggingIndex - 1] = temp;
-      onReorder(newDirs);
-      pointerDraggingIndex--;
-      pointerStartY -= ITEM_OFFSET;
+    const items = queueBoxEl.querySelectorAll('.folder-item');
+    if (items.length <= 1) return;
+
+    if (deltaY > 0 && pointerDraggingIndex < folders.length - 1) {
+      const currentItem = items[pointerDraggingIndex] as HTMLElement;
+      const nextItem = items[pointerDraggingIndex + 1] as HTMLElement;
+      if (!currentItem || !nextItem) return;
+
+      const swapOffset =
+        nextItem.offsetTop +
+        nextItem.offsetHeight -
+        (currentItem.offsetTop + currentItem.offsetHeight);
+      const threshold = swapOffset / 2;
+
+      if (deltaY > threshold) {
+        const newDirs = [...folders];
+        const temp = newDirs[pointerDraggingIndex];
+        newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex + 1];
+        newDirs[pointerDraggingIndex + 1] = temp;
+        onReorder(newDirs);
+        pointerDraggingIndex++;
+        pointerStartY += swapOffset;
+      }
+    } else if (deltaY < 0 && pointerDraggingIndex > 0) {
+      const currentItem = items[pointerDraggingIndex] as HTMLElement;
+      const prevItem = items[pointerDraggingIndex - 1] as HTMLElement;
+      if (!currentItem || !prevItem) return;
+
+      const swapOffset = currentItem.offsetTop - prevItem.offsetTop;
+      const threshold = swapOffset / 2;
+
+      if (deltaY < -threshold) {
+        const newDirs = [...folders];
+        const temp = newDirs[pointerDraggingIndex];
+        newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex - 1];
+        newDirs[pointerDraggingIndex - 1] = temp;
+        onReorder(newDirs);
+        pointerDraggingIndex--;
+        pointerStartY -= swapOffset;
+      }
     }
   }
 
@@ -117,8 +210,9 @@
     if (queueBoxEl) {
       const rect = queueBoxEl.getBoundingClientRect();
       const scrollThreshold = 15;
-      if (clampedY < rect.top - ITEM_OFFSET) clampedY = rect.top - ITEM_OFFSET;
-      else if (clampedY > rect.bottom + ITEM_OFFSET) clampedY = rect.bottom + ITEM_OFFSET;
+      const itemOffset = 54;
+      if (clampedY < rect.top - itemOffset) clampedY = rect.top - itemOffset;
+      else if (clampedY > rect.bottom + itemOffset) clampedY = rect.bottom + itemOffset;
 
       if (e.clientY < rect.top + scrollThreshold) {
         autoScrollDirection = -1;
@@ -249,7 +343,9 @@
     <ul class="folder-list" aria-label="Folder queue" bind:this={queueBoxEl}>
       {#each folders as folder, i (folder)}
         <li
-          class="folder-item status-{directoryStatuses[folder] || 'idle'}"
+          class="folder-item status-{directoryStatuses[folder] || 'idle'} {isDragging
+            ? 'grabbing'
+            : ''}"
           class:dragging-item={pointerDraggingIndex === i}
           style={pointerDraggingIndex === i
             ? `transform: translateY(${
@@ -262,98 +358,117 @@
             : ''}
           onpointerdown={(e) => handlePointerDown(e, i)}
         >
-          <div class="folder-info">
-            {#if directoryStatuses[folder] === 'processing'}
-              <span class="status-icon-wrap" title="Processing...">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="folder-icon spinner"
-                >
-                  <line x1="12" y1="2" x2="12" y2="6"></line>
-                  <line x1="12" y1="18" x2="12" y2="22"></line>
-                  <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-                  <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-                  <line x1="2" y1="12" x2="6" y2="12"></line>
-                  <line x1="18" y1="12" x2="22" y2="12"></line>
-                  <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-                  <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-                </svg>
-              </span>
-            {:else if directoryStatuses[folder]}
-              {#if directoryStatuses[folder] === 'done'}
-                <span class="status-icon-wrap" title="Successfully converted all subtitles">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#22c55e"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="folder-icon"
-                  >
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                  </svg>
-                </span>
-              {:else if directoryStatuses[folder] === 'error'}
-                <span class="status-icon-wrap" title="Failed to process some files">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#ef4444"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="folder-icon"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="15" y1="9" x2="9" y2="15"></line>
-                    <line x1="9" y1="9" x2="15" y2="15"></line>
-                  </svg>
-                </span>
-              {:else if directoryStatuses[folder] === 'warning'}
-                <span class="status-icon-wrap" title="Processed with warnings">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#f59e0b"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="folder-icon"
-                  >
-                    <path
-                      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-                    ></path>
-                    <line x1="12" y1="9" x2="12" y2="13"></line>
-                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
-                  </svg>
-                </span>
-              {:else if directoryStatuses[folder] === 'skipped'}
-                <span class="status-icon-wrap" title="Skipped (No convertible tracks found)">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#888"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    class="folder-icon"
-                  >
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="8" y1="12" x2="16" y2="12"></line>
-                  </svg>
-                </span>
+          <div class="folder-row">
+            <div class="folder-info">
+              {#if directoryStatuses[folder]}
+                {#if directoryStatuses[folder] === 'processing'}
+                  <span class="status-icon-wrap" title="Processing...">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="folder-icon spinner"
+                    >
+                      <line x1="12" y1="2" x2="12" y2="6"></line>
+                      <line x1="12" y1="18" x2="12" y2="22"></line>
+                      <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                      <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                      <line x1="2" y1="12" x2="6" y2="12"></line>
+                      <line x1="18" y1="12" x2="22" y2="12"></line>
+                      <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                      <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                    </svg>
+                  </span>
+                {:else if directoryStatuses[folder] === 'done'}
+                  <span class="status-icon-wrap" title="Successfully converted all subtitles">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#22c55e"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="folder-icon"
+                    >
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                  </span>
+                {:else if directoryStatuses[folder] === 'error'}
+                  <span class="status-icon-wrap" title="Failed to process some files">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#ef4444"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="folder-icon"
+                    >
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="15" y1="9" x2="9" y2="15"></line>
+                      <line x1="9" y1="9" x2="15" y2="15"></line>
+                    </svg>
+                  </span>
+                {:else if directoryStatuses[folder] === 'warning'}
+                  <span class="status-icon-wrap" title="Processed with warnings">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#f59e0b"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="folder-icon"
+                    >
+                      <path
+                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                      ></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                  </span>
+                {:else if directoryStatuses[folder] === 'skipped'}
+                  <span class="status-icon-wrap" title="Skipped (No convertible tracks found)">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#888"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="folder-icon"
+                    >
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                  </span>
+                {:else}
+                  <span class="status-icon-wrap" title="Pending">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      class="folder-icon"
+                    >
+                      <path
+                        d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                      ></path>
+                    </svg>
+                  </span>
+                {/if}
               {:else}
                 <span class="status-icon-wrap" title="Pending">
                   <svg
@@ -372,54 +487,65 @@
                   </svg>
                 </span>
               {/if}
-            {:else}
-              <span class="status-icon-wrap" title="Pending">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="folder-icon"
-                >
-                  <path
-                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                  ></path>
-                </svg>
-              </span>
-            {/if}
-            <div class="folder-name-group">
-              <span class="folder-name" title={folder}>{baseName(folder)}</span>
-              <span class="folder-path" title={folder}>{folder}</span>
-              {#if directoryStatuses[folder] === 'processing' && folderCounts[folder] !== undefined}
-                {@const total = folderCounts[folder]}
-                {@const completed = completedFilesPerDir[folder] || 0}
-                {@const percent = total > 0 ? (completed / total) * 100 : 0}
-                <div class="folder-progress">
-                  <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" style="width: {percent}%"></div>
+              <div class="folder-name-group">
+                <span class="folder-name" title={folder}>
+                  {baseName(folder)}
+                  {#if folderCounts[folder] !== undefined}
+                    <span class="badge badge-outline" title={getTooltip(folder)}
+                      >{folderCounts[folder]} files</span
+                    >
+                  {:else if statsCache[folder] !== undefined && statsCache[folder] > 0}
+                    <span class="badge badge-outline" title={getTooltip(folder)}
+                      >{statsCache[folder]} files</span
+                    >
+                  {/if}
+                </span>
+                <span class="folder-path" title={folder}>{folder}</span>
+                {#if directoryStatuses[folder] === 'processing' && folderCounts[folder] !== undefined}
+                  {@const total = folderCounts[folder]}
+                  {@const completed = completedFilesPerDir[folder] || 0}
+                  {@const percent = total > 0 ? (completed / total) * 100 : 0}
+                  <div class="folder-progress">
+                    <div class="progress-bar-bg">
+                      <div class="progress-bar-fill" style="width: {percent}%"></div>
+                    </div>
+                    <span class="progress-text">{completed} / {total} files</span>
                   </div>
-                  <span class="progress-text">{completed} / {total} files</span>
-                </div>
-              {/if}
+                {/if}
+              </div>
             </div>
-          </div>
 
-          <div class="folder-actions">
-            {#if directoryStatuses[folder] && directoryStatuses[folder] !== 'skipped'}
+            <div class="folder-actions">
+              {#if directoryStatuses[folder] && directoryStatuses[folder] !== 'skipped' && directoryStatuses[folder] !== 'idle' && directoryStatuses[folder] !== 'processing'}
+                <button
+                  class="btn btn-secondary btn-sm"
+                  onclick={() => toggleReport(folder)}
+                  title="Toggle Report"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="transform: {expandedReports[folder]
+                      ? 'rotate(180deg)'
+                      : 'none'}; transition: transform 0.2s;"
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                  {expandedReports[folder] ? 'Hide Report' : 'View Report'}
+                </button>
+              {/if}
+
               <button
-                class="icon-btn {directoryStatuses[folder] === 'error' ||
-                directoryStatuses[folder] === 'warning'
-                  ? 'text-red-500'
-                  : 'text-green-500'}"
-                onclick={() =>
-                  onOpenFolder(
-                    `${folder}/${directoryStatuses[folder] === 'error' || directoryStatuses[folder] === 'warning' ? 'failed_files.json' : 'converted_files.json'}`
-                  )}
-                title="Highlight report in Explorer"
-                aria-label="Open {baseName(folder)} report in Explorer"
+                class="icon-btn icon-btn-danger"
+                onclick={() => onRemove(folder)}
+                {disabled}
+                title="Remove from queue"
+                aria-label="Remove {baseName(folder)} from queue"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -430,36 +556,54 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-                  <polyline points="15 3 21 3 21 9"></polyline>
-                  <line x1="10" y1="14" x2="21" y2="3"></line>
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                  <path d="M10 11v6M14 11v6"></path>
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
                 </svg>
               </button>
-            {/if}
-
-            <button
-              class="icon-btn icon-btn-danger"
-              onclick={() => onRemove(folder)}
-              {disabled}
-              title="Remove from queue"
-              aria-label="Remove {baseName(folder)} from queue"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                <path d="M10 11v6M14 11v6"></path>
-                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-              </svg>
-            </button>
+            </div>
           </div>
+          {#if expandedReports[folder]}
+            <div class="report-summary">
+              {#if expandedReports[folder].converted.length > 0}
+                <div class="report-section success">
+                  <h4>Successfully Converted ({expandedReports[folder].converted.length})</h4>
+                  <ul>
+                    {#each expandedReports[folder].converted as file, idx (idx)}
+                      <li>{baseName(file.path || file.file || file.name || '')}</li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+              {#if expandedReports[folder].failed.length > 0}
+                <div class="report-section danger">
+                  <h4>Failed ({expandedReports[folder].failed.length})</h4>
+                  <ul>
+                    {#each expandedReports[folder].failed as file, idx (idx)}
+                      <li>
+                        {#if typeof file === 'string'}
+                          {file}
+                        {:else}
+                          <strong
+                            >{baseName(
+                              typeof file === 'string'
+                                ? file
+                                : file.path || file.file || file.name || ''
+                            )}</strong
+                          >
+                          - {typeof file === 'string' ? '' : file.error || 'Unknown error'}
+                        {/if}
+                      </li>
+                    {/each}
+                  </ul>
+                </div>
+              {/if}
+              {#if expandedReports[folder].converted.length === 0 && expandedReports[folder].failed.length === 0}
+                <div class="report-section">No files were processed.</div>
+              {/if}
+            </div>
+          {/if}
         </li>
       {/each}
     </ul>
@@ -513,6 +657,15 @@
     border-radius: 10px;
     min-width: 20px;
     text-align: center;
+    display: inline-block;
+  }
+
+  .badge-outline {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    margin-left: 8px;
+    vertical-align: middle;
   }
 
   .drag-overlay {
@@ -565,13 +718,55 @@
     }
   }
 
+  .report-summary {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-surface, #1e1e24);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+
+    .report-section {
+      margin-bottom: 12px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      h4 {
+        margin: 0 0 6px 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      &.success h4 {
+        color: #22c55e;
+      }
+
+      &.danger h4 {
+        color: #ef4444;
+      }
+
+      ul {
+        margin: 0;
+        padding-left: 20px;
+        list-style-type: disc;
+
+        li {
+          margin-bottom: 4px;
+        }
+      }
+    }
+  }
+
   .folder-list {
     list-style: none;
-    padding: 0;
+    padding: 2px;
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     max-height: 200px;
     overflow-y: auto;
     overflow-x: hidden;
@@ -581,20 +776,27 @@
 
   .folder-item {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--bg-surface);
+    flex-direction: column;
     padding: 10px 14px;
+    background: var(--bg-surface);
     border: 1px solid var(--border-color);
+    border-left: 4px solid transparent;
     border-radius: 8px;
-    gap: 12px;
     transition:
       transform 0.1s,
       box-shadow 0.1s,
       border-left-color 0.2s,
       border-left-width 0.2s;
     user-select: none;
-    border-left: 4px solid transparent;
+    touch-action: none;
+    position: relative;
+    z-index: 1;
+
+    &.grabbing {
+      cursor: grabbing;
+      z-index: 10;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+    }
 
     &.status-processing {
       border-left-color: #3b82f6;
@@ -622,7 +824,15 @@
       opacity: 0.9;
       background-color: var(--border-color);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      transition: none !important;
     }
+  }
+
+  .folder-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
   }
 
   .folder-info {
@@ -791,6 +1001,14 @@
   .btn-sm {
     padding: 5px 10px;
     font-size: 0.78rem;
+  }
+
+  .text-red-500 {
+    color: var(--danger-color, #ef4444);
+  }
+
+  .text-green-500 {
+    color: #22c55e;
   }
 
   .status-icon-wrap {

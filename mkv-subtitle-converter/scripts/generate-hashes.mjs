@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // 2. Resolve the path to the sidecars directory relative to this script
-// This goes up one level to 'mkv-filter-metadata', then down into 'backend/sidecars'
+// This goes up one level to 'mkv-subtitle-converter', then down into 'backend/sidecars'
 const TARGET_DIR = path.resolve(__dirname, '../backend/sidecars');
 
 function generateHash(filePath) {

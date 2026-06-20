@@ -16,7 +16,10 @@ export const FinishedDataSchema = z.object({
   failure_file: z.string().optional().catch(''),
   seconds: z.number().optional().catch(0),
   milliseconds: z.number().optional().catch(0),
-  folder_statuses: z.record(z.string(), z.string()).optional().catch({})
+  folder_statuses: z.record(z.string(), z.string()).optional().catch({}),
+  succeeded_files: z.number().optional().catch(0),
+  failed_files: z.number().optional().catch(0),
+  skipped_files: z.number().optional().catch(0)
 });
 export type FinishedData = z.infer<typeof FinishedDataSchema>;
 
@@ -40,14 +43,17 @@ export interface AppConfig {
   input_directories: string[];
   recursive: boolean;
   save_queue_list: boolean;
+  notifications: boolean;
   concurrency: number;
   shortcuts: Record<string, string>;
+  theme: 'system' | 'light' | 'dark';
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
   input_directories: [],
   recursive: false,
   save_queue_list: false,
+  notifications: false,
   concurrency: 2,
   shortcuts: {
     addFolder: 'Ctrl+o',
@@ -56,7 +62,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     resetQueue: 'Ctrl+r',
     openAbout: 'F1',
     openSettings: 'Ctrl+,'
-  }
+  },
+  theme: 'system'
 };
 
 // -----------------------------------------------------------------------------

@@ -3,9 +3,54 @@
   import { isConflict } from '$lib/stores/shortcuts.svelte';
   import { toast } from '$lib/stores/toast.svelte';
   import ConfirmationModal from '$lib/components/ConfirmationModal.svelte';
+  import { CMD_GET_HISTORY_COUNT, CMD_CLEAR_PROCESSING_HISTORY } from '$lib/constants';
+  import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
+  import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
 
   let showResetConfirm = $state(false);
+  let showHistoryConfirm = $state(false);
   let editingShortcut: string | null = $state(null);
+  let historyCount = $state<number>(0);
+
+  onMount(async () => {
+    try {
+      historyCount = await invoke<number>(CMD_GET_HISTORY_COUNT);
+    } catch (e) {
+      console.error('Failed to get history count', e);
+    }
+  });
+
+  async function handleNotificationToggle(e: Event) {
+    const target = e.target as HTMLInputElement;
+    if (target.checked) {
+      const granted = await isPermissionGranted();
+      if (!granted) {
+        const permission = await requestPermission();
+        if (permission !== 'granted') {
+          target.checked = false;
+          config.notifications = false;
+          toast.warning('Notification permission denied.');
+          return;
+        }
+      }
+      config.notifications = true;
+    } else {
+      config.notifications = false;
+    }
+  }
+
+  async function handleClearHistory() {
+    try {
+      await invoke(CMD_CLEAR_PROCESSING_HISTORY);
+      historyCount = await invoke<number>(CMD_GET_HISTORY_COUNT);
+      toast.success('Processing history cleared.');
+    } catch (e) {
+      toast.error('Failed to clear history: ' + e);
+    } finally {
+      showHistoryConfirm = false;
+    }
+  }
 
   const shortcutDescriptions: Record<string, string> = {
     addFolder: 'Add folder to queue',
@@ -120,6 +165,23 @@
         </span>
       </label>
 
+      <label class="toggle-label" for="notifications-toggle">
+        <div class="toggle-control">
+          <input
+            id="notifications-toggle"
+            type="checkbox"
+            checked={config.notifications}
+            onchange={handleNotificationToggle}
+            class="toggle-input"
+          />
+          <span class="toggle-track"></span>
+        </div>
+        <span class="toggle-text">
+          <strong>Desktop Notifications</strong>
+          <span>Receive alerts when conversions finish</span>
+        </span>
+      </label>
+
       <div class="slider-group">
         <div class="slider-header">
           <strong>Parallel File Processing</strong>
@@ -140,6 +202,25 @@
       >
         Reset to Defaults
       </button>
+    </section>
+
+    <section class="settings-section">
+      <h2>Data Management</h2>
+      <div class="slider-group">
+        <div class="slider-header">
+          <strong>Database History</strong>
+          <span class="slider-value">{historyCount} records</span>
+        </div>
+        <span class="slider-desc">Number of files recorded in processing history.</span>
+        <button
+          class="btn btn-danger btn-outline mt-4"
+          style="width: fit-content;"
+          onclick={() => (showHistoryConfirm = true)}
+          disabled={historyCount === 0}
+        >
+          Clear History
+        </button>
+      </div>
     </section>
 
     <section class="settings-section">
@@ -186,6 +267,17 @@
       dangerous={true}
       onConfirm={handleReset}
       onCancel={() => (showResetConfirm = false)}
+    />
+  {/if}
+
+  {#if showHistoryConfirm}
+    <ConfirmationModal
+      title="Clear Database History"
+      message="This will delete all records of previously processed files. All files in your queue will be re-processed on the next run. This cannot be undone."
+      confirmLabel="Clear History"
+      dangerous={true}
+      onConfirm={handleClearHistory}
+      onCancel={() => (showHistoryConfirm = false)}
     />
   {/if}
 </main>
