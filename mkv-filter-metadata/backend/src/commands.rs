@@ -1217,6 +1217,16 @@ pub async fn clear_processing_history(state: tauri::State<'_, AppState>) -> Resu
     Ok(())
 }
 
+#[tauri::command]
+pub async fn get_history_count(state: tauri::State<'_, AppState>) -> Result<i64, AppError> {
+    let db_guard = state.db.lock().await;
+    if let Some(db) = db_guard.as_ref() {
+        crate::history::get_history_count(db)
+    } else {
+        Ok(0)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -31,18 +31,21 @@ describe('config.svelte', () => {
     expect(config.recursive).toBe(false);
     expect(config.save_queue_list).toBe(false);
     expect(config.input_directories).toEqual([]);
+    expect(config.notifications).toBe(true);
     expect(isConfigDefault()).toBe(true);
   });
 
   it('resetConfigToDefaults should reset config', () => {
     config.crf = 25;
     config.conversion_mode = 'reencode';
+    config.notifications = false;
     expect(isConfigDefault()).toBe(false);
 
     resetConfigToDefaults();
 
     expect(config.crf).toBe(18);
     expect(config.conversion_mode).toBe('remux');
+    expect(config.notifications).toBe(true);
     expect(isConfigDefault()).toBe(true);
   });
 

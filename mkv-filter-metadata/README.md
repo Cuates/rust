@@ -1,5 +1,13 @@
 # MKV Filter Metadata
 
+[![Maintained? yes](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Cuates/rust/graphs/commit-activity)
+[![MKV Filter Metadata CI](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml)
+[![Version](https://img.shields.io/badge/version-1.1.8-blue.svg)](https://github.com/Cuates/rust)
+[![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
+[![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-FF3E00.svg)](https://svelte.dev/)
+[![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8.svg)](https://tauri.app/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 A powerful batch-processing desktop application for filtering MKV metadata, stripping unwanted subtitle/audio tracks, and optionally re-encoding video files with hardware-accelerated codecs. Built with **Tauri v2**, **Svelte 5**, and **Rust**.
 
 ---
@@ -37,10 +45,10 @@ A powerful batch-processing desktop application for filtering MKV metadata, stri
 - **Real-Time Pipeline Telemetry:** Live progress bars (overall + per-file), running timer, and ETA estimation.
 - **Storage Savings Metrics:** After completion, displays original vs. output size with percentage saved.
 - **Streaming Terminal Log:** Real-time FFmpeg output with auto-scroll, copy-to-clipboard, and save-to-file.
-- **Session Resumption:** Tracks completed files in a local SQLite database (path, size, modified time) — re-running a batch skips unchanged files even across restarts, and re-processes any file that was modified.
+- **Session Resumption:** Tracks completed files in a local SQLite database (path, size, modified time) — re-running a batch skips unchanged files even across restarts, and re-processes any file that was modified. You can view the record count and clear the history from the Settings page.
 - **Dark/Light Theme Toggle:** Smooth CSS transitions with system preference detection and localStorage persistence.
 - **Per-Row Open Output Folder:** One-click button to open the `processed_files` directory in your file explorer after processing.
-- **OS Notifications:** Native desktop notification when the entire pipeline completes.
+- **OS Notifications:** Native desktop notification when the entire pipeline completes (can be disabled in Settings).
 - **Toast Notification System:** In-app toast messages with auto-dismiss and severity levels (success, warning, error, info).
 - **Abort & Cleanup:** Stop execution mid-pipeline. The backend kills active FFmpeg processes and scrubs partially written output files and empty directories.
 - **Directory Stats Tooltips:** Hover over queued directories to see file counts, names, and total sizes.
@@ -145,7 +153,12 @@ mkv-filter-metadata/
 │   ├── .prettierrc               # Prettier formatting rules
 │   └── src/
 │       ├── routes/
-│       │   └── +page.svelte      # Main application view & event orchestration
+│       │   ├── +layout.svelte    # Global layout wrapper and font imports
+│       │   ├── +page.svelte      # Main application view & event orchestration
+│       │   ├── guide/
+│       │   │   └── +page.svelte  # "How To Use" documentation page
+│       │   └── settings/
+│       │       └── +page.svelte  # Configuration, performance, and history management
 │       ├── lib/
 │       │   ├── types.ts          # Zod schemas & TypeScript type definitions
 │       │   ├── components/
@@ -173,7 +186,9 @@ mkv-filter-metadata/
         ├── main.rs               # Tauri application entry point
         ├── lib.rs                # Plugin registration & invoke handler setup
         ├── commands.rs           # All #[tauri::command] IPC handlers
+        ├── constants.rs          # Shared IPC and event strings
         ├── process.rs            # FFmpeg pipeline, codec logic, arg builders
+        ├── history.rs            # SQLite processing database operations
         ├── models.rs             # Rust type definitions (enums, structs, state)
         └── error.rs              # Custom error types with thiserror
 ```

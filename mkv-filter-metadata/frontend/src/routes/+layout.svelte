@@ -1,4 +1,6 @@
 <script lang="ts">
+  import '@fontsource-variable/inter';
+  import '@fontsource-variable/jetbrains-mono';
   import '../styles/app.scss';
   import { onMount } from 'svelte';
   import { loadConfig, initConfigWatcher, appState } from '$lib/stores/config.svelte';

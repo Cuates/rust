@@ -14,13 +14,21 @@
   import { pipeline } from '../../lib/stores/pipeline.svelte';
   import ConfirmationModal from '../../lib/components/ConfirmationModal.svelte';
   import { onMount } from 'svelte';
+  import { invoke } from '@tauri-apps/api/core';
 
   let recordingFor: 'startPipeline' | 'abortPipeline' | null = $state(null);
   let showResetModal = $state(false);
+  let showClearHistoryModal = $state(false);
   let logicalCores = $state(8);
+  let historyCount = $state<number | null>(null);
 
-  onMount(() => {
+  onMount(async () => {
     logicalCores = window.navigator.hardwareConcurrency || 8;
+    try {
+      historyCount = await invoke('get_history_count');
+    } catch (e) {
+      console.error('Failed to get history count:', e);
+    }
   });
 
   function handleKeydown(e: KeyboardEvent, field: 'startPipeline' | 'abortPipeline') {
@@ -67,6 +75,18 @@
     showResetModal = false;
     addToast('✅ Settings and shortcuts restored to defaults.', 'success');
   }
+
+  async function executeClearHistory() {
+    try {
+      await invoke('clear_processing_history');
+      historyCount = await invoke('get_history_count');
+      showClearHistoryModal = false;
+      addToast('✅ Database history cleared successfully.', 'success');
+    } catch (e) {
+      console.error(e);
+      addToast(`❌ Failed to clear database history: ${e}`, 'error');
+    }
+  }
 </script>
 
 <svelte:head>
@@ -91,6 +111,19 @@
   </header>
 
   <div class="content-scroll-area">
+    <div class="form-workspace-card">
+      <h2>General Settings</h2>
+      <p class="description">Configure general application behaviors.</p>
+
+      <div class="shortcut-row toggle-row">
+        <span>System Notifications:</span>
+        <label class="switch">
+          <input id="notifications-toggle" type="checkbox" bind:checked={config.notifications} />
+          <span class="slider round"></span>
+        </label>
+      </div>
+    </div>
+
     <div class="form-workspace-card">
       <h2>Queue Settings</h2>
       <p class="description">Configure how the application processes and saves directories.</p>
@@ -226,6 +259,28 @@
     </div>
 
     <div class="form-workspace-card">
+      <h2>Database History</h2>
+      <p class="description">
+        Clear the processed files history. This will cause the app to re-process files it has
+        already seen if they are queued again.
+      </p>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <button
+          class="danger-btn"
+          onclick={() => (showClearHistoryModal = true)}
+          disabled={historyCount === 0 || historyCount === null}
+        >
+          Clear Database History
+        </button>
+        {#if historyCount !== null}
+          <span style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500;">
+            {historyCount} records
+          </span>
+        {/if}
+      </div>
+    </div>
+
+    <div class="form-workspace-card">
       <h2>Reset Defaults</h2>
       <p class="description">
         Restore all application settings, configurations, and keyboard shortcuts back to their
@@ -246,6 +301,16 @@
   cancelText="Cancel"
   onConfirm={executeReset}
   onCancel={() => (showResetModal = false)}
+/>
+
+<ConfirmationModal
+  show={showClearHistoryModal}
+  title="Clear Database History"
+  message="Are you sure you want to clear the database history? This will cause the app to re-process previously processed files if they are encountered again.&#10;&#10;This action cannot be undone."
+  confirmText="Clear History"
+  cancelText="Cancel"
+  onConfirm={executeClearHistory}
+  onCancel={() => (showClearHistoryModal = false)}
 />
 
 <style lang="scss">
@@ -480,8 +545,13 @@
     cursor: pointer;
     transition: background-color 0.2s ease;
 
-    &:hover {
+    &:hover:not(:disabled) {
       background-color: var(--danger-hover);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   }
 </style>

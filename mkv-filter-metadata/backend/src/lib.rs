@@ -67,7 +67,8 @@ pub fn run() {
             commands::initialize_session_log,
             commands::log_message,
             commands::open_folder,
-            commands::clear_processing_history
+            commands::clear_processing_history,
+            commands::get_history_count
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

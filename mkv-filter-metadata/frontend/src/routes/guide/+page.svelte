@@ -143,13 +143,23 @@
         </li>
       </ul>
 
+      <h3 style="margin-top: 1.5rem;">System Notifications</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
+        By default, the application will show a desktop system notification when your processing
+        queue finishes. You can opt out of these by disabling the <span class="highlight"
+          >"System Notifications"</span
+        >
+        toggle in the <a href="/settings" class="guide-link">Settings (⚙️)</a> page.
+      </p>
+
       <h3 style="margin-top: 1.5rem;">Clear Processing History</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
         The application keeps track of which files have already been processed to prevent redundant
         work. If you need to re-process files that were already completed in the past, you can click
-        the <span class="highlight">"Clear Processing History"</span> button in the conversion panel.
-        This resets the application's internal memory of completed files. Note: This does not affect your
-        active directory queue list.
+        the <span class="highlight">"Clear Processing History"</span> button in the conversion panel
+        or the <a href="/settings" class="guide-link">Settings (⚙️)</a> page (where you can also view
+        the exact number of records stored). This resets the application's internal memory of completed
+        files. Note: This does not affect your active directory queue list.
       </p>
 
       <h3 style="margin-top: 1.5rem;">Toast Notifications (Popups)</h3>

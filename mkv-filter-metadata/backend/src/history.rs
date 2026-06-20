@@ -92,6 +92,13 @@ pub fn clear_history(db: &Connection) -> std::result::Result<(), AppError> {
     Ok(())
 }
 
+pub fn get_history_count(db: &Connection) -> std::result::Result<i64, AppError> {
+    let count: i64 = db
+        .query_row("SELECT COUNT(*) FROM processed_files", [], |row| row.get(0))
+        .map_err(|e| AppError::Process(format!("DB count error: {}", e)))?;
+    Ok(count)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +150,21 @@ mod tests {
 
         // Verify history is cleared
         assert!(!is_file_processed(&db, path, size, modified).unwrap());
+    }
+
+    #[test]
+    fn test_get_history_count() {
+        let db = setup_in_memory_db();
+
+        assert_eq!(get_history_count(&db).unwrap(), 0);
+
+        mark_file_processed(&db, "/test/video1.mkv", 1024, 123456789).unwrap();
+        assert_eq!(get_history_count(&db).unwrap(), 1);
+
+        mark_file_processed(&db, "/test/video2.mkv", 2048, 123456789).unwrap();
+        assert_eq!(get_history_count(&db).unwrap(), 2);
+
+        clear_history(&db).unwrap();
+        assert_eq!(get_history_count(&db).unwrap(), 0);
     }
 }

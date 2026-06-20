@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.8] - 2026-06-20
+
+### Added
+- Added a "System Notifications" toggle in Settings to allow opting out of desktop notifications.
+- Added a "Database History" record count badge and enforced a red confirmation modal before clearing the database history in the Settings page.
+
+### Changed
+- Promoted application to version 1.1.8.
+- Hardened sidecar downloading (`download-sidecars.mjs`) by implementing exact SHA-256 hash calculation and verification before skipping existing files, automatically re-downloading corrupted binaries.
+- Transitioned to offline, CSP-compliant, self-hosted web fonts using Svelte bundled `@fontsource-variable` packages instead of relying on `fonts.googleapis.com`.
+
 ## [1.1.7] - 2026-06-19
 
 ### Changed

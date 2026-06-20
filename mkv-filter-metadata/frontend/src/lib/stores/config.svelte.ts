@@ -52,6 +52,7 @@ export interface AppConfig {
   crf: number;
   reencode_concurrency: number;
   remux_concurrency: number;
+  notifications: boolean;
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -66,7 +67,8 @@ const DEFAULT_CONFIG: AppConfig = {
   preset: 'faster',
   crf: 18,
   reencode_concurrency: 2,
-  remux_concurrency: 4
+  remux_concurrency: 4,
+  notifications: true
 };
 
 // Global config state
@@ -124,7 +126,8 @@ export function initConfigWatcher() {
       preset: config.preset,
       crf: config.crf,
       reencode_concurrency: config.reencode_concurrency,
-      remux_concurrency: config.remux_concurrency
+      remux_concurrency: config.remux_concurrency,
+      notifications: config.notifications
     };
 
     if (saveTimeout) clearTimeout(saveTimeout);
