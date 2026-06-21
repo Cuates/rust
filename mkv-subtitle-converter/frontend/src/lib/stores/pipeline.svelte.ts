@@ -79,10 +79,10 @@ export function resetPipeline(): void {
 }
 
 export function appendLog(message: string): void {
-  pipeline.logs = [...pipeline.logs, message];
+  pipeline.logs.push(message);
   // Cap log at 2000 lines to prevent memory bloat on very large batches.
   if (pipeline.logs.length > 2000) {
-    pipeline.logs = pipeline.logs.slice(-2000);
+    pipeline.logs.shift();
   }
 }
 
