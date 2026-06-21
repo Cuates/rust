@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.4.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -48,7 +48,7 @@ Before attempting to compile or run the application locally, ensure your develop
 * **Windows 11 / 10:** Install the **Visual Studio C++ Build Tools** through the official installer. Ensure the "Desktop development with C++" workload is selected.
 * **macOS (Intel & Silicon):** Install the official command line development environment by executing `xcode-select --install` inside your terminal application.
 * **Linux (*nix Distros):** System-wide C-compilers and developer system packages for WebKit are mandatory. For Debian/Ubuntu distributions, execute the following block:
-  ```bash
+```bash
   sudo apt-get update && sudo apt-get install -y build-essential curl wget libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev textlive-fonts-recommended
 ```
 
@@ -62,49 +62,48 @@ The architectural layout of this project relies on a highly decoupled **pnpm wor
 mkv-subtitle-converter/
 ├── package.json                   # Root package manager orchestration layout
 ├── pnpm-workspace.yaml            # PNPM monorepo multi-package descriptor
-├── 
-│   ├── frontend/                  # Decoupled Webview Client (SvelteKit / Svelte 5)
-│   │   ├── package.json
-│   │   ├── svelte.config.js       # Outfitted with Adapter-Static constraints (outputs to build/)
-│   │   ├── tsconfig.json          # TypeScript compiler configuration
-│   │   ├── vite.config.ts         # Vite bundler configurations
-│   │   ├── static/                # Uncompiled raw static assets
-│   │   │   ├── favicon.png
-│   │   │   ├── svelte.svg
-│   │   │   ├── tauri.svg
-│   │   │   └── vite.svg
-│   │   └── src/
-│   │       ├── lib/               # Reusable UI components, stores, and utilities
-│   │       │   ├── components/
-│   │       │   ├── stores/
-│   │       │   └── utils/
-│   │       ├── styles/            # Global SCSS styling architecture
-│   │       │   ├── _variables.scss
-│   │       │   └── app.scss
-│   │       └── routes/            # SvelteKit layout and page routing
-│   │           ├── +layout.svelte # Root layout shell
-│   │           ├── +layout.ts     # Static pre-rendering enforcer (SSR false)
-│   │           ├── +page.svelte   # Primary application interaction view
-│   │           ├── guide/         # In-app user guide routes
-│   │           └── settings/      # Application settings routes
-│   └── backend/                   # Decoupled Native Desktop Layer (Tauri v2 + Rust)
-│       ├── Cargo.toml             # System crate workspace dependencies
-│       ├── tauri.conf.json        # Main Tauri application layout and compilation schema (reads build/)
-│       ├── capabilities/
-│       │   └── default.json       # Security layer access token configuration
-│       ├── binaries/              # Embedded cross-platform system sidecars
-│       │   ├── ffmpeg-x86_64-pc-windows-msvc.exe
-│       │   ├── ffprobe-x86_64-pc-windows-msvc.exe
-│       │   └── ... (macOS & Linux sidecars)
-│       └── src/
-│           ├── main.rs            # Application execution root entryway
-│           ├── lib.rs             # Application lib and main tauri builder
-│           ├── commands.rs        # IPC definitions and backend actions
-│           ├── process.rs         # Transcoding and streaming thread logic
-│           ├── models.rs          # Data models, structs, and payloads
-│           ├── history.rs         # Processing history report generator
-│           ├── constants.rs       # Static constants and configurations
-│           └── error.rs           # Application error structures
+├── frontend/                      # Decoupled Webview Client (SvelteKit / Svelte 5)
+│   ├── package.json
+│   ├── svelte.config.js           # Outfitted with Adapter-Static constraints (outputs to build/)
+│   ├── tsconfig.json              # TypeScript compiler configuration
+│   ├── vite.config.ts             # Vite bundler configurations
+│   ├── static/                    # Uncompiled raw static assets
+│   │   ├── favicon.png
+│   │   ├── svelte.svg
+│   │   ├── tauri.svg
+│   │   └── vite.svg
+│   └── src/
+│       ├── lib/                   # Reusable UI components, stores, and utilities
+│       │   ├── components/
+│       │   ├── stores/
+│       │   └── utils/
+│       ├── styles/                # Global SCSS styling architecture
+│       │   ├── _variables.scss
+│       │   └── app.scss
+│       └── routes/                # SvelteKit layout and page routing
+│           ├── +layout.svelte     # Root layout shell
+│           ├── +layout.ts         # Static pre-rendering enforcer (SSR false)
+│           ├── +page.svelte       # Primary application interaction view
+│           ├── guide/             # In-app user guide routes
+│           └── settings/          # Application settings routes
+└── backend/                       # Decoupled Native Desktop Layer (Tauri v2 + Rust)
+    ├── Cargo.toml                 # System crate workspace dependencies
+    ├── tauri.conf.json            # Main Tauri application layout and compilation schema (reads build/)
+    ├── capabilities/
+    │   └── default.json           # Security layer access token configuration
+    ├── binaries/                  # Embedded cross-platform system sidecars
+    │   ├── ffmpeg-x86_64-pc-windows-msvc.exe
+    │   ├── ffprobe-x86_64-pc-windows-msvc.exe
+    │   └── ... (macOS & Linux sidecars)
+    └── src/
+        ├── main.rs                # Application execution root entryway
+        ├── lib.rs                 # Application lib and main tauri builder
+        ├── commands.rs            # IPC definitions and backend actions
+        ├── process.rs             # Transcoding and streaming thread logic
+        ├── models.rs              # Data models, structs, and payloads
+        ├── history.rs             # Processing history report generator
+        ├── constants.rs           # Static constants and configurations
+        └── error.rs               # Application error structures
 ```
 
 ---
@@ -125,7 +124,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -227,7 +226,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.4.0"
+  "version": "1.5.0"
 }
 
 ```
@@ -238,7 +237,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.4.0"
+  "version": "1.5.0"
 }
 ```
 
@@ -406,33 +405,35 @@ The file system processing pipeline logic is fully managed inside `backend/src/l
 
 ---
 
-## 16. Building for Production / Distribution
+## 16. For Developers: Building for Production / Distribution
 
-When you are ready to compile the application into a single, production-ready release package, invoke the global bundler from the workspace root:
+*(Note: If you are an end user, you do not need to do this. You can simply download the pre-compiled application from the Releases page.)*
+
+When developers are ready to compile the application from the source code into a single, production-ready release package, invoke the global bundler from the workspace root:
 
 ```bash
 pnpm tauri build
 ```
 
-This triggers the production build across the SvelteKit frontend layout, compiles the Rust code with full release optimization flags (`-C opt-level=3`), and resolves your sidecars. From here, you have two distribution options:
+This triggers the production build across the SvelteKit frontend layout, compiles the Rust code with full release optimization flags (`-C opt-level=3`), and resolves the sidecars. From here, developers have two distribution options:
 
 ### Option A: Standard System Installers
 
-Tauri automatically wraps your application inside standard OS installers (`.msi` / `.exe` on Windows, `.dmg` / `.app` on macOS, `.deb` / `.AppImage` on Linux).
+Tauri automatically wraps the application inside standard OS installers (`.msi` / `.exe` on Windows, `.dmg` / `.app` on macOS, `.deb` / `.AppImage` on Linux).
 
 * **Location:** `backend/target/release/bundle/`
-* **Use Case:** Best for standard user distribution where the application needs to live in `Program Files` or the macOS `Applications` folder.
+* **Use Case:** Best for standard end user distribution where the application needs to live in `Program Files` or the macOS `Applications` folder.
 
 ### Option B: Portable (No-Install) Application
 
-You can completely bypass the installer and provide a raw, portable folder that users can run instantly on any machine without needing administrator privileges.
+Developers can completely bypass the installer and package a raw, portable folder that end users can run instantly on any machine without needing administrator privileges.
 
 1. Navigate to the core compile directory: `backend/target/release/`
 2. Locate the raw, compiled executable: `mkv-subtitle-converter.exe`
 3. Locate the embedded host architecture sidecars that Tauri copied into this exact same folder (e.g., `ffmpeg-x86_64-pc-windows-msvc.exe`).
 4. Create a new folder (e.g., `MKV-Converter-Portable`).
 5. Move the `.exe` and the sidecar binaries into this folder together.
-6. Zip the folder and distribute. Users simply double-click the `.exe` to run.
+6. Zip the folder and distribute it. End users simply double-click the `.exe` to run.
 
 ---
 

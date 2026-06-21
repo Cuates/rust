@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { invoke, Channel } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
+  import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window';
   import { open } from '@tauri-apps/plugin-dialog';
   import { sendNotification } from '@tauri-apps/plugin-notification';
 
@@ -16,6 +17,7 @@
   import {
     pipeline,
     resetPipeline,
+    startPipelineTimer,
     handleStartedScanned,
     handleFileProcessed,
     handleFinished,
@@ -143,6 +145,24 @@
   });
 
   $effect(() => {
+    try {
+      const appWindow = getCurrentWindow();
+      if (isProcessing) {
+        appWindow.setProgressBar({
+          status: ProgressBarStatus.Normal,
+          progress: Math.floor(pipelineProgress)
+        });
+      } else {
+        appWindow.setProgressBar({
+          status: ProgressBarStatus.None
+        });
+      }
+    } catch {
+      // Ignore errors when running outside Tauri
+    }
+  });
+
+  $effect(() => {
     if (!configState.isLoaded) return;
 
     const deregister = [
@@ -189,8 +209,6 @@
   // Processing
   // -------------------------------------------------------------------------
 
-  let elapsedTimer: ReturnType<typeof setInterval> | null = null;
-
   async function startProcessing() {
     if (isProcessing) return;
     if (selectedFolders.length === 0) {
@@ -201,13 +219,7 @@
     resetPipeline();
     pipeline.status = 'scanning';
 
-    if (elapsedTimer) clearInterval(elapsedTimer);
-    const startTime = Date.now();
-    elapsedTimer = setInterval(() => {
-      const diff = Date.now() - startTime;
-      pipeline.elapsedSeconds = Math.floor(diff / 1000);
-      pipeline.elapsedMs = diff % 1000;
-    }, 100);
+    startPipelineTimer();
 
     const channel = new Channel<{ event: string; data: unknown }>();
 
@@ -239,7 +251,6 @@
           handleFolderStatusUpdate(payloadData.folder, payloadData.status);
         }
       } else if (event === 'Cancelled') {
-        if (elapsedTimer) clearInterval(elapsedTimer);
         handleCancelled();
         toast.info('Processing was cancelled.');
       }
@@ -254,7 +265,6 @@
       });
 
       if (rawSummary) {
-        if (elapsedTimer) clearInterval(elapsedTimer);
         const parsed = FinishedDataSchema.safeParse(rawSummary);
         if (parsed.success) {
           handleFinished(parsed.data);

@@ -1,6 +1,6 @@
 [package]
 name = "mkv-subtitle-extractor-converter-rust"
-version = "1.4.0"
+version = "1.5.0"
 description = "A desktop app for batch-extracting and converting MKV embedded subtitles to ASS format"
 authors = ["Cuates"]
 edition = "2024"

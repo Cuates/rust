@@ -144,6 +144,28 @@
         entire queue finishes.
       </p>
 
+      <h3 class="mt-4">Taskbar Progress Indicator</h3>
+      <p class="text-sm">
+        When the application is processing files, you can monitor the overall conversion progress
+        directly from your operating system's taskbar (or dock). This allows you to easily track the
+        batch process without needing to keep the application window open or maximized. Once
+        processing is complete, the indicator will automatically clear.
+      </p>
+      <ul class="guide-list mt-2">
+        <li>
+          <strong>Windows:</strong> The application's taskbar icon will fill up horizontally with a green
+          progress overlay (or your system's accent color).
+        </li>
+        <li>
+          <strong>macOS:</strong> A distinct horizontal progress bar will appear along the bottom edge
+          of the application icon in the Dock.
+        </li>
+        <li>
+          <strong>Linux:</strong> On supported desktop environments (such as GNOME or Unity), a progress
+          overlay will be displayed over the application's dock icon.
+        </li>
+      </ul>
+
       <h3 class="mt-4">Toast Notifications</h3>
       <p class="text-sm">
         You will occasionally see small popup notifications appear at the bottom center of the

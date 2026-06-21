@@ -38,7 +38,28 @@ export const pipeline = $state<PipelineState>({
   filesSkipped: 0
 });
 
+let pipelineTimer: ReturnType<typeof setInterval> | null = null;
+let pipelineStartTime: number = 0;
+
+export function startPipelineTimer(): void {
+  if (pipelineTimer) clearInterval(pipelineTimer);
+  pipelineStartTime = Date.now();
+  pipelineTimer = setInterval(() => {
+    const diff = Date.now() - pipelineStartTime;
+    pipeline.elapsedSeconds = Math.floor(diff / 1000);
+    pipeline.elapsedMs = diff % 1000;
+  }, 100);
+}
+
+export function stopPipelineTimer(): void {
+  if (pipelineTimer) {
+    clearInterval(pipelineTimer);
+    pipelineTimer = null;
+  }
+}
+
 export function resetPipeline(): void {
+  stopPipelineTimer();
   pipeline.status = 'idle';
   pipeline.totalFiles = 0;
   pipeline.filesProcessed = 0;
@@ -82,6 +103,7 @@ export function handleFileProcessed(processed: number, converted: number, rootDi
 }
 
 export function handleFinished(data: FinishedData): void {
+  stopPipelineTimer();
   pipeline.status = 'done';
   pipeline.elapsedSeconds = data.seconds ?? 0;
   pipeline.elapsedMs = data.milliseconds ?? 0;
@@ -96,6 +118,7 @@ export function handleFinished(data: FinishedData): void {
 }
 
 export function handleCancelled(): void {
+  stopPipelineTimer();
   pipeline.status = 'cancelled';
 }
 
