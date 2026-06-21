@@ -19,7 +19,8 @@ export const FinishedDataSchema = z.object({
   folder_statuses: z.record(z.string(), z.string()).optional().catch({}),
   succeeded_files: z.number().optional().catch(0),
   failed_files: z.number().optional().catch(0),
-  skipped_files: z.number().optional().catch(0)
+  skipped_files: z.number().optional().catch(0),
+  no_tracks_files: z.number().optional().catch(0)
 });
 export type FinishedData = z.infer<typeof FinishedDataSchema>;
 

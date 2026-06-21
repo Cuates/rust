@@ -25,38 +25,43 @@
 
   let { children } = $props();
 
-  async function syncNativeTitleBar(theme: string) {
+  async function syncNativeTitleBar(configTheme: string) {
     try {
       const appWindow = getCurrentWindow();
-      await appWindow.setTheme(theme === 'dark' ? 'dark' : 'light');
+      if (configTheme === 'system') {
+        await appWindow.setTheme(null);
+      } else {
+        await appWindow.setTheme(configTheme === 'dark' ? 'dark' : 'light');
+      }
     } catch {
       // Gracefully ignore in browser preview environments.
     }
   }
 
-  function resolveTheme() {
-    if (config.theme === 'system') {
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return config.theme;
-  }
+  let systemPrefersDark = $state(true);
+
+  const resolvedTheme = $derived(
+    config.theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : config.theme
+  );
 
   $effect(() => {
-    const resolved = resolveTheme();
-    document.documentElement.setAttribute('data-theme', resolved);
-    syncNativeTitleBar(resolved);
+    document.documentElement.setAttribute('data-theme', resolvedTheme);
+    syncNativeTitleBar(config.theme);
   });
-
-  function handleToggleTheme() {
-    const current = resolveTheme();
-    config.theme = current === 'dark' ? 'light' : 'dark';
-  }
 
   onMount(() => {
     let unlistenLog: (() => void) | undefined;
     let unlistenDbFail: (() => void) | undefined;
 
     (async () => {
+      if (typeof window !== 'undefined') {
+        const mql = window.matchMedia('(prefers-color-scheme: dark)');
+        systemPrefersDark = mql.matches;
+        mql.addEventListener('change', (e) => {
+          systemPrefersDark = e.matches;
+        });
+      }
+
       // Show the window now that the UI is ready (avoids blank-screen flash on startup).
       try {
         const win = getCurrentWindow();
@@ -117,18 +122,7 @@
   });
 </script>
 
-<div class="app-wrapper" data-theme={resolveTheme()}>
-  <div class="titlebar-actions">
-    <button
-      class="theme-toggle"
-      onclick={handleToggleTheme}
-      aria-label={resolveTheme() === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-      title={resolveTheme() === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-    >
-      {resolveTheme() === 'dark' ? '☀️' : '🌙'}
-    </button>
-  </div>
-
+<div class="app-wrapper" data-theme={resolvedTheme}>
   {#if children}
     {@render children()}
   {/if}
@@ -142,31 +136,5 @@
     display: flex;
     flex-direction: column;
     position: relative;
-  }
-
-  .titlebar-actions {
-    position: fixed;
-    top: 12px;
-    right: 14px;
-    z-index: 900;
-    display: flex;
-    gap: 8px;
-  }
-
-  .theme-toggle {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 1rem;
-    cursor: pointer;
-    transition: all 0.15s;
-    color: var(--text-primary);
-    line-height: 1;
-
-    &:hover {
-      background: var(--bg-hover-panel);
-      border-color: var(--accent-color);
-    }
   }
 </style>

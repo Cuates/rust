@@ -18,6 +18,7 @@
     pipeline,
     resetPipeline,
     startPipelineTimer,
+    stopPipelineTimer,
     handleStartedScanned,
     handleFileProcessed,
     handleFinished,
@@ -280,6 +281,7 @@
     } catch (e) {
       toast.error(`Processing failed: ${e}`);
       pipeline.status = 'idle';
+      stopPipelineTimer();
     }
   }
 
@@ -483,6 +485,7 @@
         filesSucceeded={pipeline.filesSucceeded}
         filesFailed={pipeline.filesFailed}
         filesSkipped={pipeline.filesSkipped}
+        filesNoTracks={pipeline.filesNoTracks}
         tracksConverted={pipeline.tracksConverted}
         progress={pipelineProgress}
         elapsedSeconds={pipeline.elapsedSeconds}

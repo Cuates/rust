@@ -67,6 +67,13 @@
           <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
           <a href="/settings" class="guide-link">Settings (⚙️)</a> page.
         </li>
+        <li>
+          <strong>Appearance / Theme:</strong> You can choose between System, Light, and Dark themes
+          by navigating to the
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a href="/settings" class="guide-link">Settings (⚙️)</a> page and selecting your preferred mode
+          under the Appearance section. The app will instantly apply and remember your choice.
+        </li>
       </ul>
     </section>
 

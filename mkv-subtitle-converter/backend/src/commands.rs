@@ -14,7 +14,9 @@ use crate::error::AppError;
 use crate::models::{
     AppState, DirectoryStats, FileStat, FolderReportStatus, ProgressPayload, SubtitleMetadata,
 };
-use crate::process::{append_log, discover_mkv_files, flush_log_writer, process_one_mkv_file};
+use crate::process::{
+    FileOutcome, append_log, discover_mkv_files, flush_log_writer, process_one_mkv_file,
+};
 
 // =============================================================================
 // PRIMARY PROCESSING COMMAND
@@ -136,6 +138,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
     let files_success = Arc::new(AtomicUsize::new(0));
     let files_failed = Arc::new(AtomicUsize::new(0));
     let files_skipped = Arc::new(AtomicUsize::new(0));
+    let files_no_tracks = Arc::new(AtomicUsize::new(0));
 
     // --- Per-folder result accumulator: folder_path → (successes, failures) ---
     let results: Arc<tokio::sync::Mutex<FolderResultsMap>> =
@@ -187,6 +190,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
             let fs_clone = files_success.clone();
             let ff_clone = files_failed.clone();
             let fsk_clone = files_skipped.clone();
+            let fnt_clone = files_no_tracks.clone();
             let history_cache_clone = history_cache.clone();
             let new_history_records_clone = new_history_records.clone();
             let folder_owned = folder_path.clone();
@@ -212,13 +216,23 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                 })
                 .await
                 {
-                    Ok((convs, fails, skipped_count)) => {
-                        if skipped_count > 0 {
-                            fsk_clone.fetch_add(skipped_count, Ordering::Relaxed);
-                        } else if convs.is_empty() && !fails.is_empty() {
-                            ff_clone.fetch_add(1, Ordering::Relaxed);
-                        } else if !convs.is_empty() {
-                            fs_clone.fetch_add(1, Ordering::Relaxed);
+                    Ok((convs, fails, outcome)) => {
+                        match classify_result(&convs, &fails, outcome) {
+                            FileCategory::HistorySkipped => {
+                                fsk_clone.fetch_add(1, Ordering::Relaxed);
+                            }
+                            FileCategory::NoTracks => {
+                                fnt_clone.fetch_add(1, Ordering::Relaxed);
+                            }
+                            FileCategory::Failed => {
+                                ff_clone.fetch_add(1, Ordering::Relaxed);
+                            }
+                            FileCategory::Success => {
+                                fs_clone.fetch_add(1, Ordering::Relaxed);
+                            }
+                            FileCategory::Ghost => {
+                                fsk_clone.fetch_add(1, Ordering::Relaxed);
+                            } // Treat ghost files as skipped
                         }
 
                         let mut r = results_clone.lock().await;
@@ -260,9 +274,6 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         }
     }
 
-    static RE: std::sync::LazyLock<regex::Regex> =
-        std::sync::LazyLock::new(|| regex::Regex::new(r"(\d+)").unwrap());
-
     while let Some(res) = join_set.join_next().await {
         if let Ok(folder_path) = res {
             let count = completed_per_folder.entry(folder_path.clone()).or_insert(0);
@@ -298,11 +309,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                 }
 
                 if !conv_list.is_empty() {
-                    conv_list.sort_by(|a, b| {
-                        RE.split(&a.file)
-                            .collect::<Vec<_>>()
-                            .cmp(&RE.split(&b.file).collect::<Vec<_>>())
-                    });
+                    conv_list.sort_by(sort_natural);
 
                     let mut report = IndexMap::new();
                     report.insert("target_folder", json!(folder_path));
@@ -412,6 +419,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         let f_success = files_success.load(Ordering::Relaxed);
         let f_failed = files_failed.load(Ordering::Relaxed);
         let f_skipped = files_skipped.load(Ordering::Relaxed);
+        let f_no_tracks = files_no_tracks.load(Ordering::Relaxed);
 
         let hours = delta.as_secs() / 3600;
         let minutes = (delta.as_secs() % 3600) / 60;
@@ -433,10 +441,11 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         append_log(
             &app,
             format!(
-                "Conversion Complete!\nFiles: {} Succeeded, {} Failed, {} Skipped.\nTracks: {} Converted, {} Failed.\nSession finished at: {}\nTotal Conversion Time: {}",
+                "Conversion Complete!\nFiles: {} Succeeded, {} Failed, {} Skipped, {} No Tracks.\nTracks: {} Converted, {} Failed.\nSession finished at: {}\nTotal Conversion Time: {}",
                 f_success,
                 f_failed,
                 f_skipped,
+                f_no_tracks,
                 total_tracks_success,
                 total_tracks_fails,
                 chrono::Local::now().format("%-m/%-d/%Y, %-I:%M:%S %p"),
@@ -454,6 +463,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
             "succeeded_files": f_success, // L-1 / U-1 breakdown
             "failed_files": f_failed,
             "skipped_files": f_skipped,
+            "no_tracks_files": f_no_tracks,
         });
 
         // M-2: Removed redundant Finished emit. Frontend uses invoke result.
@@ -695,23 +705,27 @@ pub fn initialize_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<()
 }
 
 #[tauri::command]
-pub fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> bool {
+pub async fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<bool, AppError> {
     if let Ok(log_dir) = app.path().app_log_dir() {
-        log_dir.join("session.log").exists()
+        Ok(tokio::fs::try_exists(log_dir.join("session.log"))
+            .await
+            .unwrap_or(false))
     } else {
-        false
+        Ok(false)
     }
 }
 
 #[tauri::command]
-pub fn read_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, AppError> {
+pub async fn read_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, AppError> {
     flush_log_writer(&app);
     let log_dir = app
         .path()
         .app_log_dir()
         .map_err(|e| AppError::Process(format!("Failed to resolve log directory: {}", e)))?;
     let log_path = log_dir.join("session.log");
-    std::fs::read_to_string(&log_path).map_err(AppError::Io)
+    tokio::fs::read_to_string(&log_path)
+        .await
+        .map_err(AppError::Io)
 }
 
 #[tauri::command]
@@ -786,4 +800,149 @@ pub fn open_folder<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result
     app.opener()
         .open_path(&path, None::<&str>)
         .map_err(|e| AppError::Process(e.to_string()))
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum FileCategory {
+    HistorySkipped,
+    NoTracks,
+    Failed,
+    Success,
+    Ghost,
+}
+
+pub fn classify_result(
+    convs: &[SubtitleMetadata],
+    fails: &[String],
+    outcome: FileOutcome,
+) -> FileCategory {
+    match outcome {
+        FileOutcome::HistorySkipped => FileCategory::HistorySkipped,
+        FileOutcome::NoTracks => FileCategory::NoTracks,
+        FileOutcome::Processed => {
+            if convs.is_empty() && !fails.is_empty() {
+                FileCategory::Failed
+            } else if !convs.is_empty() {
+                FileCategory::Success
+            } else {
+                FileCategory::Ghost
+            }
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+enum Token<'a> {
+    Str(&'a str),
+    Num(u64),
+}
+
+fn tokenize(s: &str) -> Vec<Token<'_>> {
+    let mut tokens = Vec::new();
+    let mut start = 0;
+    let mut is_digit = false;
+
+    for (i, c) in s.char_indices() {
+        let current_is_digit = c.is_ascii_digit();
+        if i == 0 {
+            is_digit = current_is_digit;
+        } else if is_digit != current_is_digit {
+            let slice = &s[start..i];
+            if is_digit {
+                tokens.push(Token::Num(slice.parse().unwrap_or(0)));
+            } else {
+                tokens.push(Token::Str(slice));
+            }
+            start = i;
+            is_digit = current_is_digit;
+        }
+    }
+    if start < s.len() {
+        let slice = &s[start..];
+        if is_digit {
+            tokens.push(Token::Num(slice.parse().unwrap_or(0)));
+        } else {
+            tokens.push(Token::Str(slice));
+        }
+    }
+    tokens
+}
+
+pub fn sort_natural(a: &SubtitleMetadata, b: &SubtitleMetadata) -> std::cmp::Ordering {
+    tokenize(&a.file).cmp(&tokenize(&b.file))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_classify_result() {
+        assert_eq!(
+            classify_result(&[], &[], FileOutcome::HistorySkipped),
+            FileCategory::HistorySkipped
+        );
+        assert_eq!(
+            classify_result(&[], &[], FileOutcome::NoTracks),
+            FileCategory::NoTracks
+        );
+
+        // Ghost file (processed, but 0 conversions and 0 failures)
+        assert_eq!(
+            classify_result(&[], &[], FileOutcome::Processed),
+            FileCategory::Ghost
+        );
+
+        // Success
+        let md = SubtitleMetadata {
+            file: "test".into(),
+            language: String::new(),
+            track_name: String::new(),
+            codec: String::new(),
+        };
+        assert_eq!(
+            classify_result(&[md.clone()], &[], FileOutcome::Processed),
+            FileCategory::Success
+        );
+
+        // Success with some failures (still counts as file success in logic)
+        assert_eq!(
+            classify_result(&[md], &[String::from("fail")], FileOutcome::Processed),
+            FileCategory::Success
+        );
+
+        // Failed
+        assert_eq!(
+            classify_result(&[], &[String::from("fail")], FileOutcome::Processed),
+            FileCategory::Failed
+        );
+    }
+
+    #[test]
+    fn test_sort_natural() {
+        let mut items = vec![
+            SubtitleMetadata {
+                file: "Track 10".into(),
+                language: String::new(),
+                track_name: String::new(),
+                codec: String::new(),
+            },
+            SubtitleMetadata {
+                file: "Track 2".into(),
+                language: String::new(),
+                track_name: String::new(),
+                codec: String::new(),
+            },
+            SubtitleMetadata {
+                file: "Track 1".into(),
+                language: String::new(),
+                track_name: String::new(),
+                codec: String::new(),
+            },
+        ];
+        items.sort_by(sort_natural);
+        assert_eq!(items[0].file, "Track 1");
+        assert_eq!(items[1].file, "Track 2");
+        assert_eq!(items[2].file, "Track 10");
+    }
 }

@@ -11,6 +11,13 @@ use crate::constants::EVENT_PROCESS_LOG;
 use crate::error::AppError;
 use crate::models::{AppState, ProgressPayload, SubtitleMetadata};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileOutcome {
+    HistorySkipped,
+    NoTracks,
+    Processed,
+}
+
 // -----------------------------------------------------------------------------
 // Logging Infrastructure
 // -----------------------------------------------------------------------------
@@ -321,7 +328,7 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
     app: &AppHandle<R>,
     input_mkv: &Path,
     stream_index: u32,
-    output_srt: &Path,
+    output_srt: Option<&Path>,
     final_ass_path: &Path,
     cancel_token: &tokio_util::sync::CancellationToken,
 ) -> Result<bool, AppError> {
@@ -331,23 +338,35 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
         .map_err(|e| AppError::Sidecar(e.to_string()))?;
 
     let map_arg = format!("0:{}", stream_index);
+    let mut args = vec![
+        "-y".to_string(),
+        "-i".to_string(),
+        input_mkv.to_string_lossy().into_owned(),
+        "-map".to_string(),
+        map_arg,
+    ];
+    let tracking_path = if let Some(srt) = output_srt {
+        args.push(srt.to_string_lossy().into_owned());
+        srt.to_path_buf()
+    } else {
+        args.push("-c:s".to_string());
+        args.push("copy".to_string());
+        args.push(final_ass_path.to_string_lossy().into_owned());
+        final_ass_path.to_path_buf()
+    };
+
     let (mut rx, child) = sidecar
-        .args([
-            "-y",
-            "-i",
-            &input_mkv.to_string_lossy(),
-            "-map",
-            &map_arg,
-            &output_srt.to_string_lossy(),
-        ])
+        .args(args)
         .spawn()
         .map_err(|e| AppError::Sidecar(e.to_string()))?;
 
     {
         let state = app.state::<AppState>();
         let mut session = state.process.lock().await;
-        session.children.insert(output_srt.to_path_buf(), child);
-        session.session_output_files.push(output_srt.to_path_buf());
+        session.children.insert(tracking_path.clone(), child);
+        if let Some(srt) = output_srt {
+            session.session_output_files.push(srt.to_path_buf());
+        }
         session
             .session_output_files
             .push(final_ass_path.to_path_buf());
@@ -363,12 +382,6 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
             success = payload.code == Some(0);
             break;
         }
-    }
-
-    {
-        let state = app.state::<AppState>();
-        let mut session = state.process.lock().await;
-        session.children.remove(&output_srt.to_path_buf());
     }
 
     Ok(success)
@@ -394,7 +407,7 @@ pub struct ProcessContext<'a, R: tauri::Runtime> {
 
 pub async fn process_one_mkv_file<R: tauri::Runtime>(
     ctx: ProcessContext<'_, R>,
-) -> Result<(Vec<SubtitleMetadata>, Vec<String>, usize), AppError> {
+) -> Result<(Vec<SubtitleMetadata>, Vec<String>, FileOutcome), AppError> {
     let ProcessContext {
         app,
         file_path,
@@ -449,7 +462,7 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
             event: "FileProcessed".into(),
             data: json!({ "processed": processed, "converted": converted }),
         });
-        return Ok((Vec::new(), Vec::new(), 1));
+        return Ok((Vec::new(), Vec::new(), FileOutcome::HistorySkipped));
     }
 
     append_log(app, format!("🔍 Probing: {}", file_name));
@@ -470,12 +483,12 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
             return Ok((
                 Vec::new(),
                 vec![format!("FFprobe failed: {}", file_name)],
-                0,
+                FileOutcome::Processed,
             ));
         }
     };
 
-    let supported_codecs = ["subrip", "ass", "ssa"];
+    let supported_codecs = ["subrip"];
     for stream in &streams {
         if !supported_codecs.contains(&stream.codec.as_str()) {
             append_log(
@@ -490,7 +503,7 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
 
     let valid_tracks: Vec<_> = streams
         .into_iter()
-        .filter(|s| s.codec == "subrip")
+        .filter(|s| supported_codecs.contains(&s.codec.as_str()))
         .collect();
 
     if valid_tracks.is_empty() {
@@ -504,7 +517,7 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
             event: "FileProcessed".into(),
             data: json!({ "processed": processed, "converted": converted }),
         });
-        return Ok((Vec::new(), Vec::new(), 1));
+        return Ok((Vec::new(), Vec::new(), FileOutcome::NoTracks));
     }
 
     let mut join_set = tokio::task::JoinSet::new();
@@ -543,19 +556,22 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
 
             let tmp_srt_path = output_dir_clone.join(&srt_filename);
             let final_ass_path = output_dir_clone.join(&ass_filename);
+            let is_ass = stream.codec == "ass" || stream.codec == "ssa";
 
             let extraction_ok = run_ffmpeg_extract_subtitle(
                 &app_clone,
                 &file_path_clone,
                 stream.index,
-                &tmp_srt_path,
+                if is_ass { None } else { Some(&tmp_srt_path) },
                 &final_ass_path,
                 &cancel_token_clone,
             )
             .await?;
 
             if !extraction_ok {
-                tokio::fs::remove_file(&tmp_srt_path).await.ok();
+                if !is_ass {
+                    tokio::fs::remove_file(&tmp_srt_path).await.ok();
+                }
                 let err_msg = format!(
                     "Extraction failed on stream {}: {}",
                     stream.index, file_name_clone
@@ -563,31 +579,37 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
                 return Ok(Err((stream, err_msg)));
             }
 
-            let tmp_srt_path_clone = tmp_srt_path.clone();
-            let final_ass_path_clone = final_ass_path.clone();
+            let had_dialogue = if is_ass {
+                true
+            } else {
+                let tmp_srt_path_clone = tmp_srt_path.clone();
+                let final_ass_path_clone = final_ass_path.clone();
 
-            let conversion_res = tokio::task::spawn_blocking(move || {
-                convert_srt_to_ass(&tmp_srt_path_clone, &final_ass_path_clone)
-            })
-            .await;
+                let conversion_res = tokio::task::spawn_blocking(move || {
+                    convert_srt_to_ass(&tmp_srt_path_clone, &final_ass_path_clone)
+                })
+                .await;
 
-            let had_dialogue = match conversion_res {
-                Ok(Ok(has_content)) => has_content,
-                Ok(Err(e)) => {
-                    tokio::fs::remove_file(&tmp_srt_path).await.ok();
-                    let err_msg =
-                        format!("ASS conversion failed on stream {}: {}", stream.index, e);
-                    return Ok(Err((stream, err_msg)));
-                }
-                Err(e) => {
-                    tokio::fs::remove_file(&tmp_srt_path).await.ok();
-                    let err_msg =
-                        format!("Spawn blocking failed on stream {}: {}", stream.index, e);
-                    return Ok(Err((stream, err_msg)));
+                match conversion_res {
+                    Ok(Ok(has_content)) => has_content,
+                    Ok(Err(e)) => {
+                        tokio::fs::remove_file(&tmp_srt_path).await.ok();
+                        let err_msg =
+                            format!("ASS conversion failed on stream {}: {}", stream.index, e);
+                        return Ok(Err((stream, err_msg)));
+                    }
+                    Err(e) => {
+                        tokio::fs::remove_file(&tmp_srt_path).await.ok();
+                        let err_msg =
+                            format!("Spawn blocking failed on stream {}: {}", stream.index, e);
+                        return Ok(Err((stream, err_msg)));
+                    }
                 }
             };
 
-            tokio::fs::remove_file(&tmp_srt_path).await.ok();
+            if !is_ass {
+                tokio::fs::remove_file(&tmp_srt_path).await.ok();
+            }
 
             if had_dialogue {
                 {
@@ -686,7 +708,7 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
             .insert((path_str, original_size, modified_ts));
     }
 
-    Ok((conv_list, fail_list, 0))
+    Ok((conv_list, fail_list, FileOutcome::Processed))
 }
 
 // -----------------------------------------------------------------------------

@@ -7,6 +7,7 @@
     filesSucceeded?: number;
     filesFailed?: number;
     filesSkipped?: number;
+    filesNoTracks?: number;
     tracksConverted: number;
     progress: number; // 0-100
     elapsedSeconds: number;
@@ -20,6 +21,7 @@
     filesSucceeded = 0,
     filesFailed = 0,
     filesSkipped = 0,
+    filesNoTracks = 0,
     tracksConverted,
     progress,
     elapsedSeconds,
@@ -87,7 +89,7 @@
 </div>
 
 {#if status === 'done' || status === 'cancelled'}
-  <div class="metrics-grid breakdown-grid">
+  <div class="metrics-grid breakdown-grid-4">
     <div class="metric-card">
       <span class="metric-label">Succeeded</span>
       <span class="metric-value success-text">{filesSucceeded}</span>
@@ -99,6 +101,10 @@
     <div class="metric-card">
       <span class="metric-label">Skipped</span>
       <span class="metric-value secondary-text">{filesSkipped}</span>
+    </div>
+    <div class="metric-card">
+      <span class="metric-label">No Tracks</span>
+      <span class="metric-value secondary-text">{filesNoTracks}</span>
     </div>
   </div>
 {/if}
@@ -141,9 +147,13 @@
     }
   }
 
-  .breakdown-grid {
-    grid-template-columns: repeat(3, 1fr);
+  .breakdown-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
     margin-bottom: 16px;
+
+    @media (max-width: 680px) {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
 
   .metric-card {

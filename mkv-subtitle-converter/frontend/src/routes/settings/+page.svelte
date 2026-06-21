@@ -131,6 +131,27 @@
 
   <div class="scrollable-content">
     <section class="settings-section">
+      <h2>Appearance</h2>
+      <div class="theme-selector">
+        <label class="theme-option" class:active={config.theme === 'system'}>
+          <input type="radio" name="theme" value="system" bind:group={config.theme} />
+          <span class="icon">💻</span>
+          <span class="label">System</span>
+        </label>
+        <label class="theme-option" class:active={config.theme === 'light'}>
+          <input type="radio" name="theme" value="light" bind:group={config.theme} />
+          <span class="icon">☀️</span>
+          <span class="label">Light</span>
+        </label>
+        <label class="theme-option" class:active={config.theme === 'dark'}>
+          <input type="radio" name="theme" value="dark" bind:group={config.theme} />
+          <span class="icon">🌙</span>
+          <span class="label">Dark</span>
+        </label>
+      </div>
+    </section>
+
+    <section class="settings-section">
       <h2>Processing Options</h2>
 
       <label class="toggle-label" for="recursive-toggle">
@@ -363,6 +384,51 @@
     margin: -10px 0 0 0;
     color: var(--text-secondary);
     font-size: 0.9rem;
+  }
+
+  .theme-selector {
+    display: flex;
+    gap: 12px;
+  }
+
+  .theme-option {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px;
+    background: var(--bg-surface);
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+
+    input {
+      display: none;
+    }
+
+    .icon {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+
+    .label {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    &:hover {
+      background: var(--bg-hover-panel);
+      border-color: var(--border-color-hover, var(--text-secondary));
+    }
+
+    &.active {
+      border-color: var(--accent-color);
+      background: var(--bg-panel);
+    }
   }
 
   .mt-4 {

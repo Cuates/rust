@@ -45,8 +45,13 @@ async function downloadFile(filename, expectedHash) {
     const destination = path.join(TARGET_DIR, filename);
 
     if (fs.existsSync(destination)) {
-        console.log(`✅ Skipped ${filename} (Already exists)`);
-        return;
+        const isValid = await verifyChecksum(destination, expectedHash);
+        if (isValid) {
+            console.log(`✅ Skipped ${filename} (hash verified)`);
+            return;
+        }
+        console.warn(`⚠️ Hash mismatch on existing ${filename} – re-downloading`);
+        fs.unlinkSync(destination); // fall through to download
     }
 
     console.log(`⬇️ Downloading ${filename}...`);

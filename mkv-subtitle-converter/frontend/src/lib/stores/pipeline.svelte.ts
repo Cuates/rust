@@ -17,6 +17,7 @@ interface PipelineState {
   filesSucceeded: number;
   filesFailed: number;
   filesSkipped: number;
+  filesNoTracks: number;
 }
 
 export const pipeline = $state<PipelineState>({
@@ -35,7 +36,8 @@ export const pipeline = $state<PipelineState>({
   completedFilesPerDir: {},
   filesSucceeded: 0,
   filesFailed: 0,
-  filesSkipped: 0
+  filesSkipped: 0,
+  filesNoTracks: 0
 });
 
 let pipelineTimer: ReturnType<typeof setInterval> | null = null;
@@ -76,6 +78,7 @@ export function resetPipeline(): void {
   pipeline.filesSucceeded = 0;
   pipeline.filesFailed = 0;
   pipeline.filesSkipped = 0;
+  pipeline.filesNoTracks = 0;
 }
 
 export function appendLog(message: string): void {
@@ -115,6 +118,7 @@ export function handleFinished(data: FinishedData): void {
   pipeline.filesSucceeded = data.succeeded_files ?? 0;
   pipeline.filesFailed = data.failed_files ?? 0;
   pipeline.filesSkipped = data.skipped_files ?? 0;
+  pipeline.filesNoTracks = data.no_tracks_files ?? 0;
 }
 
 export function handleCancelled(): void {
