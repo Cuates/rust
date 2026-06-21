@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
-  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window';
   import { onMount, tick } from 'svelte';
 
   import { config, appState, configState, toggleTheme } from '../lib/stores/config.svelte';
@@ -44,6 +44,30 @@
       if (terminalComponent) terminalComponent.scrollToBottom();
     }
   }
+
+  // Taskbar Progress Synchronization
+  let lastProgressPercentage = $state(-1);
+  $effect(() => {
+    const appWindow = getCurrentWindow();
+    if (pipeline.totalFilesCount > 0 && pipeline.processingActive) {
+      if (pipeline.overallProgress !== lastProgressPercentage) {
+        lastProgressPercentage = pipeline.overallProgress;
+        if (pipeline.overallProgress < 100) {
+          appWindow
+            .setProgressBar({
+              status: ProgressBarStatus.Normal,
+              progress: pipeline.overallProgress
+            })
+            .catch(console.error);
+        } else {
+          appWindow.setProgressBar({ status: ProgressBarStatus.None }).catch(console.error);
+        }
+      }
+    } else if (!pipeline.processingActive && lastProgressPercentage !== -1) {
+      lastProgressPercentage = -1;
+      appWindow.setProgressBar({ status: ProgressBarStatus.None }).catch(console.error);
+    }
+  });
 
   $effect(() => {
     if (configState.isLoaded && !initialDirCheckDone && config.input_directories.length > 0) {

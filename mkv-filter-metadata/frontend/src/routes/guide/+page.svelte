@@ -171,6 +171,19 @@
         was copied to your clipboard). They are distinct from the file-by-file progress logs shown in
         the terminal.
       </p>
+
+      <h3 style="margin-top: 1.5rem;">Taskbar Progress Indicator</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
+        When the application is processing files, you can monitor the overall conversion progress
+        directly from your operating system's <span class="highlight">taskbar</span> (or dock). This
+        allows you to easily track the batch process without needing to keep the application window
+        open or maximized. Once processing is complete, the indicator will automatically clear.
+      </p>
+      <ul style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-top: 0.5rem; padding-left: 1.5rem;">
+        <li style="margin-bottom: 0.25rem;"><strong>Windows:</strong> The application's taskbar icon will fill up horizontally with a green progress overlay (or your system's accent color).</li>
+        <li style="margin-bottom: 0.25rem;"><strong>macOS:</strong> A distinct horizontal progress bar will appear along the bottom edge of the application icon in the Dock.</li>
+        <li style="margin-bottom: 0.25rem;"><strong>Linux:</strong> On supported desktop environments (such as GNOME or Unity), a progress overlay will be displayed over the application's dock icon.</li>
+      </ul>
     </div>
   </div>
 </main>
