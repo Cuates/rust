@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { pipeline, emitLog, addLogs } from './pipeline.svelte';
+import {
+  pipeline,
+  emitLog,
+  addLogs,
+  startPipelineTimer,
+  stopPipelineTimer
+} from './pipeline.svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { TAURI_COMMANDS } from '../constants';
 
@@ -32,6 +38,7 @@ describe('pipeline.svelte', () => {
   });
 
   afterEach(() => {
+    stopPipelineTimer();
     vi.useRealTimers();
   });
 
@@ -103,5 +110,43 @@ describe('pipeline.svelte', () => {
     expect(pipeline.consoleLogs.length).toBe(1001);
     expect(pipeline.consoleLogs[0].text).toContain('trimmed');
     expect(pipeline.consoleLogs[1].text).toBe('log 5');
+  });
+
+  it('startPipelineTimer should update running time formatting', () => {
+    vi.setSystemTime(new Date(1000000000000));
+    startPipelineTimer();
+
+    vi.advanceTimersByTime(100);
+    expect(pipeline.runningTimeFormatted).toBe('100ms');
+
+    vi.advanceTimersByTime(900);
+    expect(pipeline.runningTimeFormatted).toBe('1s 0ms');
+  });
+
+  it('startPipelineTimer should calculate ETA correctly', () => {
+    pipeline.totalFilesCount = 10;
+    pipeline.completedFilesCount = 5;
+    pipeline.activeFiles = {}; // exactly 50% done
+
+    vi.setSystemTime(new Date(1000000000000));
+    startPipelineTimer();
+
+    // Advance 5 seconds. 50% done in 5 seconds means 5 seconds remaining.
+    vi.advanceTimersByTime(5000);
+
+    expect(pipeline.etaFormatted).toBe('5s 0ms');
+  });
+
+  it('stopPipelineTimer should stop updating running time', () => {
+    vi.setSystemTime(new Date(1000000000000));
+    startPipelineTimer();
+
+    vi.advanceTimersByTime(100);
+    expect(pipeline.runningTimeFormatted).toBe('100ms');
+
+    stopPipelineTimer();
+
+    vi.advanceTimersByTime(100);
+    expect(pipeline.runningTimeFormatted).toBe('100ms');
   });
 });

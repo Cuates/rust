@@ -6,7 +6,13 @@
 
   import { config, appState, configState, toggleTheme } from '../lib/stores/config.svelte';
   import { shortcuts } from '../lib/stores/shortcuts.svelte';
-  import { pipeline, addLogs, emitLog } from '../lib/stores/pipeline.svelte';
+  import {
+    pipeline,
+    addLogs,
+    emitLog,
+    startPipelineTimer,
+    stopPipelineTimer
+  } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
   import type { DirStats } from '$lib/types';
   import { DirStatsSchema, EncoderCapabilitiesSchema } from '$lib/types';
@@ -21,8 +27,6 @@
   import ConfirmationModal from '../lib/components/ConfirmationModal.svelte';
   import AboutModal from '../lib/components/AboutModal.svelte';
 
-  let timerInterval: ReturnType<typeof setInterval> | undefined = undefined;
-  let startTime = 0;
   let queueComponent: ReturnType<typeof DirectoryQueue>;
   let terminalComponent: ReturnType<typeof TerminalLog>;
   let isDraggingOS = $state(false);
@@ -225,7 +229,6 @@
         unlistenDrop();
         unlistenDrag();
         unlistenDragCancelled();
-        if (timerInterval) clearInterval(timerInterval);
       };
     };
 
@@ -235,48 +238,6 @@
       if (cleanup) cleanup();
     };
   });
-
-  function startTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    startTime = Date.now();
-
-    function tickTime() {
-      const elapsedMs = Date.now() - startTime;
-      pipeline.runningTimeFormatted = formatDuration(elapsedMs);
-
-      try {
-        let sumIntra = 0;
-        const vals = Object.values(pipeline.activeFiles);
-        for (let i = 0; i < vals.length; i++) {
-          sumIntra += vals[i] as number;
-        }
-        const completedFraction = pipeline.completedFilesCount + sumIntra / 100;
-
-        if (
-          pipeline.totalFilesCount > 0 &&
-          completedFraction > 0.05 &&
-          completedFraction < pipeline.totalFilesCount
-        ) {
-          const msPerFile = elapsedMs / completedFraction;
-          const remainingFraction = pipeline.totalFilesCount - completedFraction;
-          const remainingMs = remainingFraction * msPerFile;
-          pipeline.etaFormatted = formatDuration(remainingMs);
-        } else if (pipeline.totalFilesCount > 0 && completedFraction >= pipeline.totalFilesCount) {
-          pipeline.etaFormatted = '0ms';
-        } else {
-          pipeline.etaFormatted = '--';
-        }
-      } catch (err) {
-        console.error('Timer tick error:', err);
-      }
-    }
-
-    timerInterval = setInterval(tickTime, 100);
-  }
-
-  function stopTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-  }
 
   async function displaySidecarVersions() {
     emitLog('--- Querying Embedded Sidecar Binary Configurations ---');
@@ -334,7 +295,7 @@
     pipeline.directoryErrors = {};
     pipeline.currentActiveDirectory = null;
 
-    startTimer();
+    startPipelineTimer();
     await displaySidecarVersions();
     try {
       const tempDirStats: Record<string, DirStats> = {};
@@ -406,7 +367,7 @@
       emitLog(`❌ Pipeline execution failure: ${err}`);
     } finally {
       pipeline.processingActive = false;
-      stopTimer();
+      stopPipelineTimer();
 
       pipeline.activeFiles = {};
 
@@ -427,7 +388,7 @@
       }
 
       const endDate = new Date();
-      const elapsedMs = endDate.getTime() - startTime;
+      const elapsedMs = endDate.getTime() - pipeline.startTime;
       const finalTimeStr = formatDuration(elapsedMs);
       pipeline.runningTimeFormatted = finalTimeStr;
 
@@ -453,7 +414,7 @@
       emitLog(`Error safely terminating workers: ${err}`);
     } finally {
       pipeline.processingActive = false;
-      stopTimer();
+      stopPipelineTimer();
 
       await scrollToTerminalBottom(40);
     }
