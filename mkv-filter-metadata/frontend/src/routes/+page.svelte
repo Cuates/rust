@@ -4,7 +4,7 @@
   import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window';
   import { onMount, tick } from 'svelte';
 
-  import { config, appState, configState, toggleTheme } from '../lib/stores/config.svelte';
+  import { config, appState, configState } from '../lib/stores/config.svelte';
   import { shortcuts } from '../lib/stores/shortcuts.svelte';
   import {
     pipeline,
@@ -554,13 +554,6 @@
           <line x1="12" y1="16" x2="12" y2="12"></line>
           <line x1="12" y1="8" x2="12.01" y2="8"></line>
         </svg>
-      </button>
-      <button
-        class="theme-toggle-icon-btn"
-        onclick={toggleTheme}
-        aria-label="Toggle color display theme"
-      >
-        {#if appState.isDarkMode}☀️{:else}🌙{/if}
       </button>
     </div>
   </header>

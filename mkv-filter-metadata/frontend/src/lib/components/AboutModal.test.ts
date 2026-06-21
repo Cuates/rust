@@ -2,7 +2,6 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/svelte';
 import AboutModal from './AboutModal.svelte';
-import { appState } from '$lib/stores/config.svelte';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
@@ -56,17 +55,6 @@ describe('AboutModal.svelte', () => {
       await fireEvent.click(card);
       expect(onClose).not.toHaveBeenCalled();
     }
-  });
-
-  it('toggles theme correctly', async () => {
-    render(AboutModal, { props: { show: true, onClose: vi.fn() } });
-
-    appState.isDarkMode = true;
-    const themeBtn = screen.getByRole('button', { name: /toggle color display theme/i });
-    expect(themeBtn.textContent).toContain('☀️');
-
-    await fireEvent.click(themeBtn);
-    expect(appState.isDarkMode).toBe(false);
   });
 
   it('opens external links and handles errors', async () => {

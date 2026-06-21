@@ -1,7 +1,7 @@
 <script lang="ts">
   import { fade, scale } from 'svelte/transition';
-  import { appState, toggleTheme } from '$lib/stores/config.svelte';
   import { openUrl } from '@tauri-apps/plugin-opener';
+  import { appState } from '$lib/stores/config.svelte';
 
   async function openExternal(url: string) {
     try {
@@ -96,13 +96,6 @@
           />
           <h2 id="about-title">About MKV Filter Metadata</h2>
         </div>
-        <button
-          class="theme-toggle-icon-btn"
-          onclick={toggleTheme}
-          aria-label="Toggle color display theme"
-        >
-          {#if appState.isDarkMode}☀️{:else}🌙{/if}
-        </button>
       </div>
 
       <div class="modal-body">
@@ -254,24 +247,6 @@
         margin: 0;
         font-size: 1.25rem;
         color: var(--text-primary);
-      }
-    }
-
-    .theme-toggle-icon-btn {
-      background: transparent;
-      border: 1px solid var(--border-color);
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 1rem;
-      width: 30px;
-      height: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0;
-
-      &:hover {
-        background: var(--border-color);
       }
     }
   }

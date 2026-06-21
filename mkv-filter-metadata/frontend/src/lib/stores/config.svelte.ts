@@ -40,6 +40,7 @@ type Preset =
   | 'default';
 
 export interface AppConfig {
+  theme: 'system' | 'light' | 'dark';
   input_directories: string[];
   file_extensions: string;
   recursive: boolean;
@@ -56,6 +57,7 @@ export interface AppConfig {
 }
 
 const DEFAULT_CONFIG: AppConfig = {
+  theme: 'dark',
   input_directories: [],
   file_extensions: 'mkv, mp4, mov, avi, ogm, wmv',
   recursive: false,
@@ -115,6 +117,7 @@ export function initConfigWatcher() {
 
     // access all properties to track them
     const currentConfig = {
+      theme: config.theme,
       input_directories: config.save_queue_list ? config.input_directories : [],
       file_extensions: config.file_extensions,
       recursive: config.recursive,
@@ -141,7 +144,7 @@ export function initConfigWatcher() {
 }
 
 export const appState = $state({
-  isDarkMode: true,
+  osTheme: 'dark' as 'light' | 'dark',
   hardwareEncoders: {
     nvenc: false,
     amf: false,
@@ -153,7 +156,6 @@ export const appState = $state({
   mkvmergeVersion: ''
 });
 
-export function toggleTheme() {
-  appState.isDarkMode = !appState.isDarkMode;
-  localStorage.setItem('app-theme', appState.isDarkMode ? 'dark' : 'light');
+export function getResolvedTheme() {
+  return config.theme === 'system' ? appState.osTheme : config.theme;
 }

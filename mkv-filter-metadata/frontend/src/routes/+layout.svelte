@@ -3,7 +3,13 @@
   import '@fontsource-variable/jetbrains-mono';
   import '../styles/app.scss';
   import { onMount } from 'svelte';
-  import { loadConfig, initConfigWatcher, appState } from '$lib/stores/config.svelte';
+  import {
+    loadConfig,
+    initConfigWatcher,
+    appState,
+    getResolvedTheme,
+    config
+  } from '$lib/stores/config.svelte';
   import { loadShortcuts, initShortcutWatcher } from '$lib/stores/shortcuts.svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
@@ -11,15 +17,13 @@
 
   let { children } = $props();
 
-  async function applyThemeBody() {
+  async function applyThemeWindow(theme: 'light' | 'dark', isSystem: boolean) {
     try {
       const appWindow = getCurrentWindow();
-      if (appState.isDarkMode) {
-        document.documentElement.className = 'dark-mode';
-        await appWindow.setTheme('dark');
+      if (isSystem) {
+        await appWindow.setTheme(null);
       } else {
-        document.documentElement.className = 'light-mode';
-        await appWindow.setTheme('light');
+        await appWindow.setTheme(theme);
       }
     } catch (e) {
       console.error(e);
@@ -39,12 +43,12 @@
       addToast(`Failed to initialize window context: ${e}`, 'error');
     }
 
-    const savedTheme = localStorage.getItem('app-theme');
-    if (savedTheme) {
-      appState.isDarkMode = savedTheme === 'dark';
-    } else {
-      appState.isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    }
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    appState.osTheme = mediaQuery.matches ? 'dark' : 'light';
+
+    mediaQuery.addEventListener('change', (e) => {
+      appState.osTheme = e.matches ? 'dark' : 'light';
+    });
 
     // Do not await this, let it load in the background so the UI renders instantly
     Promise.all([loadConfig(), loadShortcuts()]).catch((e) => {
@@ -54,8 +58,15 @@
   });
 
   $effect(() => {
-    // This will run whenever appState.isDarkMode changes
-    applyThemeBody();
+    const themeToApply = getResolvedTheme();
+    const isSystem = config.theme === 'system';
+
+    if (themeToApply === 'dark') {
+      document.documentElement.className = 'dark-mode';
+    } else {
+      document.documentElement.className = 'light-mode';
+    }
+    applyThemeWindow(themeToApply as 'light' | 'dark', isSystem);
   });
 
   initConfigWatcher();

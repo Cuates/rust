@@ -76,7 +76,7 @@ describe('config.svelte', () => {
   });
 
   it('appState should have initial structure', () => {
-    expect(appState.isDarkMode).toBe(true);
+    expect(appState.osTheme).toBe('dark');
     expect(appState.hardwareEncoders.nvenc).toBe(false);
     expect(appState.ffmpegVersion).toBe('');
   });

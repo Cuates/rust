@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/svelte';
+import { render, screen } from '@testing-library/svelte';
 import GuidePage from './+page.svelte';
 
 describe('Guide Page', () => {
@@ -22,13 +22,5 @@ describe('Guide Page', () => {
     const backLink = screen.getByRole('link', { name: '←' });
     expect(backLink).toBeInTheDocument();
     expect(backLink.getAttribute('href')).toBe('/');
-  });
-
-  it('toggles theme when theme button is clicked', async () => {
-    render(GuidePage);
-    const themeBtn = screen.getByRole('button', { name: /toggle color display theme/i });
-    expect(themeBtn).toBeInTheDocument();
-    await fireEvent.click(themeBtn);
-    await fireEvent.click(themeBtn);
   });
 });

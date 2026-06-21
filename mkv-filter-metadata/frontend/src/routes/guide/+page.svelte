@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { appState, toggleTheme } from '../../lib/stores/config.svelte';
 </script>
 
 <svelte:head>
@@ -11,15 +10,6 @@
     <div style="display: flex; align-items: center; gap: 1rem;">
       <a class="back-btn" href="/" style="text-decoration: none;">←</a>
       <h1>How To Use</h1>
-    </div>
-    <div class="nav-actions">
-      <button
-        class="theme-toggle-icon-btn"
-        onclick={toggleTheme}
-        aria-label="Toggle color display theme"
-      >
-        {#if appState.isDarkMode}☀️{:else}🌙{/if}
-      </button>
     </div>
   </header>
 
@@ -85,6 +75,15 @@
           <span class="highlight">"Save Queue List Between Sessions"</span>
           option located in the
           <a href="/settings" class="guide-link">Settings (⚙️)</a> page.
+        </li>
+        <li>
+          <strong>UI Theme Preferences:</strong> You can customize the application's appearance by
+          selecting
+          <span class="highlight">System</span>, <span class="highlight">Light</span>, or
+          <span class="highlight">Dark</span>
+          mode in the
+          <a href="/settings" class="guide-link">Settings (⚙️)</a> page. By default, it actively follows
+          your operating system's theme.
         </li>
       </ul>
     </div>
@@ -175,14 +174,25 @@
       <h3 style="margin-top: 1.5rem;">Taskbar Progress Indicator</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
         When the application is processing files, you can monitor the overall conversion progress
-        directly from your operating system's <span class="highlight">taskbar</span> (or dock). This
-        allows you to easily track the batch process without needing to keep the application window
-        open or maximized. Once processing is complete, the indicator will automatically clear.
+        directly from your operating system's <span class="highlight">taskbar</span> (or dock). This allows
+        you to easily track the batch process without needing to keep the application window open or maximized.
+        Once processing is complete, the indicator will automatically clear.
       </p>
-      <ul style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-top: 0.5rem; padding-left: 1.5rem;">
-        <li style="margin-bottom: 0.25rem;"><strong>Windows:</strong> The application's taskbar icon will fill up horizontally with a green progress overlay (or your system's accent color).</li>
-        <li style="margin-bottom: 0.25rem;"><strong>macOS:</strong> A distinct horizontal progress bar will appear along the bottom edge of the application icon in the Dock.</li>
-        <li style="margin-bottom: 0.25rem;"><strong>Linux:</strong> On supported desktop environments (such as GNOME or Unity), a progress overlay will be displayed over the application's dock icon.</li>
+      <ul
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-top: 0.5rem; padding-left: 1.5rem;"
+      >
+        <li style="margin-bottom: 0.25rem;">
+          <strong>Windows:</strong> The application's taskbar icon will fill up horizontally with a green
+          progress overlay (or your system's accent color).
+        </li>
+        <li style="margin-bottom: 0.25rem;">
+          <strong>macOS:</strong> A distinct horizontal progress bar will appear along the bottom edge
+          of the application icon in the Dock.
+        </li>
+        <li style="margin-bottom: 0.25rem;">
+          <strong>Linux:</strong> On supported desktop environments (such as GNOME or Unity), a progress
+          overlay will be displayed over the application's dock icon.
+        </li>
       </ul>
     </div>
   </div>
@@ -225,32 +235,6 @@
       font-weight: 700;
       margin: 0;
       color: var(--text-primary);
-    }
-  }
-
-  .nav-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .theme-toggle-icon-btn {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1rem;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    transition: all 0.2s ease;
-
-    &:hover {
-      background: var(--border-color);
     }
   }
 

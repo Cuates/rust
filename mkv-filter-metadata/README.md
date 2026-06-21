@@ -2,7 +2,7 @@
 
 [![Maintained? yes](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Cuates/rust/graphs/commit-activity)
 [![MKV Filter Metadata CI](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.1.10-blue.svg)](https://github.com/Cuates/rust)
+[![Version](https://img.shields.io/badge/version-1.1.11-blue.svg)](https://github.com/Cuates/rust)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-FF3E00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8.svg)](https://tauri.app/)
@@ -42,11 +42,11 @@ A powerful batch-processing desktop application for filtering MKV metadata, stri
 
 ### User Interface
 - **Multi-Directory Processing Queue:** Drag-and-drop or browse to add multiple directories. Reorder via drag. Per-row status indicators (pending → processing → done/error).
-- **Real-Time Pipeline Telemetry:** Live progress bars (overall + per-file), running timer, and ETA estimation.
+- **Real-Time Pipeline Telemetry:** Live progress bars (overall + per-file), OS taskbar progress indicator, running timer, and ETA estimation.
 - **Storage Savings Metrics:** After completion, displays original vs. output size with percentage saved.
 - **Streaming Terminal Log:** Real-time FFmpeg output with auto-scroll, copy-to-clipboard, and save-to-file.
 - **Session Resumption:** Tracks completed files in a local SQLite database (path, size, modified time) — re-running a batch skips unchanged files even across restarts, and re-processes any file that was modified. You can view the record count and clear the history from the Settings page.
-- **Dark/Light Theme Toggle:** Smooth CSS transitions with system preference detection and localStorage persistence.
+- **UI Theme Configuration:** 3-way toggle (System/Light/Dark) with smooth CSS transitions, OS system preference tracking, and localStorage persistence.
 - **Per-Row Open Output Folder:** One-click button to open the `processed_files` directory in your file explorer after processing.
 - **OS Notifications:** Native desktop notification when the entire pipeline completes (can be disabled in Settings).
 - **Toast Notification System:** In-app toast messages with auto-dismiss and severity levels (success, warning, error, info).
@@ -140,6 +140,7 @@ mkv-filter-metadata/
 ├── CHANGELOG.md                  # Version history
 ├── CONTRIBUTING.md               # Contribution guidelines
 ├── LICENSE                       # MIT License
+├── TESTING.md                    # Testing strategy and guidelines
 ├── scripts/                      # Build helper scripts
 │   ├── download-sidecars.mjs     # Fetches sidecars and validates checksums
 │   └── generate-hashes.mjs       # Generates SHA-256 checksums for new binary releases
@@ -162,14 +163,17 @@ mkv-filter-metadata/
 │       ├── lib/
 │       │   ├── types.ts          # Zod schemas & TypeScript type definitions
 │       │   ├── components/
-│       │   │   ├── DirectoryQueue.svelte   # Multi-dir queue with drag-reorder
+│       │   │   ├── AboutModal.svelte       # App version & dependency info modal
 │       │   │   ├── ConfigPanel.svelte      # Encoder/preset/CRF controls
+│       │   │   ├── ConfirmationModal.svelte# Accessible generic confirmation dialog
+│       │   │   ├── DirectoryQueue.svelte   # Multi-dir queue with drag-reorder
 │       │   │   ├── MetricsPanel.svelte     # Progress bars, timer, ETA, storage
 │       │   │   ├── TerminalLog.svelte      # Streaming FFmpeg output log
 │       │   │   └── ToastContainer.svelte   # Toast notification system
 │       │   ├── stores/
 │       │   │   ├── config.svelte.ts        # App config & UI state (runes)
 │       │   │   ├── pipeline.svelte.ts      # Pipeline telemetry state (runes)
+│       │   │   ├── shortcuts.svelte.ts     # Keyboard shortcuts state (runes)
 │       │   │   └── toast.svelte.ts         # Toast queue state (runes)
 │       │   └── utils/
 │       │       └── formatters.ts           # Byte/duration formatting utilities

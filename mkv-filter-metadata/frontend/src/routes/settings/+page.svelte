@@ -4,12 +4,7 @@
     resetShortcutsToDefaults,
     isShortcutsDefault
   } from '../../lib/stores/shortcuts.svelte';
-  import {
-    config,
-    appState,
-    resetConfigToDefaults,
-    isConfigDefault
-  } from '../../lib/stores/config.svelte';
+  import { config, resetConfigToDefaults, isConfigDefault } from '../../lib/stores/config.svelte';
   import { addToast } from '../../lib/stores/toast.svelte';
   import { pipeline } from '../../lib/stores/pipeline.svelte';
   import ConfirmationModal from '../../lib/components/ConfirmationModal.svelte';
@@ -54,11 +49,6 @@
     recordingFor = field;
   }
 
-  function toggleTheme() {
-    appState.isDarkMode = !appState.isDarkMode;
-    localStorage.setItem('app-theme', appState.isDarkMode ? 'dark' : 'light');
-  }
-
   function handleReset() {
     showResetModal = true;
   }
@@ -99,18 +89,28 @@
       <a class="back-btn" href="/" style="text-decoration: none;">←</a>
       <h1>Settings</h1>
     </div>
-    <div class="nav-actions">
-      <button
-        class="theme-toggle-icon-btn"
-        onclick={toggleTheme}
-        aria-label="Toggle color display theme"
-      >
-        {#if appState.isDarkMode}☀️{:else}🌙{/if}
-      </button>
-    </div>
   </header>
 
   <div class="content-scroll-area">
+    <div class="form-workspace-card">
+      <h2>Appearance Settings</h2>
+      <p class="description">Select your preferred application color theme.</p>
+      <div class="segmented-control">
+        <label>
+          <input type="radio" value="system" bind:group={config.theme} />
+          <span>System 💻</span>
+        </label>
+        <label>
+          <input type="radio" value="light" bind:group={config.theme} />
+          <span>Light ☀️</span>
+        </label>
+        <label>
+          <input type="radio" value="dark" bind:group={config.theme} />
+          <span>Dark 🌙</span>
+        </label>
+      </div>
+    </div>
+
     <div class="form-workspace-card">
       <h2>General Settings</h2>
       <p class="description">Configure general application behaviors.</p>
@@ -353,32 +353,6 @@
     }
   }
 
-  .nav-actions {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .theme-toggle-icon-btn {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    border-radius: 50%;
-    cursor: pointer;
-    font-size: 1rem;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    transition: all 0.2s ease;
-
-    &:hover {
-      background: var(--border-color);
-    }
-  }
-
   .back-btn {
     background: transparent;
     border: none;
@@ -552,6 +526,44 @@
     &:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+  }
+
+  .segmented-control {
+    display: flex;
+    background-color: var(--bg-body);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.25rem;
+    gap: 0.25rem;
+
+    label {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      cursor: pointer;
+
+      input[type='radio'] {
+        position: absolute;
+        opacity: 0;
+      }
+
+      span {
+        display: block;
+        padding: 0.5rem;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: var(--text-secondary);
+        transition: all 0.2s ease;
+      }
+
+      input[type='radio']:checked + span {
+        background-color: var(--accent-color);
+        color: #ffffff;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        font-weight: 600;
+      }
     }
   }
 </style>
