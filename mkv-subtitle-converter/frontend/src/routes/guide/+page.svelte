@@ -49,15 +49,24 @@
           folders get processed first.
         </li>
         <li>
-          <strong>Folder Insights & Reports:</strong> Each folder displays a badge showing its total
-          file count. Once processing finishes or encounters an error, a
+          <strong>Folder Insights & Reports:</strong> As a folder processes, its badge displays a
+          live
+          <span class="highlight">[ M / N files ]</span> progress sub-count. Once processing
+          finishes or encounters an error, a
           <span class="highlight">"View Report"</span>
           button appears. Clicking it expands an inline drawer detailing exactly which files succeeded
-          and which failed, without leaving the app.
+          (including metadata like <strong>language</strong>, <strong>codec</strong>, and
+          <strong>track name</strong>) and which failed, without leaving the app.
           <em
             >Note: If you manually delete or corrupt the underlying report files, the app will
             gracefully handle it and notify you that the data is no longer available.</em
           >
+        </li>
+        <li>
+          <strong>Retry Failed Files:</strong> If any files fail to process, a
+          <span class="highlight">"Retry Failed"</span> button will appear next to the folder's report
+          button. Clicking this will automatically extract just the failed files from the report and seamlessly
+          inject them back into your queue for a quick retry.
         </li>
         <li>
           <strong>Queue Persistence:</strong> By default, your queue is cleared when you close the

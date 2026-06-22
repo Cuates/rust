@@ -739,10 +739,22 @@ pub async fn save_log_file<R: tauri::Runtime>(
         .path()
         .app_log_dir()
         .map_err(|e| AppError::Process(format!("Failed to resolve log directory: {}", e)))?;
-    let log_path = log_dir.join("session.log");
-    let content = std::fs::read_to_string(&log_path).map_err(AppError::Io)?;
 
-    tokio::fs::write(Path::new(&path), content)
+    let mut final_content = String::new();
+
+    // Read rotated logs in chronological order
+    let rotations = ["session.2.log", "session.1.log", "session.log"];
+    for rot in rotations {
+        let rot_path = log_dir.join(rot);
+        if let Ok(content) = tokio::fs::read_to_string(&rot_path).await {
+            final_content.push_str(&content);
+            if !final_content.ends_with('\n') {
+                final_content.push('\n');
+            }
+        }
+    }
+
+    tokio::fs::write(Path::new(&path), final_content)
         .await
         .map_err(AppError::Io)?;
 

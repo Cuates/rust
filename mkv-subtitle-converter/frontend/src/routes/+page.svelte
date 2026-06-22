@@ -430,6 +430,8 @@
         folders={selectedFolders}
         disabled={isProcessing}
         directoryStatuses={pipeline.directoryStatuses}
+        folderCounts={pipeline.folderCounts}
+        completedFilesPerDir={pipeline.completedFilesPerDir}
         {isDragging}
         onAdd={addFolder}
         onRemove={removeFolder}

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-06-22
+
+### Added
+- **In-App Report Previews**: The successful file reports now list embedded metadata alongside filenames (Subtitle Language, Codec, and Track Name).
+- **Per-Folder Progress Tracking**: A live `[ M / N files ]` badge now updates dynamically on folders as they process.
+- **Retry Failed Files**: Added a "Retry Failed" button to queue items that failed, which seamlessly extracts the failed files and pushes them back into the active queue for a quick retry.
+
+### Fixed
+- **Paginated Log Export**: Fixed log exporting to properly capture and concatenate full session history (`session.2.log`, `session.1.log`, `session.log`).
+- **SRT Parser Integrity**: Fixed an edge case where standalone numbers in subtitles were incorrectly parsed as timestamps, silently dropping dialogue lines.
+- **Memory Accumulation**: Fixed an unbounded memory leak by ensuring `CommandChild` subprocess entries are actively removed from the tracker once they complete.
+
 ## [1.5.1] - 2026-06-21
 
 ### Fixed

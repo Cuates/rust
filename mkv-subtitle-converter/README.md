@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.5.2-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -60,8 +60,15 @@ The architectural layout of this project relies on a highly decoupled **pnpm wor
 
 ```text
 mkv-subtitle-converter/
+├── CHANGELOG.md                   # Version history and release notes
+├── CONTRIBUTING.md                # Developer contribution guidelines
+├── README.md                      # Architecture and setup documentation
+├── TESTING.md                     # Testing suite documentation
 ├── package.json                   # Root package manager orchestration layout
 ├── pnpm-workspace.yaml            # PNPM monorepo multi-package descriptor
+├── scripts/                       # Monorepo build and sidecar scripts
+│   ├── download-sidecars.mjs
+│   └── generate-hashes.mjs
 ├── frontend/                      # Decoupled Webview Client (SvelteKit / Svelte 5)
 │   ├── package.json
 │   ├── svelte.config.js           # Outfitted with Adapter-Static constraints (outputs to build/)
@@ -124,7 +131,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -226,7 +233,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.5.2"
+  "version": "1.6.0"
 }
 
 ```
@@ -237,7 +244,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.5.2"
+  "version": "1.6.0"
 }
 ```
 

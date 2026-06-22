@@ -208,9 +208,10 @@ pub fn convert_srt_to_ass(input_path: &Path, output_path: &Path) -> std::io::Res
         }
 
         if trimmed.parse::<u32>().is_ok()
-            && let Some(time_line) = lines.next()
-            && time_line.contains("-->")
+            && let Some(next) = lines.peek()
+            && next.contains("-->")
         {
+            let time_line = lines.next().unwrap();
             let parts: Vec<&str> = time_line.splitn(2, "-->").collect();
             if parts.len() == 2 {
                 let start = format_srt_time_to_ass(parts[0].trim());
@@ -328,7 +329,7 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
     app: &AppHandle<R>,
     input_mkv: &Path,
     stream_index: u32,
-    output_srt: Option<&Path>,
+    output_srt: &Path,
     final_ass_path: &Path,
     cancel_token: &tokio_util::sync::CancellationToken,
 ) -> Result<bool, AppError> {
@@ -345,15 +346,9 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
         "-map".to_string(),
         map_arg,
     ];
-    let tracking_path = if let Some(srt) = output_srt {
-        args.push(srt.to_string_lossy().into_owned());
-        srt.to_path_buf()
-    } else {
-        args.push("-c:s".to_string());
-        args.push("copy".to_string());
-        args.push(final_ass_path.to_string_lossy().into_owned());
-        final_ass_path.to_path_buf()
-    };
+
+    args.push(output_srt.to_string_lossy().into_owned());
+    let tracking_path = output_srt.to_path_buf();
 
     let (mut rx, child) = sidecar
         .args(args)
@@ -364,9 +359,7 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
         let state = app.state::<AppState>();
         let mut session = state.process.lock().await;
         session.children.insert(tracking_path.clone(), child);
-        if let Some(srt) = output_srt {
-            session.session_output_files.push(srt.to_path_buf());
-        }
+        session.session_output_files.push(output_srt.to_path_buf());
         session
             .session_output_files
             .push(final_ass_path.to_path_buf());
@@ -382,6 +375,12 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
             success = payload.code == Some(0);
             break;
         }
+    }
+
+    {
+        let state = app.state::<AppState>();
+        let mut session = state.process.lock().await;
+        session.children.remove(&tracking_path);
     }
 
     Ok(success)
@@ -556,22 +555,19 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
 
             let tmp_srt_path = output_dir_clone.join(&srt_filename);
             let final_ass_path = output_dir_clone.join(&ass_filename);
-            let is_ass = stream.codec == "ass" || stream.codec == "ssa";
 
             let extraction_ok = run_ffmpeg_extract_subtitle(
                 &app_clone,
                 &file_path_clone,
                 stream.index,
-                if is_ass { None } else { Some(&tmp_srt_path) },
+                &tmp_srt_path,
                 &final_ass_path,
                 &cancel_token_clone,
             )
             .await?;
 
             if !extraction_ok {
-                if !is_ass {
-                    tokio::fs::remove_file(&tmp_srt_path).await.ok();
-                }
+                tokio::fs::remove_file(&tmp_srt_path).await.ok();
                 let err_msg = format!(
                     "Extraction failed on stream {}: {}",
                     stream.index, file_name_clone
@@ -579,37 +575,31 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
                 return Ok(Err((stream, err_msg)));
             }
 
-            let had_dialogue = if is_ass {
-                true
-            } else {
-                let tmp_srt_path_clone = tmp_srt_path.clone();
-                let final_ass_path_clone = final_ass_path.clone();
+            let tmp_srt_path_clone = tmp_srt_path.clone();
+            let final_ass_path_clone = final_ass_path.clone();
 
-                let conversion_res = tokio::task::spawn_blocking(move || {
-                    convert_srt_to_ass(&tmp_srt_path_clone, &final_ass_path_clone)
-                })
-                .await;
+            let conversion_res = tokio::task::spawn_blocking(move || {
+                convert_srt_to_ass(&tmp_srt_path_clone, &final_ass_path_clone)
+            })
+            .await;
 
-                match conversion_res {
-                    Ok(Ok(has_content)) => has_content,
-                    Ok(Err(e)) => {
-                        tokio::fs::remove_file(&tmp_srt_path).await.ok();
-                        let err_msg =
-                            format!("ASS conversion failed on stream {}: {}", stream.index, e);
-                        return Ok(Err((stream, err_msg)));
-                    }
-                    Err(e) => {
-                        tokio::fs::remove_file(&tmp_srt_path).await.ok();
-                        let err_msg =
-                            format!("Spawn blocking failed on stream {}: {}", stream.index, e);
-                        return Ok(Err((stream, err_msg)));
-                    }
+            let had_dialogue = match conversion_res {
+                Ok(Ok(has_content)) => has_content,
+                Ok(Err(e)) => {
+                    tokio::fs::remove_file(&tmp_srt_path).await.ok();
+                    let err_msg =
+                        format!("ASS conversion failed on stream {}: {}", stream.index, e);
+                    return Ok(Err((stream, err_msg)));
+                }
+                Err(e) => {
+                    tokio::fs::remove_file(&tmp_srt_path).await.ok();
+                    let err_msg =
+                        format!("Spawn blocking failed on stream {}: {}", stream.index, e);
+                    return Ok(Err((stream, err_msg)));
                 }
             };
 
-            if !is_ass {
-                tokio::fs::remove_file(&tmp_srt_path).await.ok();
-            }
+            tokio::fs::remove_file(&tmp_srt_path).await.ok();
 
             if had_dialogue {
                 {
@@ -760,5 +750,28 @@ mod tests {
 
         let recursive = discover_mkv_files(&paths, true);
         assert_eq!(recursive.len(), 3);
+    }
+
+    #[test]
+    fn test_convert_srt_to_ass_edge_case() {
+        let temp = tempfile::tempdir().unwrap();
+        let input = temp.path().join("input.srt");
+        let output = temp.path().join("output.ass");
+
+        // The number 42 is followed by 2, which is the next valid cue number.
+        // The old destructive read would consume '2', failing to parse the next cue.
+        let srt_content = "1\n00:00:01,000 --> 00:00:02,000\nSome text\n\n42\n\n2\n00:00:03,000 --> 00:00:04,000\nNext text\n";
+        std::fs::write(&input, srt_content).unwrap();
+
+        let had_dialogue = convert_srt_to_ass(&input, &output).unwrap();
+        assert!(had_dialogue);
+
+        let ass_content = std::fs::read_to_string(&output).unwrap();
+        assert!(
+            ass_content.contains("Dialogue: 0,0:00:01.00,0:00:02.00,Default,,0,0,0,,Some text")
+        );
+        assert!(
+            ass_content.contains("Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Next text")
+        );
     }
 }

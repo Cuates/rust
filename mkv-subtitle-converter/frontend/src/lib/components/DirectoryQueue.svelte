@@ -2,6 +2,7 @@
   import { baseName } from '$lib/utils/formatters';
   import { invoke } from '@tauri-apps/api/core';
   import { config } from '$lib/stores/config.svelte';
+  import { toast } from '$lib/stores/toast.svelte';
   import { CMD_GET_DIRECTORY_STATS, CMD_READ_REPORT_FILE } from '$lib/constants';
 
   interface ReportItem {
@@ -9,6 +10,9 @@
     file?: string;
     name?: string;
     error?: string;
+    language?: string;
+    codec?: string;
+    track_name?: string;
   }
 
   interface Props {
@@ -109,6 +113,26 @@
     }
 
     expandedReports = { ...expandedReports, [folder]: { converted, failed } };
+  }
+
+  async function retryFailedFiles(folder: string) {
+    if (!expandedReports[folder]) {
+      await toggleReport(folder);
+    }
+    const failed = expandedReports[folder]?.failed || [];
+    if (failed.length === 0) return;
+
+    let added = 0;
+    for (const f of failed) {
+      let path = typeof f === 'string' ? f : f.path || f.file || f.name;
+      if (path && !config.input_directories.includes(path)) {
+        config.input_directories = [...config.input_directories, path];
+        added++;
+      }
+    }
+    if (added > 0) {
+      toast.success(`Added ${added} failed file(s) to the queue.`);
+    }
   }
 
   function handlePointerDown(e: PointerEvent, index: number) {
@@ -491,9 +515,13 @@
                 <span class="folder-name" title={folder}>
                   {baseName(folder)}
                   {#if folderCounts[folder] !== undefined}
-                    <span class="badge badge-outline" title={getTooltip(folder)}
-                      >{folderCounts[folder]} files</span
-                    >
+                    <span class="badge badge-outline" title={getTooltip(folder)}>
+                      {#if directoryStatuses[folder] === 'processing'}
+                        {completedFilesPerDir[folder] || 0} / {folderCounts[folder]} files
+                      {:else}
+                        {folderCounts[folder]} files
+                      {/if}
+                    </span>
                   {:else if statsCache[folder] !== undefined && statsCache[folder] > 0}
                     <span class="badge badge-outline" title={getTooltip(folder)}
                       >{statsCache[folder]} files</span
@@ -517,6 +545,27 @@
 
             <div class="folder-actions">
               {#if directoryStatuses[folder] && directoryStatuses[folder] !== 'skipped' && directoryStatuses[folder] !== 'idle' && directoryStatuses[folder] !== 'processing'}
+                {#if directoryStatuses[folder] === 'error' || directoryStatuses[folder] === 'warning'}
+                  <button
+                    class="btn btn-secondary btn-sm"
+                    onclick={() => retryFailedFiles(folder)}
+                    title="Retry Failed Files"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path
+                        d="M3 3v5h5"
+                      /></svg
+                    >
+                    Retry Failed
+                  </button>
+                {/if}
                 <button
                   class="btn btn-secondary btn-sm"
                   onclick={() => toggleReport(folder)}
@@ -571,7 +620,16 @@
                   <h4>Successfully Converted ({expandedReports[folder].converted.length})</h4>
                   <ul>
                     {#each expandedReports[folder].converted as file, idx (idx)}
-                      <li>{baseName(file.path || file.file || file.name || '')}</li>
+                      <li>
+                        <strong>{baseName(file.path || file.file || file.name || '')}</strong>
+                        {#if file.language || file.codec || file.track_name}
+                          <span class="report-metadata">
+                            ({[file.language, file.codec, file.track_name]
+                              .filter(Boolean)
+                              .join(' • ')})
+                          </span>
+                        {/if}
+                      </li>
                     {/each}
                   </ul>
                 </div>
@@ -746,6 +804,12 @@
 
       &.danger h4 {
         color: #ef4444;
+      }
+
+      .report-metadata {
+        margin-left: 8px;
+        color: var(--text-muted, #777);
+        font-size: 0.8em;
       }
 
       ul {

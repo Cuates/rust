@@ -150,7 +150,7 @@ describe('DirectoryQueue Component', () => {
       }
     });
 
-    expect(screen.getByText('5 / 10 files')).toBeInTheDocument();
+    expect(screen.getAllByText('5 / 10 files').length).toBeGreaterThan(0);
   });
 
   it('renders Highlight report in Explorer button when folder is done', async () => {
@@ -450,5 +450,68 @@ describe('DirectoryQueue Component', () => {
     expect(addBtn).toBeDisabled();
     expect(clearBtn).toBeDisabled();
     expect(removeBtn).toBeDisabled();
+  });
+
+  it('handles retry failed files functionality', async () => {
+    const { config } = await import('$lib/stores/config.svelte');
+    const { toast } = await import('$lib/stores/toast.svelte');
+    const toastSpy = vi.spyOn(toast, 'success');
+    config.input_directories = [];
+
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder_error'],
+        disabled: false,
+        directoryStatuses: { '/test/folder_error': 'error' },
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const retryBtn = screen.getByTitle('Retry Failed Files');
+    await fireEvent.click(retryBtn);
+
+    // Wait for the async toggleReport and state updates
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(config.input_directories).toContain('/test/fail.mkv');
+    expect(config.input_directories).toContain('/test/string_fail.mkv');
+    expect(toastSpy).toHaveBeenCalledWith('Added 2 failed file(s) to the queue.');
+
+    // Clicking again should not add them if they already exist
+    toastSpy.mockClear();
+    await fireEvent.click(retryBtn);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it('handles retry failed files functionality with empty failures', async () => {
+    const { config } = await import('$lib/stores/config.svelte');
+    const { toast } = await import('$lib/stores/toast.svelte');
+    const toastSpy = vi.spyOn(toast, 'success');
+    config.input_directories = [];
+    toastSpy.mockClear();
+
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder_empty'],
+        disabled: false,
+        directoryStatuses: { '/test/folder_empty': 'error' },
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    const retryBtn = screen.getByTitle('Retry Failed Files');
+    await fireEvent.click(retryBtn);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(config.input_directories.length).toBe(0);
+    expect(toastSpy).not.toHaveBeenCalled();
   });
 });
