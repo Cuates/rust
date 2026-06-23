@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { save } from '@tauri-apps/plugin-dialog';
   import { toast } from '$lib/stores/toast.svelte';
@@ -14,17 +14,21 @@
 
   let containerEl: HTMLDivElement;
   let autoScroll = $state(true);
+  let isAtTop = $state(true);
+  let isAtBottom = $state(true);
   let copiedStatus = $state(false);
   let savedStatus = $state(false);
 
   // Auto-scroll to bottom whenever new logs arrive.
   $effect(() => {
-    if (logs.length > 0 && autoScroll) {
-      tick().then(() => {
-        if (containerEl) {
-          containerEl.scrollTop = containerEl.scrollHeight;
-        }
-      });
+    if (logs.length > 0) {
+      if (untrack(() => autoScroll)) {
+        tick().then(() => {
+          if (containerEl) {
+            containerEl.scrollTop = containerEl.scrollHeight;
+          }
+        });
+      }
     }
   });
 
@@ -32,13 +36,21 @@
     if (!containerEl) return;
     const { scrollTop, scrollHeight, clientHeight } = containerEl;
     // If the user scrolled up more than 40px from the bottom, disable auto-scroll.
-    autoScroll = scrollHeight - scrollTop - clientHeight < 40;
+    isAtBottom = scrollHeight - scrollTop - clientHeight < 40;
+    isAtTop = scrollTop < 10;
+    autoScroll = isAtBottom;
   }
 
   function scrollToBottom() {
     if (containerEl) {
-      containerEl.scrollTop = containerEl.scrollHeight;
-      autoScroll = true;
+      containerEl.scrollTo({ top: containerEl.scrollHeight, behavior: 'smooth' });
+    }
+  }
+
+  function scrollToTop() {
+    if (containerEl) {
+      containerEl.scrollTo({ top: 0, behavior: 'smooth' });
+      autoScroll = false;
     }
   }
 
@@ -220,16 +232,28 @@
     {/if}
   </div>
 
-  {#if !autoScroll}
-    <button
-      class="scroll-btn"
-      onclick={scrollToBottom}
-      title="Scroll to latest"
-      aria-label="Scroll to latest log entry"
-    >
-      ↓
-    </button>
-  {/if}
+  <div class="scroll-buttons">
+    {#if !isAtTop && logs.length > 0}
+      <button
+        class="scroll-btn"
+        onclick={scrollToTop}
+        title="Scroll to top"
+        aria-label="Scroll to top"
+      >
+        ↑
+      </button>
+    {/if}
+    {#if !isAtBottom && logs.length > 0}
+      <button
+        class="scroll-btn"
+        onclick={scrollToBottom}
+        title="Scroll to latest"
+        aria-label="Scroll to latest log entry"
+      >
+        ↓
+      </button>
+    {/if}
+  </div>
 </div>
 
 <style lang="scss">
@@ -238,6 +262,7 @@
     flex-direction: column;
     gap: 0.5rem;
     width: 100%;
+    position: relative;
   }
 
   .terminal-header-row {
@@ -345,10 +370,16 @@
     color: #60a5fa;
   }
 
-  .scroll-btn {
+  .scroll-buttons {
     position: absolute;
     bottom: 10px;
     right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .scroll-btn {
     background: var(--bg-surface);
     border: 1px solid var(--border-color);
     color: var(--text-secondary);

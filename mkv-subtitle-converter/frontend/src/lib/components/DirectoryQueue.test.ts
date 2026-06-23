@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent } from '@testing-library/svelte';
+import { invoke } from '@tauri-apps/api/core';
 import DirectoryQueue from './DirectoryQueue.svelte';
 
 // Mock the formatters to avoid complex logic in the component test
@@ -380,6 +381,9 @@ describe('DirectoryQueue Component', () => {
   });
 
   it('handles corrupt JSON in reports gracefully', async () => {
+    // Silence console.error for this specific test so it doesn't clutter the test output
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     const folders = ['/test/folder_corrupt'];
     render(DirectoryQueue, {
       props: {
@@ -399,6 +403,8 @@ describe('DirectoryQueue Component', () => {
     // Should fall back to empty report logic
     const emptyMsg = await screen.findByText('No files were processed.');
     expect(emptyMsg).toBeInTheDocument();
+
+    consoleSpy.mockRestore();
   });
 
   it('triggers onAdd, onRemove, onClearAll', async () => {
@@ -452,17 +458,15 @@ describe('DirectoryQueue Component', () => {
     expect(removeBtn).toBeDisabled();
   });
 
-  it('handles retry failed files functionality', async () => {
-    const { config } = await import('$lib/stores/config.svelte');
-    const { toast } = await import('$lib/stores/toast.svelte');
-    const toastSpy = vi.spyOn(toast, 'success');
-    config.input_directories = [];
+  it('handles get_directory_stats error gracefully', async () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Force the first invoke (get_directory_stats) to reject
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('Network error'));
 
     render(DirectoryQueue, {
       props: {
-        folders: ['/test/folder_error'],
-        disabled: false,
-        directoryStatuses: { '/test/folder_error': 'error' },
+        folders: ['/test/folder_fail'],
         onAdd: vi.fn(),
         onRemove: vi.fn(),
         onClearAll: vi.fn(),
@@ -470,35 +474,49 @@ describe('DirectoryQueue Component', () => {
       }
     });
 
-    const retryBtn = screen.getByTitle('Retry Failed Files');
-    await fireEvent.click(retryBtn);
-
-    // Wait for the async toggleReport and state updates
+    // Wait for the async effect to run
     await new Promise((resolve) => setTimeout(resolve, 50));
 
-    expect(config.input_directories).toContain('/test/fail.mkv');
-    expect(config.input_directories).toContain('/test/string_fail.mkv');
-    expect(toastSpy).toHaveBeenCalledWith('Added 2 failed file(s) to the queue.');
-
-    // Clicking again should not add them if they already exist
-    toastSpy.mockClear();
-    await fireEvent.click(retryBtn);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(toastSpy).not.toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledWith('Failed to get directory stats', expect.any(Error));
+    consoleSpy.mockRestore();
   });
 
-  it('handles retry failed files functionality with empty failures', async () => {
-    const { config } = await import('$lib/stores/config.svelte');
-    const { toast } = await import('$lib/stores/toast.svelte');
-    const toastSpy = vi.spyOn(toast, 'success');
-    config.input_directories = [];
-    toastSpy.mockClear();
-
+  it('handles keyboard reordering (Alt+ArrowUp / Alt+ArrowDown)', async () => {
+    const onReorder = vi.fn();
     render(DirectoryQueue, {
       props: {
-        folders: ['/test/folder_empty'],
-        disabled: false,
-        directoryStatuses: { '/test/folder_empty': 'error' },
+        folders: ['/test/folder1', '/test/folder2', '/test/folder3'],
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder
+      }
+    });
+
+    // scrollIntoView is not implemented in jsdom
+    Element.prototype.scrollIntoView = vi.fn();
+
+    const items = screen
+      .getAllByRole('button')
+      .filter((el) => el.classList.contains('folder-item'));
+
+    // Test Alt+ArrowDown on the first item
+    await fireEvent.keyDown(items[0], { key: 'ArrowDown', altKey: true });
+    expect(onReorder).toHaveBeenLastCalledWith(['/test/folder2', '/test/folder1', '/test/folder3']);
+
+    // Test Alt+ArrowUp on the second item (index 1)
+    // Svelte state didn't re-render with the new folders since we didn't update props,
+    // so folders is still ['/test/folder1', '/test/folder2', '/test/folder3'].
+    // Swapping index 1 with index 0 gives the same result: ['/test/folder2', '/test/folder1', '/test/folder3'].
+    await fireEvent.keyDown(items[1], { key: 'ArrowUp', altKey: true });
+    expect(onReorder).toHaveBeenLastCalledWith(['/test/folder2', '/test/folder1', '/test/folder3']);
+  });
+
+  it('handles report modal Escape key and focus trap', async () => {
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder1'],
+        directoryStatuses: { '/test/folder1': 'error' },
         onAdd: vi.fn(),
         onRemove: vi.fn(),
         onClearAll: vi.fn(),
@@ -506,12 +524,64 @@ describe('DirectoryQueue Component', () => {
       }
     });
 
-    const retryBtn = screen.getByTitle('Retry Failed Files');
-    await fireEvent.click(retryBtn);
+    const toggleBtn = screen.getByTitle('Toggle Report');
+    await fireEvent.click(toggleBtn);
 
     await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
 
-    expect(config.input_directories.length).toBe(0);
-    expect(toastSpy).not.toHaveBeenCalled();
+    // Trigger focus trap event safely for jsdom
+    const event = new Event('focusin', { bubbles: true });
+    Object.defineProperty(event, 'target', { value: document.body, enumerable: true });
+    window.dispatchEvent(event);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Escape closes modal
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('handles report modal backdrop and close button clicks', async () => {
+    render(DirectoryQueue, {
+      props: {
+        folders: ['/test/folder1'],
+        directoryStatuses: { '/test/folder1': 'error' },
+        onAdd: vi.fn(),
+        onRemove: vi.fn(),
+        onClearAll: vi.fn(),
+        onReorder: vi.fn()
+      }
+    });
+
+    // Open modal
+    await fireEvent.click(screen.getByTitle('Toggle Report'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Click backdrop to close
+    const backdrop = document.querySelector('.modal-backdrop');
+    if (backdrop) await fireEvent.click(backdrop);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // Open modal again
+    await fireEvent.click(screen.getByTitle('Toggle Report'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Click modal content (stopPropagation prevents closing)
+    const dialog = screen.getByRole('dialog');
+    await fireEvent.click(dialog);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // Trigger Tab to test focus trap
+    await fireEvent.keyDown(dialog, { key: 'Tab' });
+    await fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+
+    // Click close button
+    const closeBtn = document.querySelector('.modal-header .icon-btn');
+    if (closeBtn) await fireEvent.click(closeBtn);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

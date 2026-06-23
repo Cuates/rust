@@ -22,7 +22,7 @@ use crate::process::{
 // PRIMARY PROCESSING COMMAND
 // =============================================================================
 
-type FolderResultsMap = HashMap<String, (Vec<SubtitleMetadata>, Vec<String>)>;
+type FolderResultsMap = HashMap<String, (Vec<SubtitleMetadata>, Vec<crate::models::FailedFile>)>;
 
 #[tauri::command]
 pub async fn process_mkv_directory<R: tauri::Runtime>(
@@ -331,7 +331,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                 }
 
                 if !fail_list.is_empty() {
-                    fail_list.sort();
+                    fail_list.sort_by(|a, b| a.path.cmp(&b.path));
 
                     let mut report = IndexMap::new();
                     report.insert("target_folder", json!(folder_path));
@@ -825,7 +825,7 @@ pub enum FileCategory {
 
 pub fn classify_result(
     convs: &[SubtitleMetadata],
-    fails: &[String],
+    fails: &[crate::models::FailedFile],
     outcome: FileOutcome,
 ) -> FileCategory {
     match outcome {
@@ -911,6 +911,7 @@ mod tests {
             language: String::new(),
             track_name: String::new(),
             codec: String::new(),
+            source_file: String::new(),
         };
         assert_eq!(
             classify_result(&[md.clone()], &[], FileOutcome::Processed),
@@ -919,13 +920,27 @@ mod tests {
 
         // Success with some failures (still counts as file success in logic)
         assert_eq!(
-            classify_result(&[md], &[String::from("fail")], FileOutcome::Processed),
+            classify_result(
+                &[md],
+                &[crate::models::FailedFile {
+                    path: "test".into(),
+                    reason: "fail".into()
+                }],
+                FileOutcome::Processed
+            ),
             FileCategory::Success
         );
 
         // Failed
         assert_eq!(
-            classify_result(&[], &[String::from("fail")], FileOutcome::Processed),
+            classify_result(
+                &[],
+                &[crate::models::FailedFile {
+                    path: "test".into(),
+                    reason: "fail".into()
+                }],
+                FileOutcome::Processed
+            ),
             FileCategory::Failed
         );
     }
@@ -938,18 +953,21 @@ mod tests {
                 language: String::new(),
                 track_name: String::new(),
                 codec: String::new(),
+                source_file: String::new(),
             },
             SubtitleMetadata {
                 file: "Track 2".into(),
                 language: String::new(),
                 track_name: String::new(),
                 codec: String::new(),
+                source_file: String::new(),
             },
             SubtitleMetadata {
                 file: "Track 1".into(),
                 language: String::new(),
                 track_name: String::new(),
                 codec: String::new(),
+                source_file: String::new(),
             },
         ];
         items.sort_by(sort_natural);

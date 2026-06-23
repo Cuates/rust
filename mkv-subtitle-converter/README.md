@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -15,6 +15,7 @@ Built on top of a highly optimized **pnpm monorepo workspace architecture**, the
 ---
 
 ## 📖 Table of Contents
+
 1. [Prerequisites](#1-prerequisites)
 2. [Tree Structure](#2-tree-structure)
 3. [Monorepo Root Configurations](#3-monorepo-root-configurations)
@@ -37,17 +38,21 @@ Built on top of a highly optimized **pnpm monorepo workspace architecture**, the
 ---
 
 ## 1. Prerequisites
+
 Before attempting to compile or run the application locally, ensure your developer machine fulfills the mandatory runtime environments and toolchain compilers required for Tauri v2 and Rust.
 
 ### Global Software Requirements
-* **Node.js:** v20 LTS or higher recommended.
-* **pnpm:** v8 or higher (Global installation: `npm install -g pnpm`).
-* **Rust Toolchain:** Stable channel version via `rustup` (Includes `rustc`, `cargo`, and `cargo-clippy`).
+
+- **Node.js:** v20 LTS or higher recommended.
+- **pnpm:** v8 or higher (Global installation: `npm install -g pnpm`).
+- **Rust Toolchain:** Stable channel version via `rustup` (Includes `rustc`, `cargo`, and `cargo-clippy`).
 
 ### Operating System Build Pillars
-* **Windows 11 / 10:** Install the **Visual Studio C++ Build Tools** through the official installer. Ensure the "Desktop development with C++" workload is selected.
-* **macOS (Intel & Silicon):** Install the official command line development environment by executing `xcode-select --install` inside your terminal application.
-* **Linux (*nix Distros):** System-wide C-compilers and developer system packages for WebKit are mandatory. For Debian/Ubuntu distributions, execute the following block:
+
+- **Windows 11 / 10:** Install the **Visual Studio C++ Build Tools** through the official installer. Ensure the "Desktop development with C++" workload is selected.
+- **macOS (Intel & Silicon):** Install the official command line development environment by executing `xcode-select --install` inside your terminal application.
+- **Linux (\*nix Distros):** System-wide C-compilers and developer system packages for WebKit are mandatory. For Debian/Ubuntu distributions, execute the following block:
+
 ```bash
   sudo apt-get update && sudo apt-get install -y build-essential curl wget libssl-dev libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev textlive-fonts-recommended
 ```
@@ -60,6 +65,9 @@ The architectural layout of this project relies on a highly decoupled **pnpm wor
 
 ```text
 mkv-subtitle-converter/
+├── .github/                       # GitHub Actions workflows and CI pipelines
+│   └── workflows/
+│       └── mkv-subtitle-converter-ci.yml
 ├── CHANGELOG.md                   # Version history and release notes
 ├── CONTRIBUTING.md                # Developer contribution guidelines
 ├── README.md                      # Architecture and setup documentation
@@ -71,9 +79,12 @@ mkv-subtitle-converter/
 │   └── generate-hashes.mjs
 ├── frontend/                      # Decoupled Webview Client (SvelteKit / Svelte 5)
 │   ├── package.json
+│   ├── .prettierignore            # Formatter exclusion rules
+│   ├── eslint.config.js           # Strict ESLint 9+ flat configuration
 │   ├── svelte.config.js           # Outfitted with Adapter-Static constraints (outputs to build/)
 │   ├── tsconfig.json              # TypeScript compiler configuration
 │   ├── vite.config.ts             # Vite bundler configurations
+│   ├── vitest-setup.js            # Vitest DOM and global mocking environment
 │   ├── static/                    # Uncompiled raw static assets
 │   │   ├── favicon.png
 │   │   ├── svelte.svg
@@ -123,7 +134,7 @@ To prevent system module dependency leakage and to allow the root profile to man
 
 ```yaml
 packages:
-  - '*'
+  - "*"
 ```
 
 ### Root `package.json`
@@ -170,12 +181,12 @@ packages:
 
 All administrative, runtime development, and pipeline compilation configurations must be invoked exclusively from the **root terminal directory**.
 
-| Execution Command | Scope Strategy | Pipeline Processing Action |
-| --- | --- | --- |
-| `pnpm install` | Workspace Root | Parses multi-package configuration trees and securely symlinks workspace dependencies. |
-| `pnpm dev` | Workspace Root | Orchestrates the Svelte web views via Vite, handles Hot Module Reloading, and mounts the native Rust shell. |
-| `pnpm build` | Workspace Root | Enforces strict generation rules on frontend distributions, builds static structures, and compiles standalone platform binaries. |
-| `pnpm clean` | Workspace Root | Invokes atomic filesystem purges across all workspace scopes, wiping artifacts, caches, and modules cleanly. |
+| Execution Command | Scope Strategy | Pipeline Processing Action                                                                                                       |
+| ----------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`    | Workspace Root | Parses multi-package configuration trees and securely symlinks workspace dependencies.                                           |
+| `pnpm dev`        | Workspace Root | Orchestrates the Svelte web views via Vite, handles Hot Module Reloading, and mounts the native Rust shell.                      |
+| `pnpm build`      | Workspace Root | Enforces strict generation rules on frontend distributions, builds static structures, and compiles standalone platform binaries. |
+| `pnpm clean`      | Workspace Root | Invokes atomic filesystem purges across all workspace scopes, wiping artifacts, caches, and modules cleanly.                     |
 
 ---
 
@@ -200,11 +211,11 @@ pnpm create tauri-app .
 
 When prompted by the automated deployment assistant, input the exact values specified below:
 
-* **Project Name:** `mkv-subtitle-converter`
-* **Frontend Language:** `TypeScript`
-* **UI Framework Layout:** `Svelte`
-* **Meta-Framework Blueprint:** `SvelteKit`
-* **Package Manager Engine:** `pnpm`
+- **Project Name:** `mkv-subtitle-converter`
+- **Frontend Language:** `TypeScript`
+- **UI Framework Layout:** `Svelte`
+- **Meta-Framework Blueprint:** `SvelteKit`
+- **Package Manager Engine:** `pnpm`
 
 ---
 
@@ -213,10 +224,10 @@ When prompted by the automated deployment assistant, input the exact values spec
 The standard scaffolding configuration outputs a monolithic block where your web views wrap directly over the `src-tauri` workspace. To transform this setup into a decoupled multi-package repository model, process the following sequence:
 
 1. Create a physical directory named `packages` inside your root project space:
+
 ```bash
 mkdir packages
 ```
-
 
 2. Move the entire SvelteKit structure into a new location under `frontend/`.
 3. Relocate the native backend folder structure entirely under `backend/`.
@@ -235,7 +246,6 @@ Modify **`frontend/package.json`**:
   "private": true,
   "version": "1.6.0"
 }
-
 ```
 
 Modify **`backend/package.json`**:
@@ -321,25 +331,25 @@ Simultaneously, enforce static generation rules on your client configuration so 
 Update **`frontend/svelte.config.js`**:
 
 ```javascript
-import adapter from '@sveltejs/adapter-static';
-import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
+import adapter from "@sveltejs/adapter-static";
+import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
   preprocess: vitePreprocess(),
   kit: {
     adapter: adapter({
-      pages: 'build',
-      assets: 'build',
-      fallback: 'index.html', // Required for SPA. (Will throw a safe overwrite warning during build)
+      pages: "build",
+      assets: "build",
+      fallback: "index.html", // Required for SPA. (Will throw a safe overwrite warning during build)
       precompress: false,
-      strict: true
+      strict: true,
     }),
     alias: {
-      '$lib': './src/lib',
-      '$lib/*': './src/lib/*'
-    }
-  }
+      $lib: "./src/lib",
+      "$lib/*": "./src/lib/*",
+    },
+  },
 };
 
 export default config;
@@ -355,45 +365,44 @@ The application front interface relies on a combination of SCSS stylesheets, sta
 
 Tauri requires SvelteKit to operate as a pure Single-Page Application (SPA) without a Node.js server backbone.
 
-* **`+layout.ts`**: Explicitly disables Server-Side Rendering (SSR) and enforces static prerendering.
+- **`+layout.ts`**: Explicitly disables Server-Side Rendering (SSR) and enforces static prerendering.
+
 ```typescript
 export const prerender = true;
 export const ssr = false;
 ```
-
-
 
 ### Communication Implementation Model (`+page.svelte`)
 
 Communication with the system layer uses asynchronous multi-channel IPC frameworks.
 
 ```typescript
-import { invoke, Channel } from '@tauri-apps/api/core';
+import { invoke, Channel } from "@tauri-apps/api/core";
 
 interface ProgressPayload {
-    event: string;
-    data: any;
+  event: string;
+  data: any;
 }
 
 const progressChannel = new Channel<ProgressPayload>();
 
 progressChannel.onmessage = (message) => {
-    switch (message.event) {
-        case "LogMessage":
-            console.log(`[Terminal Core UI Log] ${message.data}`);
-            break;
-    }
+  switch (message.event) {
+    case "LogMessage":
+      console.log(`[Terminal Core UI Log] ${message.data}`);
+      break;
+  }
 };
 
 async function triggerExtractionBatch(selectedFolders: string[]) {
-    try {
-        await invoke('process_mkv_directory', {
-            paths: selectedFolders,
-            onProgress: progressChannel
-        });
-    } catch (error) {
-        console.error(`Native runtime error reported: ${error}`);
-    }
+  try {
+    await invoke("process_mkv_directory", {
+      paths: selectedFolders,
+      onProgress: progressChannel,
+    });
+  } catch (error) {
+    console.error(`Native runtime error reported: ${error}`);
+  }
 }
 ```
 
@@ -414,7 +423,7 @@ The file system processing pipeline logic is fully managed inside `backend/src/l
 
 ## 16. For Developers: Building for Production / Distribution
 
-*(Note: If you are an end user, you do not need to do this. You can simply download the pre-compiled application from the Releases page.)*
+_(Note: If you are an end user, you do not need to do this. You can simply download the pre-compiled application from the Releases page.)_
 
 When developers are ready to compile the application from the source code into a single, production-ready release package, invoke the global bundler from the workspace root:
 
@@ -428,8 +437,8 @@ This triggers the production build across the SvelteKit frontend layout, compile
 
 Tauri automatically wraps the application inside standard OS installers (`.msi` / `.exe` on Windows, `.dmg` / `.app` on macOS, `.deb` / `.AppImage` on Linux).
 
-* **Location:** `backend/target/release/bundle/`
-* **Use Case:** Best for standard end user distribution where the application needs to live in `Program Files` or the macOS `Applications` folder.
+- **Location:** `backend/target/release/bundle/`
+- **Use Case:** Best for standard end user distribution where the application needs to live in `Program Files` or the macOS `Applications` folder.
 
 ### Option B: Portable (No-Install) Application
 
@@ -448,18 +457,19 @@ Developers can completely bypass the installer and package a raw, portable folde
 
 ### ❌ Issue: Build warns "Overwriting dist\index.html with fallback page"
 
-* **Cause:** SvelteKit successfully generated a static homepage from your root route, but then overwrote it with the Single Page Application (SPA) `fallback: 'index.html'` file we configured in `svelte.config.js`.
-* **Resolution:** **Ignore this warning.** For a Tauri application, this overwrite is intended behavior and ensures the WebView can handle internal SPA routing correctly.
+- **Cause:** SvelteKit successfully generated a static homepage from your root route, but then overwrote it with the Single Page Application (SPA) `fallback: 'index.html'` file we configured in `svelte.config.js`.
+- **Resolution:** **Ignore this warning.** For a Tauri application, this overwrite is intended behavior and ensures the WebView can handle internal SPA routing correctly.
 
 ### ❌ Issue: App opens to a white screen / "asset not found: index.html"
 
-* **Cause:** The `tauri.conf.json` is looking for `index.html` as its entry point, but `svelte.config.js` generated a different fallback file name, or `frontendDist` is misconfigured.
-* **Resolution:** Ensure `fallback: 'index.html'` is explicitly set in `svelte.config.js`. Ensure `frontendDist` in `tauri.conf.json` points to the `build` folder (`"../frontend/build"`), not a specific file.
+- **Cause:** The `tauri.conf.json` is looking for `index.html` as its entry point, but `svelte.config.js` generated a different fallback file name, or `frontendDist` is misconfigured.
+- **Resolution:** Ensure `fallback: 'index.html'` is explicitly set in `svelte.config.js`. Ensure `frontendDist` in `tauri.conf.json` points to the `build` folder (`"../frontend/build"`), not a specific file.
 
 ### ❌ Issue: System terminal output UI reports old engine versions after file upgrades
 
-* **Cause:** Cargo optimizes compilation performance by aggressively caching system binary assets.
-* **Resolution:** Wipe the internal target cache cleanly before restarting your development environment:
+- **Cause:** Cargo optimizes compilation performance by aggressively caching system binary assets.
+- **Resolution:** Wipe the internal target cache cleanly before restarting your development environment:
+
 ```bash
 cd backend
 cargo clean
@@ -467,12 +477,11 @@ cd ../..
 pnpm dev
 ```
 
-
-
 ### ❌ Issue: macOS crashes or reports the sidecar binary file is "damaged" or untrusted
 
-* **Cause:** Apple Gatekeeper automatically appends an extended quarantine metadata attribute flag (`com.apple.quarantine`) onto executables downloaded via browsers.
-* **Resolution:** Strip the security metadata quarantine flag manually via terminal:
+- **Cause:** Apple Gatekeeper automatically appends an extended quarantine metadata attribute flag (`com.apple.quarantine`) onto executables downloaded via browsers.
+- **Resolution:** Strip the security metadata quarantine flag manually via terminal:
+
 ```bash
 xattr -dr com.apple.quarantine backend/sidecars/ffmpeg-aarch64-apple-darwin
 xattr -dr com.apple.quarantine backend/sidecars/ffprobe-aarch64-apple-darwin

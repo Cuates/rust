@@ -62,7 +62,9 @@ export const DEFAULT_CONFIG: AppConfig = {
     stopConversion: 'Escape',
     resetQueue: 'Ctrl+r',
     openAbout: 'F1',
-    openSettings: 'Ctrl+,'
+    openSettings: 'Ctrl+,',
+    moveQueueUp: 'Alt+ArrowUp',
+    moveQueueDown: 'Alt+ArrowDown'
   },
   theme: 'system'
 };

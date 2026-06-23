@@ -465,7 +465,9 @@
           }}
           disabled={selectedFolders.length === 0}
           id="btn-start"
-          title="Start Conversion (Ctrl+Enter)"
+          title={pipeline.filesFailed > 0
+            ? 'Start Conversion (Ctrl+Enter)\nPreviously successful files will be automatically skipped.'
+            : 'Start Conversion (Ctrl+Enter)'}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
             <polygon points="5 3 19 12 5 21 5 3" />

@@ -22,6 +22,16 @@ function parseShortcutPattern(pattern: string) {
   };
 }
 
+export function matchesShortcut(event: KeyboardEvent, pattern: string): boolean {
+  const parsed = parseShortcutPattern(pattern);
+  const keyMatch =
+    event.key.toLowerCase() === parsed.key || event.code.toLowerCase() === parsed.key;
+  const ctrlMatch = parsed.ctrl === event.ctrlKey;
+  const shiftMatch = parsed.shift === event.shiftKey;
+  const altMatch = parsed.alt === event.altKey;
+  return keyMatch && ctrlMatch && shiftMatch && altMatch;
+}
+
 export function registerShortcut(shortcut: Shortcut): () => void {
   registry.push(shortcut);
   return () => {
@@ -40,14 +50,7 @@ export function handleKeydown(event: KeyboardEvent): void {
     return;
 
   for (const shortcut of registry) {
-    const parsed = parseShortcutPattern(shortcut.pattern);
-    const keyMatch =
-      event.key.toLowerCase() === parsed.key || event.code.toLowerCase() === parsed.key;
-    const ctrlMatch = parsed.ctrl === event.ctrlKey;
-    const shiftMatch = parsed.shift === event.shiftKey;
-    const altMatch = parsed.alt === event.altKey;
-
-    if (keyMatch && ctrlMatch && shiftMatch && altMatch) {
+    if (matchesShortcut(event, shortcut.pattern)) {
       event.preventDefault();
       void shortcut.action();
       return;

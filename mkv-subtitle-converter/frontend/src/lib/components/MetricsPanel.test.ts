@@ -109,6 +109,22 @@ describe('MetricsPanel Component', () => {
     expect(fillElement.classList.contains('cancelled')).toBe(true);
   });
 
+  it('renders ETA when provided', () => {
+    render(MetricsPanel, {
+      props: {
+        totalFiles: 10,
+        filesProcessed: 5,
+        tracksConverted: 6,
+        progress: 50,
+        elapsedSeconds: 15,
+        elapsedMs: 500,
+        status: 'processing'
+      }
+    });
+
+    expect(screen.getByText('(ETA: 15s 500ms)')).toBeInTheDocument();
+  });
+
   it('renders dashed elapsed time when no time has passed', () => {
     render(MetricsPanel, {
       props: {

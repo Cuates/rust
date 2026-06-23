@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { flip } from 'svelte/animate';
+  import { tick } from 'svelte';
   import { baseName } from '$lib/utils/formatters';
   import { invoke } from '@tauri-apps/api/core';
   import { config } from '$lib/stores/config.svelte';
-  import { toast } from '$lib/stores/toast.svelte';
+  import { matchesShortcut } from '$lib/stores/shortcuts.svelte';
   import { CMD_GET_DIRECTORY_STATS, CMD_READ_REPORT_FILE } from '$lib/constants';
 
   interface ReportItem {
@@ -13,6 +15,8 @@
     language?: string;
     codec?: string;
     track_name?: string;
+    source_file?: string;
+    reason?: string;
   }
 
   interface Props {
@@ -50,9 +54,12 @@
   let queueBoxEl = $state<HTMLElement | null>(null);
   let statsCache = $state<Record<string, number>>({});
   let filesCache = $state<Record<string, string[]>>({});
-  let expandedReports = $state<
-    Record<string, { converted: ReportItem[]; failed: (ReportItem | string)[] } | null>
-  >({});
+
+  let activeReportFolder = $state<string | null>(null);
+  let activeReportData = $state<{
+    converted: ReportItem[];
+    failed: (ReportItem | string)[];
+  } | null>(null);
 
   $effect(() => {
     folders.forEach(async (folder) => {
@@ -65,13 +72,24 @@
               recursive: config.recursive
             }
           );
-          statsCache = { ...statsCache, [folder]: stats.file_count };
-          filesCache = { ...filesCache, [folder]: stats.files.map((f) => f.name) };
+          statsCache[folder] = stats.file_count;
+          filesCache[folder] = stats.files.map((f) => f.name);
         } catch (e) {
           console.error('Failed to get directory stats', e);
         }
       }
     });
+  });
+
+  let reportModalContainer: HTMLElement | undefined = $state(undefined);
+  let reportCloseBtn: HTMLButtonElement | undefined = $state(undefined);
+
+  $effect(() => {
+    if (activeReportFolder && activeReportData) {
+      tick().then(() => {
+        if (reportCloseBtn) reportCloseBtn.focus();
+      });
+    }
   });
 
   function getTooltip(folder: string): string | undefined {
@@ -81,57 +99,84 @@
     return [...files.slice(0, 10), `...and ${files.length - 10} more`].join('\n');
   }
 
-  async function toggleReport(folder: string) {
-    if (expandedReports[folder]) {
-      expandedReports[folder] = null;
-      return;
-    }
-
+  async function fetchReportData(folder: string) {
     let converted: ReportItem[] = [];
     let failed: (ReportItem | string)[] = [];
 
-    try {
-      const c = await invoke<string>(CMD_READ_REPORT_FILE, {
-        dirPath: folder,
-        reportType: 'success'
-      });
-      const parsed = JSON.parse(c);
-      converted = parsed.files || [];
-    } catch {
-      // ignore empty or missing report
-    }
+    const [cResult, fResult] = await Promise.allSettled([
+      invoke<string>(CMD_READ_REPORT_FILE, { dirPath: folder, reportType: 'success' }),
+      invoke<string>(CMD_READ_REPORT_FILE, { dirPath: folder, reportType: 'failure' })
+    ]);
 
-    try {
-      const f = await invoke<string>(CMD_READ_REPORT_FILE, {
-        dirPath: folder,
-        reportType: 'failure'
-      });
-      const parsed = JSON.parse(f);
-      failed = parsed.failed_files || [];
-    } catch {
-      // ignore empty or missing report
-    }
-
-    expandedReports = { ...expandedReports, [folder]: { converted, failed } };
-  }
-
-  async function retryFailedFiles(folder: string) {
-    if (!expandedReports[folder]) {
-      await toggleReport(folder);
-    }
-    const failed = expandedReports[folder]?.failed || [];
-    if (failed.length === 0) return;
-
-    let added = 0;
-    for (const f of failed) {
-      let path = typeof f === 'string' ? f : f.path || f.file || f.name;
-      if (path && !config.input_directories.includes(path)) {
-        config.input_directories = [...config.input_directories, path];
-        added++;
+    if (cResult.status === 'fulfilled') {
+      try {
+        const parsed = JSON.parse(cResult.value);
+        converted = parsed.files || [];
+      } catch (e) {
+        console.error('Failed to parse success report:', e);
       }
     }
-    if (added > 0) {
-      toast.success(`Added ${added} failed file(s) to the queue.`);
+
+    if (fResult.status === 'fulfilled') {
+      try {
+        const parsed = JSON.parse(fResult.value);
+        failed = parsed.failed_files || [];
+      } catch (e) {
+        console.error('Failed to parse failure report:', e);
+      }
+    }
+
+    return { converted, failed };
+  }
+
+  async function toggleReport(folder: string) {
+    if (activeReportFolder === folder) {
+      activeReportFolder = null;
+      activeReportData = null;
+      return;
+    }
+
+    const data = await fetchReportData(folder);
+    activeReportFolder = folder;
+    activeReportData = data;
+  }
+
+  function handleModalKeydown(e: KeyboardEvent) {
+    if (e.key === 'Tab') {
+      const modalContentEl = e.currentTarget as HTMLElement;
+      if (!modalContentEl) return;
+
+      const focusableElements = Array.from(
+        modalContentEl.querySelectorAll(
+          'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ) as HTMLElement[];
+
+      if (focusableElements.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (!modalContentEl.contains(document.activeElement)) {
+        e.preventDefault();
+        firstElement.focus();
+        return;
+      }
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
     }
   }
 
@@ -139,6 +184,7 @@
     if (disabled) return;
     if ((e.target as HTMLElement).closest('.icon-btn')) return;
     e.preventDefault();
+    (e.currentTarget as HTMLElement).focus();
     pointerDraggingIndex = index;
     pointerStartY = e.clientY;
     pointerCurrentY = e.clientY;
@@ -258,7 +304,25 @@
   }
 </script>
 
-<svelte:window onpointermove={handleGlobalPointerMove} onpointerup={handleGlobalPointerUp} />
+<svelte:window
+  onpointermove={handleGlobalPointerMove}
+  onpointerup={handleGlobalPointerUp}
+  onkeydown={(e) => {
+    if (activeReportFolder) {
+      if (e.key === 'Escape') {
+        toggleReport(activeReportFolder);
+        return;
+      }
+    }
+  }}
+  onfocusin={(e) => {
+    if (activeReportFolder && reportModalContainer) {
+      if (!reportModalContainer.contains(e.target as Node)) {
+        if (reportCloseBtn) reportCloseBtn.focus();
+      }
+    }
+  }}
+/>
 
 <div class="queue-section" class:drag-active={isDragging}>
   <div class="queue-header">
@@ -366,7 +430,9 @@
   {:else}
     <ul class="folder-list" aria-label="Folder queue" bind:this={queueBoxEl}>
       {#each folders as folder, i (folder)}
+        <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
         <li
+          animate:flip={{ duration: pointerDraggingIndex === i ? 0 : 250 }}
           class="folder-item status-{directoryStatuses[folder] || 'idle'} {isDragging
             ? 'grabbing'
             : ''}"
@@ -381,6 +447,43 @@
               }px); z-index: 10; position: relative;`
             : ''}
           onpointerdown={(e) => handlePointerDown(e, i)}
+          onkeydown={(e) => {
+            if (matchesShortcut(e, config.shortcuts.moveQueueUp)) {
+              e.preventDefault();
+              if (e.repeat) return;
+              const currentIndex = folders.indexOf(folder);
+              if (currentIndex > 0) {
+                const newDirs = [...folders];
+                const temp = newDirs[currentIndex];
+                newDirs[currentIndex] = newDirs[currentIndex - 1];
+                newDirs[currentIndex - 1] = temp;
+                onReorder(newDirs);
+                const el = e.currentTarget as HTMLElement;
+                setTimeout(() => {
+                  el.focus();
+                  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }, 50);
+              }
+            } else if (matchesShortcut(e, config.shortcuts.moveQueueDown)) {
+              e.preventDefault();
+              if (e.repeat) return;
+              const currentIndex = folders.indexOf(folder);
+              if (currentIndex < folders.length - 1 && currentIndex !== -1) {
+                const newDirs = [...folders];
+                const temp = newDirs[currentIndex];
+                newDirs[currentIndex] = newDirs[currentIndex + 1];
+                newDirs[currentIndex + 1] = temp;
+                onReorder(newDirs);
+                const el = e.currentTarget as HTMLElement;
+                setTimeout(() => {
+                  el.focus();
+                  el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }, 50);
+              }
+            }
+          }}
+          tabindex="0"
+          role="button"
         >
           <div class="folder-row">
             <div class="folder-info">
@@ -545,27 +648,6 @@
 
             <div class="folder-actions">
               {#if directoryStatuses[folder] && directoryStatuses[folder] !== 'skipped' && directoryStatuses[folder] !== 'idle' && directoryStatuses[folder] !== 'processing'}
-                {#if directoryStatuses[folder] === 'error' || directoryStatuses[folder] === 'warning'}
-                  <button
-                    class="btn btn-secondary btn-sm"
-                    onclick={() => retryFailedFiles(folder)}
-                    title="Retry Failed Files"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path
-                        d="M3 3v5h5"
-                      /></svg
-                    >
-                    Retry Failed
-                  </button>
-                {/if}
                 <button
                   class="btn btn-secondary btn-sm"
                   onclick={() => toggleReport(folder)}
@@ -579,13 +661,10 @@
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    style="transform: {expandedReports[folder]
-                      ? 'rotate(180deg)'
-                      : 'none'}; transition: transform 0.2s;"
                   >
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
-                  {expandedReports[folder] ? 'Hide Report' : 'View Report'}
+                  View Report
                 </button>
               {/if}
 
@@ -613,62 +692,146 @@
               </button>
             </div>
           </div>
-          {#if expandedReports[folder]}
-            <div class="report-summary">
-              {#if expandedReports[folder].converted.length > 0}
-                <div class="report-section success">
-                  <h4>Successfully Converted ({expandedReports[folder].converted.length})</h4>
-                  <ul>
-                    {#each expandedReports[folder].converted as file, idx (idx)}
-                      <li>
-                        <strong>{baseName(file.path || file.file || file.name || '')}</strong>
-                        {#if file.language || file.codec || file.track_name}
-                          <span class="report-metadata">
-                            ({[file.language, file.codec, file.track_name]
-                              .filter(Boolean)
-                              .join(' • ')})
-                          </span>
-                        {/if}
-                      </li>
-                    {/each}
-                  </ul>
-                </div>
-              {/if}
-              {#if expandedReports[folder].failed.length > 0}
-                <div class="report-section danger">
-                  <h4>Failed ({expandedReports[folder].failed.length})</h4>
-                  <ul>
-                    {#each expandedReports[folder].failed as file, idx (idx)}
-                      <li>
-                        {#if typeof file === 'string'}
-                          {file}
-                        {:else}
-                          <strong
-                            >{baseName(
-                              typeof file === 'string'
-                                ? file
-                                : file.path || file.file || file.name || ''
-                            )}</strong
-                          >
-                          - {typeof file === 'string' ? '' : file.error || 'Unknown error'}
-                        {/if}
-                      </li>
-                    {/each}
-                  </ul>
-                </div>
-              {/if}
-              {#if expandedReports[folder].converted.length === 0 && expandedReports[folder].failed.length === 0}
-                <div class="report-section">No files were processed.</div>
-              {/if}
-            </div>
-          {/if}
         </li>
       {/each}
     </ul>
   {/if}
 </div>
 
+{#if activeReportFolder && activeReportData}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <div
+    class="modal-backdrop"
+    onclick={() => toggleReport(activeReportFolder!)}
+    role="button"
+    tabindex="-1"
+  >
+    <div
+      class="modal-content"
+      role="dialog"
+      aria-modal="true"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={handleModalKeydown}
+      tabindex="-1"
+      bind:this={reportModalContainer}
+    >
+      <div class="modal-header">
+        <h3>Report for {baseName(activeReportFolder)}</h3>
+        <!-- svelte-ignore a11y_autofocus -->
+        <button
+          bind:this={reportCloseBtn}
+          class="icon-btn"
+          onclick={() => toggleReport(activeReportFolder!)}
+          aria-label="Close report"
+          title="Close report"
+          autofocus
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body report-summary">
+        {#if activeReportData.converted.length > 0}
+          <div class="report-section success">
+            <h4>Successfully Converted ({activeReportData.converted.length})</h4>
+            <ul>
+              {#each activeReportData.converted as file, idx (idx)}
+                <li>
+                  <strong>{baseName(file.path || file.file || file.name || '')}</strong>
+                  {#if file.language || file.codec || file.track_name || file.source_file}
+                    <span class="report-metadata">
+                      ({[file.source_file, file.language, file.codec, file.track_name]
+                        .filter(Boolean)
+                        .join(' • ')})
+                    </span>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+        {#if activeReportData.failed.length > 0}
+          <div class="report-section danger">
+            <h4>Failed ({activeReportData.failed.length})</h4>
+            <ul>
+              {#each activeReportData.failed as file, idx (idx)}
+                <li>
+                  {#if typeof file === 'string'}
+                    {file}
+                  {:else}
+                    <strong
+                      >{baseName(
+                        typeof file === 'string' ? file : file.path || file.file || file.name || ''
+                      )}</strong
+                    >
+                    - {typeof file === 'string' ? '' : file.error || file.reason || 'Unknown error'}
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+        {#if activeReportData.converted.length === 0 && activeReportData.failed.length === 0}
+          <div class="report-section">No files were processed.</div>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style lang="scss">
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  }
+  .modal-content {
+    background: var(--bg-panel, #1e1e24);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    width: 90%;
+    max-width: 650px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    h3 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+  }
+  .modal-body {
+    padding: 16px;
+    overflow-y: auto;
+  }
+
   .queue-section {
     background: var(--bg-panel);
     border: 1px solid var(--border-color);
@@ -831,7 +994,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 200px;
+    max-height: 350px;
     overflow-y: auto;
     overflow-x: hidden;
     scrollbar-width: thin;
@@ -855,6 +1018,11 @@
     touch-action: none;
     position: relative;
     z-index: 1;
+
+    &:focus {
+      outline: 2px solid var(--accent-color);
+      outline-offset: -2px;
+    }
 
     &.grabbing {
       cursor: grabbing;

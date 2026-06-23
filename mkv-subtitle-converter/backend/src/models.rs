@@ -25,6 +25,13 @@ pub struct FolderReportStatus {
     pub has_failure: bool,
 }
 
+/// A structured failure entry for a file.
+#[derive(Serialize, Debug, Clone)]
+pub struct FailedFile {
+    pub path: String,
+    pub reason: String,
+}
+
 /// Metadata about a single successfully converted subtitle track.
 #[derive(Serialize, Debug, Clone)]
 pub struct SubtitleMetadata {
@@ -33,6 +40,7 @@ pub struct SubtitleMetadata {
     #[serde(rename = "track_name")]
     pub track_name: String,
     pub codec: String,
+    pub source_file: String,
 }
 
 /// Summary returned by `get_directory_stats`.

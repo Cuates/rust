@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { FinishedData } from '$lib/types';
 import {
   pipeline,
   resetPipeline,
@@ -51,6 +52,17 @@ describe('Pipeline Store Timer', () => {
     expect(pipeline.elapsedSeconds).toBe(1);
   });
 
+  it('clears existing timer if started twice', () => {
+    const startTime = Date.now();
+    vi.setSystemTime(startTime);
+    startPipelineTimer();
+    startPipelineTimer(); // Should hit `if (pipelineTimer) clearInterval(pipelineTimer);`
+
+    vi.advanceTimersByTime(1000);
+    expect(pipeline.elapsedSeconds).toBe(1);
+    stopPipelineTimer();
+  });
+
   it('stops the timer automatically on reset', () => {
     const startTime = Date.now();
     vi.setSystemTime(startTime);
@@ -82,6 +94,20 @@ describe('Pipeline Store Timer', () => {
 
     vi.advanceTimersByTime(1000);
     expect(pipeline.elapsedSeconds).toBe(1);
+  });
+
+  it('handles finished with missing fallback data', () => {
+    // Pass empty object to trigger `?? 0` or `?? ''` fallbacks
+    handleFinished({} as unknown as FinishedData);
+
+    expect(pipeline.elapsedSeconds).toBe(0);
+    expect(pipeline.elapsedMs).toBe(0);
+    expect(pipeline.successReportDir).toBe('');
+    expect(pipeline.failureReportDir).toBe('');
+    expect(pipeline.filesSucceeded).toBe(0);
+    expect(pipeline.filesFailed).toBe(0);
+    expect(pipeline.filesSkipped).toBe(0);
+    expect(pipeline.filesNoTracks).toBe(0);
   });
 
   it('stops the timer automatically when cancelled', () => {

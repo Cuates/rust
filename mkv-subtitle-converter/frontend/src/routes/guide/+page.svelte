@@ -44,9 +44,16 @@
           <strong>Managing the Queue:</strong> You can remove individual directories from the queue
           by clicking the <span class="highlight">Trash</span> icon next to them. Or, you can clear
           the entire queue at once by clicking the
-          <span class="highlight">Trash (Clear All)</span> icon at the top of the queue list. Additionally,
-          you can drag and drop folders directly within the list to re-order them and prioritize which
-          folders get processed first.
+          <span class="highlight">Trash (Clear All)</span> icon at the top of the queue list.
+          Additionally, you can re-order folders to prioritize which gets processed first. Either
+          drag and drop folders directly within the list using your mouse, or select a folder and
+          use the
+          <span class="highlight">Alt + ArrowUp</span> /
+          <span class="highlight">Alt + ArrowDown</span>
+          keyboard shortcuts for precise reordering. These shortcuts can be customized to your liking
+          in the
+          <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
+          <a href="/settings" class="guide-link">Settings (⚙️)</a> page.
         </li>
         <li>
           <strong>Folder Insights & Reports:</strong> As a folder processes, its badge displays a
@@ -63,10 +70,11 @@
           >
         </li>
         <li>
-          <strong>Retry Failed Files:</strong> If any files fail to process, a
-          <span class="highlight">"Retry Failed"</span> button will appear next to the folder's report
-          button. Clicking this will automatically extract just the failed files from the report and seamlessly
-          inject them back into your queue for a quick retry.
+          <strong>Smart Skips & Retries:</strong> The application uses an internal history cache to
+          remember which files were successfully converted. Clicking
+          <span class="highlight">"Start Conversion"</span>
+          will automatically skip files that have already been processed in the past, and immediately
+          retry any new or previously failed files. There is no need to manually select files to retry!
         </li>
         <li>
           <strong>Queue Persistence:</strong> By default, your queue is cleared when you close the

@@ -23,7 +23,11 @@ export async function loadConfig(): Promise<void> {
   for (const key of Object.keys(DEFAULT_CONFIG)) {
     const val = await configStore!.get<unknown>(key);
     if (val !== null && val !== undefined) {
-      (config as unknown as Record<string, unknown>)[key] = val;
+      if (key === 'shortcuts' && typeof val === 'object') {
+        config.shortcuts = { ...DEFAULT_CONFIG.shortcuts, ...(val as Record<string, string>) };
+      } else {
+        (config as unknown as Record<string, unknown>)[key] = val;
+      }
     }
   }
 

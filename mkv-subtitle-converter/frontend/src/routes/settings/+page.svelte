@@ -58,7 +58,9 @@
     stopConversion: 'Stop conversion',
     resetQueue: 'Reset / clear queue',
     openAbout: 'Open About',
-    openSettings: 'Open Settings'
+    openSettings: 'Open Settings',
+    moveQueueUp: 'Move folder up in queue',
+    moveQueueDown: 'Move folder down in queue'
   };
 
   function captureKey(e: KeyboardEvent, id: string) {

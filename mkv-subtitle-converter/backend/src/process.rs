@@ -406,7 +406,14 @@ pub struct ProcessContext<'a, R: tauri::Runtime> {
 
 pub async fn process_one_mkv_file<R: tauri::Runtime>(
     ctx: ProcessContext<'_, R>,
-) -> Result<(Vec<SubtitleMetadata>, Vec<String>, FileOutcome), AppError> {
+) -> Result<
+    (
+        Vec<SubtitleMetadata>,
+        Vec<crate::models::FailedFile>,
+        FileOutcome,
+    ),
+    AppError,
+> {
     let ProcessContext {
         app,
         file_path,
@@ -481,7 +488,10 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
             });
             return Ok((
                 Vec::new(),
-                vec![format!("FFprobe failed: {}", file_name)],
+                vec![crate::models::FailedFile {
+                    path: path_str.clone(),
+                    reason: format!("FFprobe failed: {}", file_name),
+                }],
                 FileOutcome::Processed,
             ));
         }
@@ -622,7 +632,7 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
     }
 
     let mut conv_list: Vec<SubtitleMetadata> = Vec::new();
-    let mut fail_list: Vec<String> = Vec::new();
+    let mut fail_list: Vec<crate::models::FailedFile> = Vec::new();
 
     while let Some(res) = join_set.join_next().await {
         match res {
@@ -656,6 +666,7 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
                         stream.title.clone()
                     },
                     codec: stream.codec.clone(),
+                    source_file: file_name.clone(),
                 });
             }
             Ok(Ok(Err((stream, err_msg)))) => {
@@ -666,15 +677,24 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
                     );
                 } else {
                     append_log(app, format!("  | [ERROR] {}", err_msg));
-                    fail_list.push(err_msg);
+                    fail_list.push(crate::models::FailedFile {
+                        path: path_str.clone(),
+                        reason: err_msg,
+                    });
                 }
             }
             Ok(Err(AppError::Aborted)) => return Err(AppError::Aborted),
             Ok(Err(e)) => {
-                fail_list.push(format!("Internal error: {}", e));
+                fail_list.push(crate::models::FailedFile {
+                    path: path_str.clone(),
+                    reason: format!("Internal error: {}", e),
+                });
             }
             Err(e) => {
-                fail_list.push(format!("Task join error: {}", e));
+                fail_list.push(crate::models::FailedFile {
+                    path: path_str.clone(),
+                    reason: format!("Task join error: {}", e),
+                });
             }
         }
     }

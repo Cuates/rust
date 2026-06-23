@@ -5,14 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-06-22
+
+### Added
+
+- **Configurable Keyboard Shortcuts**: The keyboard shortcuts for moving folders up and down the queue (`Alt+ArrowUp` / `Alt+ArrowDown`) are now fully configurable via the Settings page.
+
+### Changed
+
+- **Smart Idempotent Retries**: Removed the "Retry Failed" button. Instead, clicking the main "Start Conversion" button now intelligently references the internal processing cache. It will automatically skip any files that were already successfully processed in the past, and seamlessly retry any new or previously failed files without manual selection.
+
 ## [1.6.0] - 2026-06-22
 
 ### Added
+
 - **In-App Report Previews**: The successful file reports now list embedded metadata alongside filenames (Subtitle Language, Codec, and Track Name).
 - **Per-Folder Progress Tracking**: A live `[ M / N files ]` badge now updates dynamically on folders as they process.
 - **Retry Failed Files**: Added a "Retry Failed" button to queue items that failed, which seamlessly extracts the failed files and pushes them back into the active queue for a quick retry.
 
 ### Fixed
+
 - **Paginated Log Export**: Fixed log exporting to properly capture and concatenate full session history (`session.2.log`, `session.1.log`, `session.log`).
 - **SRT Parser Integrity**: Fixed an edge case where standalone numbers in subtitles were incorrectly parsed as timestamps, silently dropping dialogue lines.
 - **Memory Accumulation**: Fixed an unbounded memory leak by ensuring `CommandChild` subprocess entries are actively removed from the tracker once they complete.
@@ -20,27 +32,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.5.1] - 2026-06-21
 
 ### Fixed
+
 - **Performance**: Optimized the frontend's logging system, which drastically reduced the memory overhead and CPU usage that previously caused the UI testing suite to timeout during operations that emit high volume logs.
 
 ## [1.5.0] - 2026-06-20
 
 ### Added
-- **Taskbar Progress Indicator**: The application now seamlessly mirrors the overall conversion progress directly to your OS taskbar/dock icon across Windows, macOS, and supported Linux environments. 
+
+- **Taskbar Progress Indicator**: The application now seamlessly mirrors the overall conversion progress directly to your OS taskbar/dock icon across Windows, macOS, and supported Linux environments.
 
 ### Fixed
+
 - **Timer Migration**: Moved the execution timer logic from local component state to the global pipeline store. The "Total Conversion Time" and "ETA" now properly persist in the background when navigating away from the queue page while a job is running.
 
 ## [1.3.0] - 2026-06-19
 
 ### Changed
+
 - **Monorepo Synchronization**: Standardized configurations (SvelteKit, Vite, Prettier, ESLint, TSConfig) with the sibling `mkv-filter-metadata` project.
 - **CI Pipeline**: Added `.github/workflows/mkv-subtitle-converter-ci.yml` for automated testing and linting across the monorepo.
 - **Sidecar Scripts**: Aligned `download-sidecars.mjs` and `generate-hashes.mjs` with the metadata project, strictly isolating ffmpeg and ffprobe.
-- **UI Architecture & Theming**: Pinned headers in the Dashboard, Settings, and Guide pages for independent content scrolling. Swapped tooltip colors to match the active UI theme and added dynamic text confirmations ("Copied!", "Saved!") to terminal actions with bounded edge alignments. 
+- **UI Architecture & Theming**: Pinned headers in the Dashboard, Settings, and Guide pages for independent content scrolling. Swapped tooltip colors to match the active UI theme and added dynamic text confirmations ("Copied!", "Saved!") to terminal actions with bounded edge alignments.
 - **Metrics Accuracy**: The Elapsed Time display now formally tracks and renders precise processing milliseconds instead of fuzzy rounding, utilizing a reactive font scaler to ensure long time sequences gracefully fit on a single line.
 
 ## [1.1.0] - 2026-06-19
+
 ### Added
+
 - **Multi-folder Processing Queue**: Drag and drop or browse to add multiple folders for sequential batch processing.
 - **Concurrent Processing System**: Extractor now processes up to 3 MKV files in parallel using Tokio's `JoinSet` and `Semaphore` for a massive performance boost.
 - **Structured SQLite History**: Added `rusqlite` processing history to persist state across sessions and safely skip already converted files.
@@ -53,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **How To Use Guide**: Added a dedicated in-app guide page to walk users through directory management, queue persistence, and the SRT extraction process.
 
 ### Changed
+
 - **Tauri Architecture Update**: Fully migrated backend commands and app setup to follow Tauri 2.x best practices with strict module separation (`commands.rs`, `process.rs`, `models.rs`, `history.rs`).
 - **UI Rewrite**: Completely rewrote SvelteKit frontend using Svelte 5 Runes for highly responsive UI state management.
 - **Terminal Log Interface**: Improved the terminal logs to feature a pinned header layout with quick-access export and copy log functions.
@@ -60,9 +79,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Window Management**: Implemented `visible: false` on startup and immediate `win.show()` to eliminate white-screen flashing.
 
 ### Fixed
+
 - **Critical Resource Leak**: Sidecar processes are now explicitly tracked in memory and forcefully killed via `kill()` upon cancellation, preventing orphaned FFmpeg processes.
 - **Event Loop Blocking**: Rewrote the window close handler to run asynchronously, fixing the issue where closing the application would freeze the OS native title bar.
-- **Overly Aggressive File Cleanup**: Changed the wildcard `.ass` deletion on cancellation to specifically track and remove only the output files created during the *current active session*.
+- **Overly Aggressive File Cleanup**: Changed the wildcard `.ass` deletion on cancellation to specifically track and remove only the output files created during the _current active session_.
 - **Regex Panic Bug**: Extracted heavily used Regex compilation to a `std::sync::LazyLock` to avoid recompiling it hundreds of times per second and panicking.
 - **Time String Parsing**: Fixed byte-index panics when parsing non-standard SRT timestamps by switching to semantic string splitting.
 - **HTML Tag Leaking**: Automatically strips unsupported SRT HTML formatting tags (e.g. `<font>`) to prevent ASS rendering issues.
