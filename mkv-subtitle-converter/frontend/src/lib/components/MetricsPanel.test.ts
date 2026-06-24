@@ -236,4 +236,25 @@ describe('MetricsPanel Component', () => {
     expect(screen.getByText('Processing…')).toBeInTheDocument();
     expect(screen.queryByText(/\(ETA:/)).not.toBeInTheDocument();
   });
+
+  it('renders No Tracks count when filesNoTracks > 0', () => {
+    render(MetricsPanel, {
+      props: {
+        totalFiles: 10,
+        filesProcessed: 10,
+        filesSucceeded: 2,
+        filesFailed: 3,
+        filesSkipped: 4,
+        filesNoTracks: 1, // <- the new prop
+        tracksConverted: 5,
+        progress: 100,
+        elapsedSeconds: 5,
+        elapsedMs: 0,
+        status: 'done'
+      }
+    });
+
+    expect(screen.getByText('No Tracks')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument(); // filesNoTracks value
+  });
 });

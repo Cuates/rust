@@ -62,27 +62,30 @@
   } | null>(null);
 
   $effect(() => {
+    const wanted = new Set(folders);
     folders.forEach(async (folder) => {
-      if (statsCache[folder] === undefined) {
-        try {
-          const stats = await invoke<{ file_count: number; files: { name: string }[] }>(
-            CMD_GET_DIRECTORY_STATS,
-            {
-              dirPath: folder,
-              recursive: config.recursive
-            }
-          );
+      if (statsCache[folder] !== undefined) return;
+      try {
+        const stats = await invoke<{ file_count: number; files: { name: string }[] }>(
+          CMD_GET_DIRECTORY_STATS,
+          {
+            dirPath: folder,
+            recursive: config.recursive
+          }
+        );
+        if (wanted.has(folder)) {
           statsCache[folder] = stats.file_count;
           filesCache[folder] = stats.files.map((f) => f.name);
-        } catch (e) {
-          console.error('Failed to get directory stats', e);
         }
+      } catch (e) {
+        console.error('Failed to get directory stats', e);
       }
     });
   });
 
   let reportModalContainer: HTMLElement | undefined = $state(undefined);
   let reportCloseBtn: HTMLButtonElement | undefined = $state(undefined);
+  let reportTriggerEl = $state<HTMLButtonElement | null>(null);
 
   $effect(() => {
     if (activeReportFolder && activeReportData) {
@@ -133,6 +136,9 @@
     if (activeReportFolder === folder) {
       activeReportFolder = null;
       activeReportData = null;
+      await tick();
+      reportTriggerEl?.focus();
+      reportTriggerEl = null;
       return;
     }
 
@@ -650,7 +656,10 @@
               {#if directoryStatuses[folder] && directoryStatuses[folder] !== 'skipped' && directoryStatuses[folder] !== 'idle' && directoryStatuses[folder] !== 'processing'}
                 <button
                   class="btn btn-secondary btn-sm"
-                  onclick={() => toggleReport(folder)}
+                  onclick={(e) => {
+                    reportTriggerEl = e.currentTarget as HTMLButtonElement;
+                    toggleReport(folder);
+                  }}
                   title="Toggle Report"
                 >
                   <svg
@@ -710,21 +719,20 @@
       class="modal-content"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="report-modal-title"
       onclick={(e) => e.stopPropagation()}
       onkeydown={handleModalKeydown}
       tabindex="-1"
       bind:this={reportModalContainer}
     >
       <div class="modal-header">
-        <h3>Report for {baseName(activeReportFolder)}</h3>
-        <!-- svelte-ignore a11y_autofocus -->
+        <h3 id="report-modal-title">Report for {baseName(activeReportFolder)}</h3>
         <button
           bind:this={reportCloseBtn}
           class="icon-btn"
           onclick={() => toggleReport(activeReportFolder!)}
           aria-label="Close report"
           title="Close report"
-          autofocus
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

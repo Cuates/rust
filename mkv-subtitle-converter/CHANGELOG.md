@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-06-23
+
+### Fixed
+
+- **Performance**: Optimized the frontend app theme initialization which fixes the brief white flash that occurs on startup for OS users utilizing a light theme.
+- **State Hygiene**: Added state guard against stale file sizes when the parent queue component rapidly unmounts or deletes queue items.
+- **Accessibility**: Replaced deprecated `autofocus` attribute within modals and added semantic `aria-labelledby` attributes to report dialogs to ensure accurate context for screen readers. Restored focus properly on close to prevent users from losing their place in the queue list.
+- **Test Coverage**: Added test coverage assertions for the "No Tracks" breakdown box within the metrics panel suite.
+
 ## [1.7.0] - 2026-06-22
 
 ### Added

@@ -38,7 +38,9 @@
     }
   }
 
-  let systemPrefersDark = $state(true);
+  let systemPrefersDark = $state(
+    typeof window !== 'undefined' ? window.matchMedia('(prefers-color-scheme: dark)').matches : true
+  );
 
   const resolvedTheme = $derived(
     config.theme === 'system' ? (systemPrefersDark ? 'dark' : 'light') : config.theme
