@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.8.1-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -64,7 +64,6 @@ Before attempting to compile or run the application locally, ensure your develop
 The architectural layout of this project relies on a highly decoupled **pnpm workspace split**. The web panel lives completely isolated from the system-level Rust compilation environment under the global `` workspace scope.
 
 ```text
-```text
 rust-monorepo-root/
 ├── .github/                       # Monorepo-wide GitHub Actions workflows and CI pipelines
 │   └── workflows/
@@ -82,6 +81,7 @@ rust-monorepo-root/
     ├── frontend/                      # Decoupled Webview Client (SvelteKit / Svelte 5)
     │   ├── package.json
     │   ├── .prettierignore            # Formatter exclusion rules
+    │   ├── .prettierrc                # Prettier formatting config
     │   ├── eslint.config.js           # Strict ESLint 9+ flat configuration
     │   ├── svelte.config.js           # Outfitted with Adapter-Static constraints (outputs to build/)
     │   ├── tsconfig.json              # TypeScript compiler configuration
@@ -96,7 +96,9 @@ rust-monorepo-root/
     │       ├── lib/                   # Reusable UI components, stores, and utilities
     │       │   ├── components/
     │       │   ├── stores/
-    │       │   └── utils/
+    │       │   ├── utils/
+    │       │   ├── constants.ts       # Frontend constants
+    │       │   └── types.ts           # Shared TypeScript interfaces
     │       ├── styles/                # Global SCSS styling architecture
     │       │   ├── _variables.scss
     │       │   └── app.scss
@@ -144,7 +146,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -246,7 +248,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.8.0"
+  "version": "1.8.1"
 }
 ```
 
@@ -256,7 +258,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.8.0"
+  "version": "1.8.1"
 }
 ```
 

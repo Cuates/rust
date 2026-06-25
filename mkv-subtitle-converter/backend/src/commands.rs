@@ -979,6 +979,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_directory_stats_command() {
         use std::fs::File;
+
         let temp = tempfile::tempdir().unwrap();
         let mkv1 = temp.path().join("test1.mkv");
         let txt1 = temp.path().join("test1.txt");

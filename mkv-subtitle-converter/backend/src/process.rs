@@ -814,5 +814,16 @@ mod tests {
             assert!(ass_content.contains("[V4+ Styles]"));
             assert!(ass_content.contains("[Events]"));
         }
+
+        #[test]
+        fn test_convert_srt_to_ass_arbitrary_bytes(ref input_bytes in any::<Vec<u8>>()) {
+            let temp = tempfile::tempdir().unwrap();
+            let input = temp.path().join("input.srt");
+            let output = temp.path().join("output.ass");
+
+            std::fs::write(&input, input_bytes).unwrap();
+
+            let _ = convert_srt_to_ass(&input, &output);
+        }
     }
 }
