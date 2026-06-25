@@ -188,3 +188,101 @@ jobs:
 
       - name: Build Application
         run: CARGO_PROFILE_RELEASE_LTO=false pnpm exec tauri build --no-bundle
+
+  test-windows:
+    name: Test on Windows
+    needs: [lint]
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: mkv-subtitle-converter
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: mkv-subtitle-converter/pnpm-lock.yaml
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mkv-subtitle-converter/backend
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Cache sidecar binaries
+        uses: actions/cache@v4
+        id: sidecar-cache
+        with:
+          path: mkv-subtitle-converter/backend/sidecars
+          key: sidecars-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+
+      - name: Download sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: pnpm prebuild
+
+      - name: Run tests
+        run: pnpm test
+
+  test-macos:
+    name: Test on macOS
+    needs: [lint]
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mkv-subtitle-converter
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+          cache-dependency-path: mkv-subtitle-converter/pnpm-lock.yaml
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: mkv-subtitle-converter/backend
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Cache sidecar binaries
+        uses: actions/cache@v4
+        id: sidecar-cache
+        with:
+          path: mkv-subtitle-converter/backend/sidecars
+          key: sidecars-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+
+      - name: Download sidecars
+        if: steps.sidecar-cache.outputs.cache-hit != 'true'
+        run: pnpm prebuild
+
+      - name: Run tests
+        run: pnpm test

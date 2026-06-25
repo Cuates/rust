@@ -85,7 +85,7 @@
 
   let reportModalContainer: HTMLElement | undefined = $state(undefined);
   let reportCloseBtn: HTMLButtonElement | undefined = $state(undefined);
-  let reportTriggerEl = $state<HTMLButtonElement | null>(null);
+  let reportTriggerEl: HTMLButtonElement | null = null;
 
   $effect(() => {
     if (activeReportFolder && activeReportData) {

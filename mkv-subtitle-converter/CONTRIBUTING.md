@@ -8,7 +8,7 @@ First off, thanks for taking the time to contribute! 🎉
 - [Rust](https://www.rust-lang.org/tools/install) (latest stable)
 - [Node.js](https://nodejs.org/) (latest LTS)
 - [pnpm](https://pnpm.io/installation) (recommended package manager)
-- [Tauri Dependencies](https://tauri.app/v1/guides/getting-started/prerequisites) (platform-specific C++ build tools)
+- [Tauri Dependencies](https://tauri.app/v2/guides/prerequisites/) (platform-specific C++ build tools)
 
 ### Quick Start
 ```bash
@@ -38,5 +38,5 @@ pnpm tauri dev
 1. Fork the repo and create your branch from `main`.
 2. Add tests for any new logic or components.
 3. Update `CHANGELOG.md` with your changes.
-4. Ensure all tests pass (`pnpm test:unit`).
+4. Ensure all tests pass (`pnpm test`).
 5. Open a PR with a descriptive title and detailed summary.

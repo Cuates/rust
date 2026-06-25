@@ -975,4 +975,43 @@ mod tests {
         assert_eq!(items[1].file, "Track 2");
         assert_eq!(items[2].file, "Track 10");
     }
+
+    #[tokio::test]
+    async fn test_get_directory_stats_command() {
+        use std::fs::File;
+        let temp = tempfile::tempdir().unwrap();
+        let mkv1 = temp.path().join("test1.mkv");
+        let txt1 = temp.path().join("test1.txt");
+
+        File::create(&mkv1).unwrap();
+        File::create(&txt1).unwrap();
+
+        let stats = get_directory_stats(temp.path().to_string_lossy().into_owned(), false)
+            .await
+            .unwrap();
+
+        assert!(stats.exists);
+        assert_eq!(stats.file_count, 1);
+        assert_eq!(stats.files.len(), 1);
+        assert_eq!(stats.files[0].name, "test1.mkv");
+    }
+
+    #[tokio::test]
+    async fn test_check_folder_reports_command() {
+        let temp = tempfile::tempdir().unwrap();
+        let path_str = temp.path().to_string_lossy().into_owned();
+
+        let mut reports = check_folder_reports(vec![path_str.clone()]).unwrap();
+        let status = reports.remove(&path_str).unwrap();
+        assert!(!status.has_success);
+        assert!(!status.has_failure);
+
+        std::fs::File::create(temp.path().join("converted_files.json")).unwrap();
+        std::fs::File::create(temp.path().join("failed_files.json")).unwrap();
+
+        let mut reports = check_folder_reports(vec![path_str.clone()]).unwrap();
+        let status = reports.remove(&path_str).unwrap();
+        assert!(status.has_success);
+        assert!(status.has_failure);
+    }
 }

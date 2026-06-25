@@ -255,6 +255,9 @@ describe('MetricsPanel Component', () => {
     });
 
     expect(screen.getByText('No Tracks')).toBeInTheDocument();
-    expect(screen.getByText('1')).toBeInTheDocument(); // filesNoTracks value
+
+    const metricCard = screen.getByTestId('no-tracks-metric');
+    const valueEl = metricCard.querySelector('.metric-value');
+    expect(valueEl).toHaveTextContent('1');
   });
 });

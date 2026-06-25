@@ -61,10 +61,13 @@
           <span class="highlight">[ M / N files ]</span> progress sub-count. Once processing
           finishes or encounters an error, a
           <span class="highlight">"View Report"</span>
-          button appears. Clicking it expands a fully accessible modal dialog detailing exactly which files succeeded
-          (including metadata like <strong>language</strong>, <strong>codec</strong>, and
-          <strong>track name</strong>) and which failed. You can use your keyboard to navigate the report or press 
-          <span class="highlight">Esc</span> to quickly close it and safely return focus to the queue.
+          button appears. Clicking it expands a fully accessible modal dialog detailing exactly which
+          files succeeded (including metadata like <strong>language</strong>,
+          <strong>codec</strong>, and
+          <strong>track name</strong>) and which failed. You can use your keyboard to navigate the
+          report or press
+          <span class="highlight">Esc</span> to quickly close it and safely return focus to the
+          queue.
           <br /><br />
           <em
             >Note: If you manually delete or corrupt the underlying report files, the app will
@@ -150,9 +153,9 @@
           queue.
         </li>
         <li style="margin-top: 8px;">
-          <strong>Saving Logs:</strong> You can click the <span class="highlight">Save Log</span> button in the terminal panel at any time.
-          The app intelligently combines your entire session history, even across background log rotations,
-          ensuring you always get a complete record.
+          <strong>Saving Logs:</strong> You can click the <span class="highlight">Save Log</span> button
+          in the terminal panel at any time. The app intelligently combines your entire session history,
+          even across background log rotations, ensuring you always get a complete record.
         </li>
       </ul>
 
@@ -169,10 +172,11 @@
       <h3 class="mt-4">Live Metrics & ETA</h3>
       <p class="text-sm">
         As your files are converting, the global metrics panel at the bottom of the screen tracks
-        the exact number of files and subtitle tracks processed. You'll see a detailed breakdown of files
-        that Succeeded, Failed, were Skipped, or had <span class="highlight">No Tracks</span>.
-        It also displays a dynamic <strong>ETA (Estimated Time of Arrival)</strong>, actively calculating the
-        remaining hours, minutes, seconds, and milliseconds until the entire queue finishes.
+        the exact number of files and subtitle tracks processed. You'll see a detailed breakdown of
+        files that Succeeded, Failed, were Skipped, or had <span class="highlight">No Tracks</span>.
+        It also displays a dynamic <strong>ETA (Estimated Time of Arrival)</strong>, actively
+        calculating the remaining hours, minutes, seconds, and milliseconds until the entire queue
+        finishes.
       </p>
 
       <h3 class="mt-4">Taskbar Progress Indicator</h3>

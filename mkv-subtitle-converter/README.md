@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.7.1-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.8.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -64,64 +64,66 @@ Before attempting to compile or run the application locally, ensure your develop
 The architectural layout of this project relies on a highly decoupled **pnpm workspace split**. The web panel lives completely isolated from the system-level Rust compilation environment under the global `` workspace scope.
 
 ```text
-mkv-subtitle-converter/
-├── .github/                       # GitHub Actions workflows and CI pipelines
+```text
+rust-monorepo-root/
+├── .github/                       # Monorepo-wide GitHub Actions workflows and CI pipelines
 │   └── workflows/
 │       └── mkv-subtitle-converter-ci.yml
-├── CHANGELOG.md                   # Version history and release notes
-├── CONTRIBUTING.md                # Developer contribution guidelines
-├── README.md                      # Architecture and setup documentation
-├── TESTING.md                     # Testing suite documentation
-├── package.json                   # Root package manager orchestration layout
-├── pnpm-workspace.yaml            # PNPM monorepo multi-package descriptor
-├── scripts/                       # Monorepo build and sidecar scripts
-│   ├── download-sidecars.mjs
-│   └── generate-hashes.mjs
-├── frontend/                      # Decoupled Webview Client (SvelteKit / Svelte 5)
-│   ├── package.json
-│   ├── .prettierignore            # Formatter exclusion rules
-│   ├── eslint.config.js           # Strict ESLint 9+ flat configuration
-│   ├── svelte.config.js           # Outfitted with Adapter-Static constraints (outputs to build/)
-│   ├── tsconfig.json              # TypeScript compiler configuration
-│   ├── vite.config.ts             # Vite bundler configurations
-│   ├── vitest-setup.js            # Vitest DOM and global mocking environment
-│   ├── static/                    # Uncompiled raw static assets
-│   │   ├── favicon.png
-│   │   ├── svelte.svg
-│   │   ├── tauri.svg
-│   │   └── vite.svg
-│   └── src/
-│       ├── lib/                   # Reusable UI components, stores, and utilities
-│       │   ├── components/
-│       │   ├── stores/
-│       │   └── utils/
-│       ├── styles/                # Global SCSS styling architecture
-│       │   ├── _variables.scss
-│       │   └── app.scss
-│       └── routes/                # SvelteKit layout and page routing
-│           ├── +layout.svelte     # Root layout shell
-│           ├── +layout.ts         # Static pre-rendering enforcer (SSR false)
-│           ├── +page.svelte       # Primary application interaction view
-│           ├── guide/             # In-app user guide routes
-│           └── settings/          # Application settings routes
-└── backend/                       # Decoupled Native Desktop Layer (Tauri v2 + Rust)
-    ├── Cargo.toml                 # System crate workspace dependencies
-    ├── tauri.conf.json            # Main Tauri application layout and compilation schema (reads build/)
-    ├── capabilities/
-    │   └── default.json           # Security layer access token configuration
-    ├── sidecars/                  # Embedded cross-platform system sidecars
-    │   ├── ffmpeg-x86_64-pc-windows-msvc.exe
-    │   ├── ffprobe-x86_64-pc-windows-msvc.exe
-    │   └── ... (macOS & Linux sidecars)
-    └── src/
-        ├── main.rs                # Application execution root entryway
-        ├── lib.rs                 # Application lib and main tauri builder
-        ├── commands.rs            # IPC definitions and backend actions
-        ├── process.rs             # Transcoding and streaming thread logic
-        ├── models.rs              # Data models, structs, and payloads
-        ├── history.rs             # Processing history report generator
-        ├── constants.rs           # Static constants and configurations
-        └── error.rs               # Application error structures
+└── mkv-subtitle-converter/
+    ├── CHANGELOG.md                   # Version history and release notes
+    ├── CONTRIBUTING.md                # Developer contribution guidelines
+    ├── README.md                      # Architecture and setup documentation
+    ├── TESTING.md                     # Testing suite documentation
+    ├── package.json                   # Root package manager orchestration layout
+    ├── pnpm-workspace.yaml            # PNPM monorepo multi-package descriptor
+    ├── scripts/                       # Monorepo build and sidecar scripts
+    │   ├── download-sidecars.mjs
+    │   └── generate-hashes.mjs
+    ├── frontend/                      # Decoupled Webview Client (SvelteKit / Svelte 5)
+    │   ├── package.json
+    │   ├── .prettierignore            # Formatter exclusion rules
+    │   ├── eslint.config.js           # Strict ESLint 9+ flat configuration
+    │   ├── svelte.config.js           # Outfitted with Adapter-Static constraints (outputs to build/)
+    │   ├── tsconfig.json              # TypeScript compiler configuration
+    │   ├── vite.config.ts             # Vite bundler configurations
+    │   ├── vitest-setup.js            # Vitest DOM and global mocking environment
+    │   ├── static/                    # Uncompiled raw static assets
+    │   │   ├── favicon.png
+    │   │   ├── svelte.svg
+    │   │   ├── tauri.svg
+    │   │   └── vite.svg
+    │   └── src/
+    │       ├── lib/                   # Reusable UI components, stores, and utilities
+    │       │   ├── components/
+    │       │   ├── stores/
+    │       │   └── utils/
+    │       ├── styles/                # Global SCSS styling architecture
+    │       │   ├── _variables.scss
+    │       │   └── app.scss
+    │       └── routes/                # SvelteKit layout and page routing
+    │           ├── +layout.svelte     # Root layout shell
+    │           ├── +layout.ts         # Static pre-rendering enforcer (SSR false)
+    │           ├── +page.svelte       # Primary application interaction view
+    │           ├── guide/             # In-app user guide routes
+    │           └── settings/          # Application settings routes
+    └── backend/                       # Decoupled Native Desktop Layer (Tauri v2 + Rust)
+        ├── Cargo.toml                 # System crate workspace dependencies
+        ├── tauri.conf.json            # Main Tauri application layout and compilation schema (reads build/)
+        ├── capabilities/
+        │   └── default.json           # Security layer access token configuration
+        ├── sidecars/                  # Embedded cross-platform system sidecars
+        │   ├── ffmpeg-x86_64-pc-windows-msvc.exe
+        │   ├── ffprobe-x86_64-pc-windows-msvc.exe
+        │   └── ... (macOS & Linux sidecars)
+        └── src/
+            ├── main.rs                # Application execution root entryway
+            ├── lib.rs                 # Application lib and main tauri builder
+            ├── commands.rs            # IPC definitions and backend actions
+            ├── process.rs             # Transcoding and streaming thread logic
+            ├── models.rs              # Data models, structs, and payloads
+            ├── history.rs             # Processing history report generator
+            ├── constants.rs           # Static constants and configurations
+            └── error.rs               # Application error structures
 ```
 
 ---
@@ -142,7 +144,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -244,7 +246,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.7.1"
+  "version": "1.8.0"
 }
 ```
 
@@ -254,7 +256,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.7.1"
+  "version": "1.8.0"
 }
 ```
 

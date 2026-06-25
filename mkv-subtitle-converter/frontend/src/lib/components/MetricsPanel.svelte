@@ -102,7 +102,7 @@
       <span class="metric-label">Skipped</span>
       <span class="metric-value secondary-text">{filesSkipped}</span>
     </div>
-    <div class="metric-card">
+    <div class="metric-card" data-testid="no-tracks-metric">
       <span class="metric-label">No Tracks</span>
       <span class="metric-value secondary-text">{filesNoTracks}</span>
     </div>

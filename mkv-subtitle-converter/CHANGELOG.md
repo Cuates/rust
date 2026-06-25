@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-06-24
+
+### Changed
+
+- **Continuous Integration**: Added Windows and macOS testing jobs to the GitHub Actions CI pipeline.
+- **Automated Testing**: Integrated `proptest` for property-based testing and added Tauri command integration tests.
+- **Frontend Refinements**: Refactored component state reactivity and test assertions for improved stability.
+
 ## [1.7.1] - 2026-06-23
 
 ### Fixed

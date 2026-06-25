@@ -794,4 +794,25 @@ mod tests {
             ass_content.contains("Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Next text")
         );
     }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_convert_srt_to_ass_no_panic(ref input_str in "\\PC*") {
+            let temp = tempfile::tempdir().unwrap();
+            let input = temp.path().join("input.srt");
+            let output = temp.path().join("output.ass");
+
+            std::fs::write(&input, input_str).unwrap();
+
+            let res = convert_srt_to_ass(&input, &output);
+            assert!(res.is_ok());
+
+            let ass_content = std::fs::read_to_string(&output).unwrap();
+            assert!(ass_content.starts_with("[Script Info]"));
+            assert!(ass_content.contains("[V4+ Styles]"));
+            assert!(ass_content.contains("[Events]"));
+        }
+    }
 }
