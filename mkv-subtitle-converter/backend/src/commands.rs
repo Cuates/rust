@@ -987,9 +987,13 @@ mod tests {
         File::create(&mkv1).unwrap();
         File::create(&txt1).unwrap();
 
-        let stats = get_directory_stats(temp.path().to_string_lossy().into_owned(), false)
-            .await
-            .unwrap();
+        let stats = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            get_directory_stats(temp.path().to_string_lossy().into_owned(), false),
+        )
+        .await
+        .expect("test timed out")
+        .unwrap();
 
         assert!(stats.exists);
         assert_eq!(stats.file_count, 1);
@@ -1002,7 +1006,13 @@ mod tests {
         let temp = tempfile::tempdir().unwrap();
         let path_str = temp.path().to_string_lossy().into_owned();
 
-        let mut reports = check_folder_reports(vec![path_str.clone()]).unwrap();
+        // wrap the synchronous function in spawn_blocking
+        let mut reports = tokio::task::spawn_blocking({
+            let path_str = path_str.clone();
+            move || check_folder_reports(vec![path_str]).unwrap()
+        })
+        .await
+        .unwrap();
         let status = reports.remove(&path_str).unwrap();
         assert!(!status.has_success);
         assert!(!status.has_failure);
@@ -1010,7 +1020,12 @@ mod tests {
         std::fs::File::create(temp.path().join("converted_files.json")).unwrap();
         std::fs::File::create(temp.path().join("failed_files.json")).unwrap();
 
-        let mut reports = check_folder_reports(vec![path_str.clone()]).unwrap();
+        let mut reports = tokio::task::spawn_blocking({
+            let path_str = path_str.clone();
+            move || check_folder_reports(vec![path_str]).unwrap()
+        })
+        .await
+        .unwrap();
         let status = reports.remove(&path_str).unwrap();
         assert!(status.has_success);
         assert!(status.has_failure);

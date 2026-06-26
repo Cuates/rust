@@ -58,7 +58,7 @@ jobs:
         id: sidecar-cache
         with:
           path: mkv-subtitle-converter/backend/sidecars
-          key: sidecars-${{ runner.os }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+          key: sidecars-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
 
       - name: Download sidecars
         if: steps.sidecar-cache.outputs.cache-hit != 'true'
@@ -120,7 +120,7 @@ jobs:
         id: sidecar-cache
         with:
           path: mkv-subtitle-converter/backend/sidecars
-          key: sidecars-${{ runner.os }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+          key: sidecars-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
 
       - name: Download sidecars
         if: steps.sidecar-cache.outputs.cache-hit != 'true'
@@ -180,7 +180,7 @@ jobs:
         id: sidecar-cache
         with:
           path: mkv-subtitle-converter/backend/sidecars
-          key: sidecars-${{ runner.os }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+          key: sidecars-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
 
       - name: Download sidecars
         if: steps.sidecar-cache.outputs.cache-hit != 'true'
@@ -229,7 +229,7 @@ jobs:
         id: sidecar-cache
         with:
           path: mkv-subtitle-converter/backend/sidecars
-          key: sidecars-${{ runner.os }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+          key: sidecars-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
 
       - name: Download sidecars
         if: steps.sidecar-cache.outputs.cache-hit != 'true'
@@ -245,6 +245,9 @@ jobs:
       matrix:
         os: [macos-13, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      RUST_BACKTRACE: "1"
     defaults:
       run:
         working-directory: mkv-subtitle-converter
@@ -281,11 +284,11 @@ jobs:
         id: sidecar-cache
         with:
           path: mkv-subtitle-converter/backend/sidecars
-          key: sidecars-${{ runner.os }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+          key: sidecars-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
 
       - name: Download sidecars
         if: steps.sidecar-cache.outputs.cache-hit != 'true'
         run: pnpm prebuild
 
       - name: Run tests
-        run: pnpm test
+        run: pnpm test -- --nocapture
