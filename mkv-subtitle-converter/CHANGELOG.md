@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **CI Pipeline**: Added runner architecture to cache keys for macOS sidecars to prevent cache conflicts between Intel and ARM runners. Added a 20-minute timeout for macOS test runners.
+- **CI Pipeline**: Added runner architecture to cache keys for macOS sidecars to prevent cache conflicts between Intel and ARM runners. Added a 20-minute timeout for macOS test runners. Removed `macos-13` (Intel) runner from the matrix due to excessive queue times on GitHub's free tier, relying on Apple Silicon (`macos-latest`) for macOS validations.
 - **Testing**: Wrapped Rust integration tests with `tokio::time::timeout` and `tokio::task::spawn_blocking` to prevent test deadlocks and hanging.
 
 ## [1.8.1] - 2026-06-24

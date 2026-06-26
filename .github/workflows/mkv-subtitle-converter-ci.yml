@@ -243,7 +243,9 @@ jobs:
     needs: [lint]
     strategy:
       matrix:
-        os: [macos-13, macos-latest]
+        # Note: macos-13 (Intel) was removed due to extreme queue times (> 1 hour) on GitHub's free tier. 
+        # Apple Silicon (macos-latest) provides sufficient validation for macOS CI logic.
+        os: [macos-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     env:
