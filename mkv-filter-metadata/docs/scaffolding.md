@@ -1,0 +1,37 @@
+# Scaffolding & Setup
+
+## Prerequisites
+
+| Tool | Version | Notes |
+|------|---------|-------|
+| **Node.js** | v24+ | Required for Vite/SvelteKit |
+| **pnpm** | v9+ | Workspace package manager |
+| **Rust** | 1.85+ (Edition 2024) | Via `rustup` |
+| **Rust Components** | `clippy`, `rustfmt` | `rustup component add clippy rustfmt` |
+| **OS Build Tools** | — | See below |
+
+**OS-Specific Build Tools:**
+- **Windows:** Visual Studio C++ Build Tools
+- **macOS:** Xcode Command Line Tools
+- **Linux:** `build-essential`, `curl`, `wget`, `file`, `libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`
+
+---
+
+## Getting Started
+
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd mkv-filter-metadata
+
+# 2. Install Node dependencies
+pnpm install
+
+# 3. Download sidecar binaries (FFmpeg, FFprobe, MKVMerge)
+pnpm prebuild
+
+# 4. Launch the development environment
+pnpm dev
+```
+
+This starts Vite's dev server on `http://localhost:1420` and compiles + launches the Tauri native window simultaneously.

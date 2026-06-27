@@ -1,6 +1,6 @@
 ---
 title: "Project Plan & Sandbox"
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 status: "active"
 ---
 
@@ -9,6 +9,7 @@ status: "active"
 This document serves as a high-level roadmap and sandbox for human and AI collaboration on the **MKV Filter Metadata** project.
 
 ## 🎯 Current Objectives
+- [x] Decentralize monolithic README for improved AI agent ingestion.
 - [x] Establish standard documentation (START_HERE, KNOWLEDGE_GRAPH, ADRs).
 - [ ] Monitor pipeline telemetry stability across platforms.
 - [ ] Optimize hardware-accelerated preset defaults based on user feedback.

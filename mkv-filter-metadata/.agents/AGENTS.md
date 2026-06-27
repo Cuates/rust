@@ -26,4 +26,7 @@ When operating within the `MKV-Filter-Metadata` workspace, adhere to the followi
 
 4. **Documentation Maintenance:**
    - When making significant architectural changes, propose a new ADR in `docs/adr/`.
-   - Ensure the `KNOWLEDGE_GRAPH.md` remains accurate if data flows change.
+   - Ensure `docs/KNOWLEDGE_GRAPH.md` remains accurate if data flows change.
+   - When updating UI features or dependencies, ensure `frontend/README.md` is updated.
+   - When updating pipeline logic or Rust dependencies, ensure `backend/README.md` is updated.
+   - Update overarching documentation files (`docs/architecture.md`, `docs/scaffolding.md`, `docs/distribution.md`, `docs/troubleshooting.md`) as needed.

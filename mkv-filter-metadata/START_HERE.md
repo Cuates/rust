@@ -1,6 +1,6 @@
 ---
 title: "Start Here"
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 audience: "Contributors"
 ---
 
@@ -35,6 +35,8 @@ Run these from the **workspace root**:
 
 ## 📚 Dive Deeper
 
-- See the comprehensive [README.md](./README.md) for full application usage and feature details.
+- See [Architecture](./docs/architecture.md) for tree structure and overview.
+- See [Frontend README](./frontend/README.md) for Svelte UI details.
+- See [Backend README](./backend/README.md) for Tauri Rust details.
 - See the [Knowledge Graph](./docs/KNOWLEDGE_GRAPH.md) for architecture diagrams and data flows.
 - See the [Architecture Decision Records](./docs/adr) for historical tech choices.

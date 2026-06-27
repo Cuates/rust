@@ -11,8 +11,8 @@ This skill allows agents to scan the documentation directories and ensure they c
 
 1. **Triggering**: The agent can trigger this logic automatically when instructed to "audit docs" or "sync docs".
 2. **Checks Performed**:
-   - Verify every file in `docs/` and `.agents/` has valid YAML frontmatter.
-   - Verify that `START_HERE.md` and `plan.md` exist at the root.
+   - Verify every markdown file in `docs/` and `.agents/` has valid YAML frontmatter.
+   - Verify that `START_HERE.md`, `plan.md`, `frontend/README.md`, and `backend/README.md` exist.
 3. **Actions**: 
    - Add missing YAML frontmatter.
    - Update `last_updated` dates if significant changes were found in Git history.
