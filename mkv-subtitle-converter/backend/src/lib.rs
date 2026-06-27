@@ -126,9 +126,12 @@ mod integration_tests {
 
         let state = app.state::<crate::models::AppState>();
 
-        // Note: The `setup()` hook does not execute automatically in Tauri mock builders, 
+        // Note: The `setup()` hook does not execute automatically in Tauri mock builders,
         // so the SQLite DB remains uninitialized (`None`) during this pure initialization test.
         let db_lock = state.db.blocking_lock();
-        assert!(db_lock.is_none(), "Database should be uninitialized before setup runs");
+        assert!(
+            db_lock.is_none(),
+            "Database should be uninitialized before setup runs"
+        );
     }
 }

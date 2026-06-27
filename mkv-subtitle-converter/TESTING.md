@@ -44,6 +44,9 @@ cd backend
 
 # Run cargo tests
 cargo test
+
+# Ensure your code meets formatting standards (blocks CI if failing)
+cargo fmt
 ```
 
 ### Writing Rust Tests
