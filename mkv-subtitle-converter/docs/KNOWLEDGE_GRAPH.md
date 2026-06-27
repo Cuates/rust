@@ -59,7 +59,7 @@ graph TD
     Dispatch --> Composite Action
     
     Composite Action --> Lint[Lint & Check]
-    Composite Action --> TestUbuntu[Test & Coverage Ubuntu]
+    Composite Action --> TestUbuntu[Coverage Ubuntu <br/> Single Execution]
     Composite Action --> TestWin[Test Windows]
     Composite Action --> TestMac[Test macOS]
     Composite Action --> Build[Build Validation]

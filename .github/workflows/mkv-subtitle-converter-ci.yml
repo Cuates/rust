@@ -54,9 +54,6 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
-      - name: Run tests
-        run: pnpm test
-
       - name: Enforce test coverage
         run: pnpm run test:coverage
 

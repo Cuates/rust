@@ -9,6 +9,8 @@ version: "1.9.3"
 This document tracks current milestones, active tasks, and known edge-cases.
 
 ## ✅ Recently Completed
+- **Optimized CI Performance**: Removed double-execution of testing suites on the Ubuntu runner, dropping pipeline duration to ~6 minutes.
+- **Resolved Vitest Missing Config Warning**: Prefixed testing scripts with `svelte-kit sync` to generate the `.svelte-kit` folder required by TypeScript in isolated CI test runs.
 - Refactored GitHub Actions CI/CD pipeline and introduced a Composite Action for DRY environment setup.
 - Synchronized all project documentation and bumped the application version to `1.9.3`.
 - Split monolithic README into modular, domain-specific markdown files (docs/, frontend/, backend/).

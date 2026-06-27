@@ -13,8 +13,8 @@
     "tauri": "tauri",
     "format": "prettier --write .",
     "lint": "prettier --check . && eslint .",
-    "test:unit": "vitest --passWithNoTests",
-    "coverage": "vitest run --coverage --passWithNoTests"
+    "test:unit": "svelte-kit sync && vitest --passWithNoTests",
+    "coverage": "svelte-kit sync && vitest run --coverage --passWithNoTests"
   },
   "license": "MIT",
   "dependencies": {

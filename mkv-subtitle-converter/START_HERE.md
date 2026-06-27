@@ -25,6 +25,8 @@ This project is a highly decoupled **pnpm monorepo**:
 Run these from the **workspace root**:
 
 - `pnpm install`: Installs and symlinks workspace dependencies.
+- `pnpm test`: Runs the standard un-instrumented test suite across the frontend and backend (fastest for local dev).
+- `pnpm run test:coverage`: Runs the fully instrumented test suite (Vitest coverage + `cargo llvm-cov`) to generate metrics for CI.
 - `pnpm dev`: Starts the Svelte web views via Vite and mounts the native Rust shell.
 - `pnpm build`: Compiles standalone platform binaries for production.
 - `pnpm clean`: Purges workspace artifacts, caches, and modules cleanly.

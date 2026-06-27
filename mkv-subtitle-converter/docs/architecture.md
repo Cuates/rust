@@ -27,7 +27,10 @@ rust-monorepo-root/
     │       ├── 0001-record-architecture-decisions.md
     │       ├── 0002-initial-tech-stack-selection.md
     │       ├── 0003-embedded-binary-sidecars.md
-    │       └── 0004-cancellation-state-management.md
+    │       ├── 0004-cancellation-state-management.md
+    │       ├── 0005-composite-action-ci-cd.md
+    │       ├── 0006-svelte-kit-sync-in-tests.md
+    │       └── 0007-ci-test-deduplication.md
     ├── CHANGELOG.md                   # Version history and release notes
     ├── CONTRIBUTING.md                # Developer contribution guidelines
     ├── README.md                      # Architecture and setup documentation
@@ -99,7 +102,8 @@ To prevent system module dependency leakage and to allow the root profile to man
 
 ```yaml
 packages:
-  - "*"
+  - 'backend'
+  - 'frontend'
 ```
 
 ### Root `package.json`

@@ -1,5 +1,10 @@
 # Troubleshooting & Common Pitfalls
 
+## ❌ Issue: Vitest warns "Cannot find base config file ./.svelte-kit/tsconfig.json"
+
+- **Cause:** SvelteKit dynamically generates the `.svelte-kit` directory containing base TypeScript configurations during the `build`, `dev`, or `sync` lifecycle. If you run testing directly (like in CI environments) without generating this folder first, Vitest will be unable to resolve your types.
+- **Resolution:** Prefix your testing scripts with `svelte-kit sync`. Example: `"test:unit": "svelte-kit sync && vitest"`.
+
 ## ❌ Issue: Build warns "Overwriting dist\index.html with fallback page"
 
 - **Cause:** SvelteKit successfully generated a static homepage from your root route, but then overwrote it with the Single Page Application (SPA) `fallback: 'index.html'` file we configured in `svelte.config.js`.
