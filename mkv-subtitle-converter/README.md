@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.8.3-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.9.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -69,10 +69,22 @@ rust-monorepo-root/
 │   └── workflows/
 │       └── mkv-subtitle-converter-ci.yml
 └── mkv-subtitle-converter/
+    ├── .agents/                       # AI configuration and workspace rules
+    │   ├── AGENTS.md                  # Project-scoped AI guidelines
+    │   └── skills/
+    │       └── sync_docs/SKILL.md     # Custom documentation sync AI skill
+    ├── docs/                          # In-depth architectural knowledge
+    │   ├── KNOWLEDGE_GRAPH.md         # Mermaid data flow architecture maps
+    │   └── adr/                       # Architecture Decision Records
+    │       ├── 0001-record-architecture-decisions.md
+    │       ├── 0002-initial-tech-stack-selection.md
+    │       └── 0003-embedded-binary-sidecars.md
     ├── CHANGELOG.md                   # Version history and release notes
     ├── CONTRIBUTING.md                # Developer contribution guidelines
     ├── README.md                      # Architecture and setup documentation
+    ├── START_HERE.md                  # Quick-start executive summary
     ├── TESTING.md                     # Testing suite documentation
+    ├── plan.md                        # Active tasks, roadmap, and sandbox
     ├── package.json                   # Root package manager orchestration layout
     ├── pnpm-workspace.yaml            # PNPM monorepo multi-package descriptor
     ├── scripts/                       # Monorepo build and sidecar scripts
@@ -146,7 +158,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.8.2",
+  "version": "1.9.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -248,7 +260,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.8.2"
+  "version": "1.9.0"
 }
 ```
 
@@ -258,7 +270,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.8.2"
+  "version": "1.9.0"
 }
 ```
 

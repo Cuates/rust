@@ -1,0 +1,40 @@
+---
+title: "Architecture & Data Flow"
+tags: [tauri, svelte, rust, architecture]
+---
+
+# 🧠 Knowledge Graph
+
+This graph illustrates the system architecture and data flow between the decoupled Svelte frontend and the Tauri Rust backend.
+
+## Subtitle Processing Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as SvelteKit (Frontend)
+    participant Backend as Tauri (Rust Backend)
+    participant SQLite as rusqlite (History)
+    participant FFprobe as FFprobe Sidecar
+    participant FFmpeg as FFmpeg Sidecar
+
+    User->>Frontend: Select Directory & Start
+    Frontend->>Backend: invoke("process_mkv_directory")
+    
+    %% Idempotent Checks
+    Backend->>SQLite: Query previously converted files
+    SQLite-->>Backend: Return cached successes
+    Backend->>Backend: Skip existing, filter remaining
+    
+    %% Processing Phase
+    Backend->>FFprobe: Scan remaining files for Layout Tracks
+    FFprobe-->>Backend: Return Track Maps (default_flag, forced_flag)
+    Backend->>FFmpeg: Spawn Async Subprocesses<br/>(Tokio JoinSet - Max 3 Concurrent)
+    FFmpeg-->>Backend: Extract raw SRT streams
+    Backend->>Backend: Transcode SRT to styled ASS
+    
+    %% Completion
+    Backend->>SQLite: Log successful conversions
+    Backend-->>Frontend: emit("LogMessage", ProgressPayload)
+    Frontend-->>User: Display Progress UI
+```
