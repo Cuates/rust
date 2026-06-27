@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Promoted application to version 1.2.1.
 - Updated sidecar cache keys in CI to securely isolate OS and Architecture binaries.
 - Migrated Rust backend test coverage tool from `cargo-tarpaulin` to `cargo-llvm-cov` for standardized reporting.
+- Prefixed `vitest` test commands with `svelte-kit sync` to prevent frontend TypeScript config resolution warnings in isolated CI environments.
 
 ## [1.2.0] - 2026-06-27
 - Split monolithic README into a decentralized `docs/` structure, alongside `frontend/README.md` and `backend/README.md` for proper AI context ingestion.

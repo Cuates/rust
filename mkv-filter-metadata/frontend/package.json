@@ -10,8 +10,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test:unit": "vitest",
-    "coverage": "vitest run --coverage"
+    "test:unit": "svelte-kit sync && vitest",
+    "coverage": "svelte-kit sync && vitest run --coverage"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

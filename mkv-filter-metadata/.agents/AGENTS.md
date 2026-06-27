@@ -35,3 +35,6 @@ When operating within the `MKV-Filter-Metadata` workspace, adhere to the followi
    - **Environment Setup**: All CI environment setup (Node, pnpm, Rust, Caching) must be delegated to the local Composite Action `.github/actions/mkv-filter-metadata-setup`.
    - **Working Directories**: When authoring steps inside the composite action, always explicitly define `working-directory: mkv-filter-metadata` for pnpm/cargo commands to prevent monorepo pathing failures.
    - **Test Deduplication**: The Ubuntu runner (`Test Coverage`) executes strictly `pnpm run test:coverage` without a standard `pnpm test` step to prevent redundant double-execution of the test suites.
+
+6. **Frontend Testing:**
+   - **TypeScript & SvelteKit Sync**: During isolated testing routines (e.g. CI environments), ensure frontend testing scripts (`vitest`) are always prefixed with `svelte-kit sync`. This guarantees the `.svelte-kit` directory and base `tsconfig.json` are dynamically generated, preventing compiler resolution warnings.
