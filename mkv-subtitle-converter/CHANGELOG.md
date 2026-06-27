@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.3] - 2026-06-27
+
+### Changed
+
+- **CI/CD Pipeline**: Refactored GitHub Actions workflows to run multiple test targets (Windows, macOS, Linux) in parallel.
+- **Environment Automation**: Added a reusable Composite Action (`.github/actions/mkv-subtitle-converter-setup`) to centralize Node, pnpm, and Rust environment setups.
+- **Test Coverage**: Updated `package.json` test scripts to integrate frontend coverage collection alongside backend coverage using `cargo llvm-cov`.
+
 ## [1.9.2] - 2026-06-27
 
 ### Changed

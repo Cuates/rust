@@ -1,0 +1,52 @@
+name: "Setup Environment"
+description: "Installs OS dependencies, configures Node/pnpm, sets up Rust, and handles caching"
+runs:
+  using: "composite"
+  steps:
+    - name: Install Tauri OS Dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 11
+        run_install: false
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: 'pnpm'
+        cache-dependency-path: mkv-subtitle-converter/pnpm-lock.yaml
+
+    - name: Setup Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+
+    - name: Cache Rust dependencies
+      uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: mkv-subtitle-converter/backend
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: mkv-subtitle-converter
+      run: pnpm install
+
+    - name: Cache sidecar binaries
+      uses: actions/cache@v4
+      id: sidecar-cache
+      with:
+        path: mkv-subtitle-converter/backend/sidecars
+        key: sidecars-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('mkv-subtitle-converter/scripts/download-sidecars.mjs') }}
+
+    - name: Download sidecars
+      if: steps.sidecar-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: mkv-subtitle-converter
+      run: pnpm prebuild

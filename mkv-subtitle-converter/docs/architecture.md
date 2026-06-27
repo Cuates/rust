@@ -7,6 +7,9 @@ The architectural layout of this project relies on a highly decoupled **pnpm wor
 ```text
 rust-monorepo-root/
 ├── .github/                       # Monorepo-wide GitHub Actions workflows and CI pipelines
+│   ├── actions/
+│   │   └── mkv-subtitle-converter-setup/
+│   │       └── action.yml
 │   └── workflows/
 │       └── mkv-subtitle-converter-ci.yml
 └── mkv-subtitle-converter/
@@ -104,7 +107,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.9.1",
+  "version": "1.9.3",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -112,13 +115,13 @@ packages:
     "build": "tauri build",
     "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
     "check:deadcode": "pnpm -F frontend exec knip && cargo clippy --manifest-path backend/Cargo.toml -- -D dead_code",
-    "clean": "cargo clean --manifest-path backend/Cargo.toml && npx --yes rimraf node_modules frontend/node_modules && pnpm install",
+    "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm dlx rimraf node_modules frontend/node_modules && pnpm install",
     "dev": "tauri dev",
     "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
     "app-info": "tauri info",
     "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
     "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
-    "test:coverage": "pnpm -F frontend coverage && cargo tarpaulin --manifest-path backend/Cargo.toml --out Html"
+    "test:coverage": "pnpm -F frontend coverage && cargo llvm-cov --manifest-path backend/Cargo.toml --all-features --workspace --lcov --output-path lcov.info"
   },
   "keywords": [],
   "author": "",
@@ -126,7 +129,7 @@ packages:
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "^11.3.0",
+      "version": "^11.7.0",
       "onFail": "download"
     }
   },

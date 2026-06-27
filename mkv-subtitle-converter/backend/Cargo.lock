@@ -2071,7 +2071,7 @@ dependencies = [
 
 [[package]]
 name = "mkv-subtitle-extractor-converter-rust"
-version = "1.9.2"
+version = "1.9.3"
 dependencies = [
  "chrono",
  "indexmap 2.14.0",

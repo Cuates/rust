@@ -1,7 +1,7 @@
 ---
 title: "Project Sandbox & Roadmap"
 status: "Active"
-version: "1.9.2"
+version: "1.9.3"
 ---
 
 # 🗺️ Project Plan & Sandbox
@@ -9,10 +9,11 @@ version: "1.9.2"
 This document tracks current milestones, active tasks, and known edge-cases.
 
 ## ✅ Recently Completed
+- Refactored GitHub Actions CI/CD pipeline and introduced a Composite Action for DRY environment setup.
+- Synchronized all project documentation and bumped the application version to `1.9.3`.
 - Split monolithic README into modular, domain-specific markdown files (docs/, frontend/, backend/).
 - Handled AI Audit Report findings (MP-1 and MP-2).
 - Improved testing completeness and implemented safer history cancellation logic.
-- Bumped application version to `1.9.2`.
 
 ## 🚧 Current Focus
 - Maintain high testing coverage across the Rust and Svelte boundaries using Vitest and Cargo test.
