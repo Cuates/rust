@@ -121,7 +121,7 @@ mod integration_tests {
         // capability checks, AppHandle state injection, IPC serialization boundaries,
         // as well as the SQLite DB initialization inside `setup()`.
         let app = app_builder(builder)
-            .build(tauri::test::mock_context(tauri::test::NoopAsset))
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .expect("Failed to build mock app");
 
         let state = app.state::<crate::models::AppState>();
