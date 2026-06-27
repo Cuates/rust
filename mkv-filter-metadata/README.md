@@ -2,7 +2,7 @@
 
 [![Maintained? yes](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Cuates/rust/graphs/commit-activity)
 [![MKV Filter Metadata CI](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.1.11-blue.svg)](https://github.com/Cuates/rust)
+[![Version](https://img.shields.io/badge/version-1.1.12-blue.svg)](https://github.com/Cuates/rust)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-FF3E00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8.svg)](https://tauri.app/)
@@ -134,9 +134,17 @@ This starts Vite's dev server on `http://localhost:1420` and compiles + launches
 
 ```text
 mkv-filter-metadata/
+├── .agents/                      # AI assistant configuration and skills
+│   ├── AGENTS.md                 # Agent behavior rules and architecture guidelines
+│   └── skills/                   # Custom agent workflows
+├── docs/                         # Project documentation and architecture records
+│   ├── KNOWLEDGE_GRAPH.md        # Mermaid diagrams of system data flow
+│   └── adr/                      # Architecture Decision Records
 ├── package.json                  # Root workspace orchestrator scripts
 ├── pnpm-workspace.yaml           # Monorepo boundary (frontend only)
 ├── README.md                     # This file
+├── START_HERE.md                 # Project quick start and architecture overview
+├── plan.md                       # High-level roadmap and workflow sandbox
 ├── CHANGELOG.md                  # Version history
 ├── CONTRIBUTING.md               # Contribution guidelines
 ├── LICENSE                       # MIT License
@@ -245,10 +253,10 @@ Input Directory
   → Filter by file extension
   → For each file:
       → FFprobe: inspect streams, identify subtitle tracks by language
-      → Build FFmpeg command (maps, codecs, presets)
-      → Execute FFmpeg via sidecar
-      → Stream stderr for progress parsing
-      → On subtitle incompatibility → auto-retry with ASS conversion
+      → Build command (FFmpeg or MKVMerge)
+      → Execute sidecar (HW-Accelerated FFmpeg for transcode/remux, or MKVMerge for muxing)
+      → Stream stderr/output for progress parsing
+      → On subtitle incompatibility → auto-retry with ASS conversion or MKVMerge fallback
       → On success → emit progress event to frontend
       → On failure → log error, continue to next file
   → Emit completion summary with storage metrics

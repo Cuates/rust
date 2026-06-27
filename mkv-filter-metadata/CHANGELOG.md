@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.12] - 2026-06-26
+
+### Added
+- Created comprehensive architecture and planning documentation (`START_HERE.md`, `plan.md`, `docs/KNOWLEDGE_GRAPH.md`).
+- Implemented Architecture Decision Records (ADRs) to track historical and future tech stack choices.
+- Established AI agent guidelines (`.agents/AGENTS.md`) and basic skill templates.
+
+### Changed
+- Promoted application to version 1.1.12.
+
 ## [1.1.11] - 2026-06-21
 
 ### Added
