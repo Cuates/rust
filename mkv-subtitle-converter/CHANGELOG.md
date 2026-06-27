@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-06-27
+
+### Changed
+
+- **Documentation**: Synchronized all AI-assisted markdown files (`START_HERE.md`, `plan.md`, `SKILL.md`, `AGENTS.md`) and verified `KNOWLEDGE_GRAPH.md`.
+- **Architecture Decision Record**: Authored ADR `0004-cancellation-state-management.md` formalizing the use of `tokio_util::sync::CancellationToken` for abort commands to delegate physical state cleanup to the main processing loop.
+- **Agent Rules**: Updated the `.agents/AGENTS.md` guidelines to instruct future AI agents on the new backend cancellation constraints.
+
+### Fixed
+
+- **Testing**: Improved history command test completeness by asserting database records are cleared properly (1 -> 0).
+- **Backend Refactoring**: Removed duplicate cleanup code (`active_paths.clear()`) in `process_mkv_directory`. Cleaned up confusing dummy data injection in `test_abort_mkv_directory_processing`. Corrected contradictory comments above Tauri builder mock tests.
+
 ## [1.8.3] - 2026-06-26
 
 ### Fixed

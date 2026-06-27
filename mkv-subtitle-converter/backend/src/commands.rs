@@ -398,6 +398,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
                 let _ = std::fs::remove_file(dir.join("converted_files.json"));
                 let _ = std::fs::remove_file(dir.join("failed_files.json"));
             }
+            session.active_paths.clear();
         }
 
         append_log(
@@ -474,11 +475,6 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         }
 
         return Ok(final_payload);
-    }
-
-    {
-        let mut session = state.process.lock().await;
-        session.active_paths.clear();
     }
 
     Ok(json!(""))
@@ -1053,14 +1049,6 @@ mod tests {
 
         let state = app.state::<crate::models::AppState>();
 
-        // Inject a dummy path to simulate an active session
-        {
-            let mut session = state.process.lock().await;
-            session
-                .session_output_files
-                .push(std::path::PathBuf::from("dummy_output.srt"));
-        }
-
         abort_mkv_directory_processing(state.clone()).await.unwrap();
 
         // Verify token is cancelled
@@ -1081,10 +1069,11 @@ mod tests {
 
         // Setup db
         let conn = crate::history::init_db(handle).unwrap();
+        crate::history::mark_file_processed(&conn, "/dummy/path.mkv", 12345, 67890).unwrap();
         *state.db.lock().await = Some(conn);
 
         let count = get_history_count(handle.clone()).await.unwrap();
-        assert_eq!(count, 0);
+        assert_eq!(count, 1);
 
         clear_processing_history(handle.clone()).await.unwrap();
         let count_after = get_history_count(handle.clone()).await.unwrap();

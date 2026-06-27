@@ -117,17 +117,18 @@ mod integration_tests {
     fn test_app_builder_creates_successfully() {
         let builder = tauri::test::mock_builder();
 
-        // This exercises the full `#[tauri::command]` dispatch boundary setup:
-        // capability checks, AppHandle state injection, IPC serialization boundaries,
-        // as well as the SQLite DB initialization inside `setup()`.
+        // This exercises the Tauri Builder setup path — specifically that
+        // all .manage(), .plugin(), and .invoke_handler() calls succeed and
+        // produce a valid AppHandle without panicking.
+        //
+        // Note: setup() does not run in mock context, so the SQLite DB
+        // will be None. Per-command DB access is tested in test_history_commands.
         let app = app_builder(builder)
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .expect("Failed to build mock app");
 
         let state = app.state::<crate::models::AppState>();
 
-        // Note: The `setup()` hook does not execute automatically in Tauri mock builders,
-        // so the SQLite DB remains uninitialized (`None`) during this pure initialization test.
         let db_lock = state.db.blocking_lock();
         assert!(
             db_lock.is_none(),

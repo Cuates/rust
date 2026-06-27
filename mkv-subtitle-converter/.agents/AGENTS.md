@@ -20,3 +20,6 @@ When assisting with this project, adhere to the following rules:
 ## Documentation Maintenance
 - Use the `docs/adr/` directory for any new Architecture Decision Records.
 - Update `START_HERE.md` or `plan.md` if significant architectural or roadmap changes occur.
+
+## Backend State Management
+- **Cancellation**: Do not clear physical file trackers (like `active_paths`) directly from the abort command. The abort command strictly signals a `tokio_util::sync::CancellationToken`. State cleanup must be delegated back to the main processing loop to avoid race conditions.

@@ -1,15 +1,20 @@
 ---
 title: "Project Sandbox & Roadmap"
 status: "Active"
-version: "1.9.0"
+version: "1.9.1"
 ---
 
 # 🗺️ Project Plan & Sandbox
 
 This document tracks current milestones, active tasks, and known edge-cases.
 
+## ✅ Recently Completed
+- Handled AI Audit Report findings (MP-1 and MP-2).
+- Improved testing completeness and implemented safer history cancellation logic.
+- Bumped application version to `1.9.1`.
+
 ## 🚧 Current Focus
-- Maintain high testing coverage (~21%) across the Rust and Svelte boundaries using Vitest and Cargo test.
+- Maintain high testing coverage across the Rust and Svelte boundaries using Vitest and Cargo test.
 - Optimize the Rust Transcoding Core Engine for parsing massive multi-GB MKV files more efficiently.
 
 ## 🐛 Known Edge Cases / Troubleshooting

@@ -11,7 +11,7 @@ Welcome to the **MKV Subtitle Converter** project! This is a high-performance de
 ## 🏗️ Architecture at a Glance
 This project is a highly decoupled **pnpm monorepo**:
 - **Frontend (`/frontend`)**: SvelteKit (SPA mode), Svelte 5 Runes, Vite.
-- **Backend (`/backend`)**: Tauri 2.0 and Rust.
+- **Backend (`/backend`)**: Tauri 2.0, Rust, and Tokio (utilizing robust `CancellationToken` state management).
 - **Sidecars (`/backend/sidecars`)**: Embedded FFmpeg and FFprobe binaries for native processing without global system dependencies.
 
 ## 🛠️ Prerequisites
