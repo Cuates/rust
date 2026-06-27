@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.8.2-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.8.3-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -310,7 +310,7 @@ cargo add tauri-plugin-fs
 cargo add tauri-plugin-dialog
 cargo add tauri-plugin-opener
 cargo add tauri-plugin-shell
-cargo add indexmap serde serde_json chrono tokio regex
+cargo add indexmap serde serde_json chrono tokio regex rusqlite
 ```
 
 ---
@@ -422,6 +422,7 @@ The file system processing pipeline logic is fully managed inside `backend/src/l
 2. **Layout Parsing Structure:** Uses `ffprobe` sidecars to scan targets, fetch track maps, and isolate binary layout properties (`default_flag`, `forced_flag`).
 3. **Async Subprocess Spawn:** Launches independent `ffmpeg` extraction sub-routines mapped inside Tokio tasks.
 4. **Rust Transcoding Core Engine:** Parses raw time markers out of SRT logs via standard buffers and structurally rewrites text elements using customized style blocks inside highly optimized Advanced SubStation Alpha (ASS) files.
+5. **Session Logs and Local Database History:** Employs an embedded SQLite database (`rusqlite`) and session logs to persist file processing statuses, preventing redundant workloads across user sessions and providing accurate system outputs to the UI.
 
 ---
 

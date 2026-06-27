@@ -641,6 +641,15 @@ pub async fn get_directory_stats(
 // SIDECAR VERSION
 // =============================================================================
 
+pub fn parse_sidecar_version(stdout: &[u8]) -> String {
+    std::str::from_utf8(stdout)
+        .unwrap_or("")
+        .lines()
+        .next()
+        .unwrap_or("Unknown")
+        .to_string()
+}
+
 #[tauri::command]
 pub async fn get_sidecar_version<R: tauri::Runtime>(
     app: AppHandle<R>,
@@ -658,14 +667,7 @@ pub async fn get_sidecar_version<R: tauri::Runtime>(
         .await
         .map_err(|e| AppError::Sidecar(e.to_string()))?;
 
-    let version_line = std::str::from_utf8(&output.stdout)
-        .unwrap_or("")
-        .lines()
-        .next()
-        .unwrap_or("Unknown")
-        .to_string();
-
-    Ok(version_line)
+    Ok(parse_sidecar_version(&output.stdout))
 }
 
 // =============================================================================
@@ -1029,5 +1031,113 @@ mod tests {
         let status = reports.remove(&path_str).unwrap();
         assert!(status.has_success);
         assert!(status.has_failure);
+    }
+
+    #[test]
+    fn test_parse_sidecar_version() {
+        assert_eq!(
+            parse_sidecar_version(b"ffmpeg version 5.1.2\nbuilt with gcc\n"),
+            "ffmpeg version 5.1.2"
+        );
+        assert_eq!(parse_sidecar_version(b""), "Unknown");
+        assert_eq!(parse_sidecar_version(&[255, 255, 255]), "Unknown");
+    }
+
+    #[tokio::test]
+    #[cfg(not(target_os = "windows"))] // Fix Windows headless WebView2 issues
+    async fn test_abort_mkv_directory_processing() {
+        let builder = tauri::test::mock_builder();
+        let app = crate::app_builder(builder)
+            .build(tauri::test::mock_context(
+                "1.0.0",
+                "1.0.0",
+                "0.1.0",
+                tauri::test::mock_context::Assets::default(),
+            ))
+            .unwrap();
+
+        let state = app.state::<crate::models::AppState>();
+
+        // Inject a dummy path to simulate an active session
+        {
+            let mut session = state.process.lock().await;
+            session
+                .session_output_files
+                .push(std::path::PathBuf::from("dummy_output.srt"));
+        }
+
+        abort_mkv_directory_processing(state.clone()).await.unwrap();
+
+        // Verify token is cancelled
+        let session = state.process.lock().await;
+        assert!(session.cancel.is_cancelled());
+    }
+
+    #[tokio::test]
+    #[cfg(not(target_os = "windows"))]
+    async fn test_history_commands() {
+        let builder = tauri::test::mock_builder();
+        let app = crate::app_builder(builder)
+            .build(tauri::test::mock_context(
+                "1.0.0",
+                "1.0.0",
+                "0.1.0",
+                tauri::test::mock_context::Assets::default(),
+            ))
+            .unwrap();
+
+        let handle = app.app_handle();
+        let state = handle.state::<crate::models::AppState>();
+
+        // Setup db
+        let conn = crate::history::init_db(handle).unwrap();
+        *state.db.blocking_lock() = Some(conn);
+
+        let count = get_history_count(handle.clone()).await.unwrap();
+        assert_eq!(count, 0);
+
+        clear_processing_history(handle.clone()).await.unwrap();
+        let count_after = get_history_count(handle.clone()).await.unwrap();
+        assert_eq!(count_after, 0);
+    }
+
+    #[tokio::test]
+    #[cfg(not(target_os = "windows"))]
+    async fn test_session_logs() {
+        let builder = tauri::test::mock_builder();
+        let app = crate::app_builder(builder)
+            .build(tauri::test::mock_context(
+                "1.0.0",
+                "1.0.0",
+                "0.1.0",
+                tauri::test::mock_context::Assets::default(),
+            ))
+            .unwrap();
+
+        let handle = app.app_handle();
+
+        // initialize the log
+        initialize_session_log(handle.clone()).unwrap();
+
+        // log a message
+        log_message(handle.clone(), "test log message".to_string());
+
+        // check log exists
+        let exists = check_session_log(handle.clone()).await.unwrap();
+        assert!(exists);
+
+        // read the log
+        let content = read_session_log(handle.clone()).await.unwrap();
+        assert!(content.contains("test log message"));
+
+        // test save log file
+        let temp_dir = tempfile::tempdir().unwrap();
+        let save_path = temp_dir.path().join("saved.log");
+        save_log_file(handle.clone(), save_path.to_string_lossy().into_owned())
+            .await
+            .unwrap();
+
+        let saved_content = tokio::fs::read_to_string(&save_path).await.unwrap();
+        assert!(saved_content.contains("test log message"));
     }
 }

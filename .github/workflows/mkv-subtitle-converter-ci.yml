@@ -244,6 +244,7 @@ jobs:
     strategy:
       matrix:
         # Note: macos-13 (Intel) was removed due to extreme queue times (> 1 hour) on GitHub's free tier. 
+        # We are intentionally opting out of a scheduled weekly Intel Mac job as well.
         # Apple Silicon (macos-latest) provides sufficient validation for macOS CI logic.
         os: [macos-latest]
     runs-on: ${{ matrix.os }}
@@ -293,4 +294,6 @@ jobs:
         run: pnpm prebuild
 
       - name: Run tests
-        run: pnpm test -- --nocapture
+        run: |
+          pnpm -F frontend test:unit --run
+          cargo test --manifest-path backend/Cargo.toml -- --nocapture

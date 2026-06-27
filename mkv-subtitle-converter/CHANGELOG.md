@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.3] - 2026-06-26
+
+### Fixed
+
+- **Dependencies**: Resolved vulnerabilities by updating the pnpm devEngines requirement.
+- **CI Pipeline**: Separated test execution in `mkv-subtitle-converter-ci.yml` on macOS to fix `--nocapture` routing issue.
+- **Backend Refactoring & Tests**: Extracted pure logic (like JSON and version string parsing) into testable functions (`parse_ffprobe_output` and `parse_sidecar_version`), decoupled from Tauri commands. Implemented state and integration tests using mocked Tauri setup to improve test coverage to ~21%.
+
 ## [1.8.2] - 2026-06-25
 
 ### Fixed

@@ -259,6 +259,66 @@ pub struct SubtitleStream {
     pub forced_flag: i64,
 }
 
+pub fn parse_ffprobe_output(stdout: &[u8]) -> Result<Vec<SubtitleStream>, AppError> {
+    let parsed: serde_json::Value =
+        serde_json::from_slice(stdout).map_err(|e| AppError::FfprobeFailed(e.to_string()))?;
+
+    let mut streams = Vec::new();
+    if let Some(arr) = parsed["streams"].as_array() {
+        for stream in arr {
+            if let Some(idx) = stream["index"].as_u64() {
+                let codec = stream["codec_name"]
+                    .as_str()
+                    .unwrap_or("subrip")
+                    .to_string();
+
+                // Use a default language if tags or language is missing
+                let mut lang = "und".to_string();
+                if let Some(l) = stream
+                    .get("tags")
+                    .and_then(|t| t.get("language"))
+                    .and_then(|l| l.as_str())
+                {
+                    lang = l.to_string();
+                }
+                if lang.trim().is_empty() {
+                    lang = "und".to_string();
+                }
+
+                let title = stream
+                    .get("tags")
+                    .and_then(|t| t.get("title"))
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                let default_flag = stream
+                    .get("disposition")
+                    .and_then(|d| d.get("default"))
+                    .and_then(|d| d.as_i64())
+                    .unwrap_or(0);
+
+                let forced_flag = stream
+                    .get("disposition")
+                    .and_then(|d| d.get("forced"))
+                    .and_then(|d| d.as_i64())
+                    .unwrap_or(0);
+
+                streams.push(SubtitleStream {
+                    index: idx as u32,
+                    codec,
+                    language: lang,
+                    title,
+                    default_flag,
+                    forced_flag,
+                });
+            }
+        }
+    }
+
+    Ok(streams)
+}
+
 pub async fn run_ffprobe_subtitle_streams<R: tauri::Runtime>(
     app: &AppHandle<R>,
     file_path: &Path,
@@ -284,41 +344,7 @@ pub async fn run_ffprobe_subtitle_streams<R: tauri::Runtime>(
         .await
         .map_err(|e| AppError::FfprobeFailed(e.to_string()))?;
 
-    let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .map_err(|e| AppError::FfprobeFailed(e.to_string()))?;
-
-    let mut streams = Vec::new();
-    if let Some(arr) = parsed["streams"].as_array() {
-        for stream in arr {
-            if let Some(idx) = stream["index"].as_u64() {
-                let codec = stream["codec_name"]
-                    .as_str()
-                    .unwrap_or("subrip")
-                    .to_string();
-                let mut lang = stream["tags"]["language"]
-                    .as_str()
-                    .unwrap_or("und")
-                    .to_string();
-                if lang.trim().is_empty() {
-                    lang = "und".to_string();
-                }
-                let title = stream["tags"]["title"].as_str().unwrap_or("").to_string();
-                let default_flag = stream["disposition"]["default"].as_i64().unwrap_or(0);
-                let forced_flag = stream["disposition"]["forced"].as_i64().unwrap_or(0);
-
-                streams.push(SubtitleStream {
-                    index: idx as u32,
-                    codec,
-                    language: lang,
-                    title,
-                    default_flag,
-                    forced_flag,
-                });
-            }
-        }
-    }
-
-    Ok(streams)
+    parse_ffprobe_output(&output.stdout)
 }
 
 // -----------------------------------------------------------------------------
@@ -793,6 +819,74 @@ mod tests {
         assert!(
             ass_content.contains("Dialogue: 0,0:00:03.00,0:00:04.00,Default,,0,0,0,,Next text")
         );
+    }
+
+    #[test]
+    fn test_parse_ffprobe_output_valid() {
+        let json_output = r#"{
+            "streams": [
+                {
+                    "index": 2,
+                    "codec_name": "subrip",
+                    "disposition": {
+                        "default": 1,
+                        "forced": 0
+                    },
+                    "tags": {
+                        "language": "eng",
+                        "title": "English (SDH)"
+                    }
+                },
+                {
+                    "index": 3,
+                    "codec_name": "ass",
+                    "disposition": {
+                        "default": 0,
+                        "forced": 1
+                    }
+                }
+            ]
+        }"#;
+
+        let streams = parse_ffprobe_output(json_output.as_bytes()).unwrap();
+        assert_eq!(streams.len(), 2);
+
+        assert_eq!(streams[0].index, 2);
+        assert_eq!(streams[0].codec, "subrip");
+        assert_eq!(streams[0].language, "eng");
+        assert_eq!(streams[0].title, "English (SDH)");
+        assert_eq!(streams[0].default_flag, 1);
+        assert_eq!(streams[0].forced_flag, 0);
+
+        assert_eq!(streams[1].index, 3);
+        assert_eq!(streams[1].codec, "ass");
+        assert_eq!(streams[1].language, "und"); // missing tags falls back to und
+        assert_eq!(streams[1].title, "");
+        assert_eq!(streams[1].default_flag, 0);
+        assert_eq!(streams[1].forced_flag, 1);
+    }
+
+    #[test]
+    fn test_parse_ffprobe_output_invalid_json() {
+        let json_output = r#"{ "streams": [ { "index": 2, "codec_name": "subrip" "#;
+        let result = parse_ffprobe_output(json_output.as_bytes());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_ffprobe_output_empty_language() {
+        let json_output = r#"{
+            "streams": [
+                {
+                    "index": 2,
+                    "tags": {
+                        "language": "   "
+                    }
+                }
+            ]
+        }"#;
+        let streams = parse_ffprobe_output(json_output.as_bytes()).unwrap();
+        assert_eq!(streams[0].language, "und");
     }
 
     use proptest::prelude::*;

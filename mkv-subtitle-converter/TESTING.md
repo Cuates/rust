@@ -50,4 +50,9 @@ cargo test
 - Place `#[cfg(test)]` modules at the bottom of the file you are testing.
 - For logic that touches the filesystem (e.g. checking paths, parsing SRTs), use the `tempfile` crate to generate isolated, disposable test directories.
 - **Property-Based Testing**: Use the `proptest` crate to generate large permutations of inputs for functions with complex edge cases (like the SRT to ASS conversion parsing logic) to ensure no unexpected panics.
-- **Tauri Command Integration**: Due to WebView2 instantiation issues in headless environments on Windows, avoid using `tauri::test::mock_builder()`. Instead, test the core backend handler functions directly. If they perform heavy I/O, wrap them in `tokio::task::spawn_blocking`, and wrap the outer test execution in a `tokio::time::timeout` to prevent test hangs.
+- **Tauri Command Integration**: Due to WebView2 instantiation issues in headless environments on Windows, avoid using `tauri::test::mock_builder()` or `tauri::test::create_app()` unconditionally. Instead, conditionally compile these integration tests using `#[cfg(not(target_os = "windows"))]`, and test the core backend handler functions directly for all platforms. If they perform heavy I/O, wrap them in `tokio::task::spawn_blocking`, and wrap the outer test execution in a `tokio::time::timeout` to prevent test hangs.
+
+## Continuous Integration
+
+- We use GitHub Actions for automated testing.
+- **Intel Mac Support**: We have explicitly opted out of running CI on Intel Macs (macos-13) and will not implement a scheduled weekly job for it either. This is a pragmatic decision to avoid extreme queue times (>1 hour) on the GitHub free tier. Apple Silicon (macos-latest) provides sufficient validation for macOS CI logic.

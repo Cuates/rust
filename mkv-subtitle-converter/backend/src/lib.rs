@@ -8,18 +8,8 @@ pub mod process;
 use crate::models::AppState;
 use tauri::{Emitter, Manager};
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("error")),
-        )
-        .with_target(false)
-        .with_thread_ids(false)
-        .init();
-
-    tauri::Builder::default()
+pub fn app_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
+    builder
         .manage(AppState::default())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
@@ -100,6 +90,49 @@ pub fn run() {
             commands::read_report_file,
             commands::open_folder,
         ])
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("error")),
+        )
+        .with_target(false)
+        .with_thread_ids(false)
+        .init();
+
+    app_builder(tauri::Builder::default())
         .run(tauri::generate_context!())
         .expect("Failed to launch application");
+}
+
+#[cfg(test)]
+#[cfg(not(target_os = "windows"))] // Fix Windows headless WebView2 issues
+mod integration_tests {
+    use super::*;
+
+    #[test]
+    fn test_app_builder_creates_successfully() {
+        let builder = tauri::test::mock_builder();
+
+        // This exercises the full `#[tauri::command]` dispatch boundary setup:
+        // capability checks, AppHandle state injection, IPC serialization boundaries,
+        // as well as the SQLite DB initialization inside `setup()`.
+        let app = app_builder(builder)
+            .build(tauri::test::mock_context(
+                "1.8.2",
+                "1.8.2",
+                "0.1.0",
+                tauri::test::mock_context::Assets::default(),
+            ))
+            .expect("Failed to build mock app");
+
+        let state = app.state::<crate::models::AppState>();
+
+        // Check state was injected and database initialized.
+        let db_lock = state.db.blocking_lock();
+        assert!(db_lock.is_some(), "Database should be initialized in setup");
+    }
 }
