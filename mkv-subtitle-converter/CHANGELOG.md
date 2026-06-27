@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Dependencies**: Resolved vulnerabilities by updating the pnpm devEngines requirement.
 - **CI Pipeline**: Separated test execution in `mkv-subtitle-converter-ci.yml` on macOS to fix `--nocapture` routing issue.
-- **Backend Refactoring & Tests**: Extracted pure logic (like JSON and version string parsing) into testable functions (`parse_ffprobe_output` and `parse_sidecar_version`), decoupled from Tauri commands. Implemented state and integration tests using mocked Tauri setup to improve test coverage to ~21%.
+- **Backend Refactoring & Tests**: Extracted pure logic (like JSON and version string parsing) into testable functions (`parse_ffprobe_output` and `parse_sidecar_version`), decoupled from Tauri commands. Implemented state and integration tests using mocked Tauri setup to improve test coverage to ~21%. Fixed a macOS CI compilation error by updating `tauri::test::mock_context()` to conform to the new Tauri v2 API signature (passing a single `NoopAsset` argument instead of four arguments).
 
 ## [1.8.2] - 2026-06-25
 

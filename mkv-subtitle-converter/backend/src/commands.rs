@@ -1048,12 +1048,7 @@ mod tests {
     async fn test_abort_mkv_directory_processing() {
         let builder = tauri::test::mock_builder();
         let app = crate::app_builder(builder)
-            .build(tauri::test::mock_context(
-                "1.0.0",
-                "1.0.0",
-                "0.1.0",
-                tauri::test::mock_context::Assets::default(),
-            ))
+            .build(tauri::test::mock_context(tauri::test::NoopAsset))
             .unwrap();
 
         let state = app.state::<crate::models::AppState>();
@@ -1078,12 +1073,7 @@ mod tests {
     async fn test_history_commands() {
         let builder = tauri::test::mock_builder();
         let app = crate::app_builder(builder)
-            .build(tauri::test::mock_context(
-                "1.0.0",
-                "1.0.0",
-                "0.1.0",
-                tauri::test::mock_context::Assets::default(),
-            ))
+            .build(tauri::test::mock_context(tauri::test::NoopAsset))
             .unwrap();
 
         let handle = app.app_handle();
@@ -1106,12 +1096,7 @@ mod tests {
     async fn test_session_logs() {
         let builder = tauri::test::mock_builder();
         let app = crate::app_builder(builder)
-            .build(tauri::test::mock_context(
-                "1.0.0",
-                "1.0.0",
-                "0.1.0",
-                tauri::test::mock_context::Assets::default(),
-            ))
+            .build(tauri::test::mock_context(tauri::test::NoopAsset))
             .unwrap();
 
         let handle = app.app_handle();
