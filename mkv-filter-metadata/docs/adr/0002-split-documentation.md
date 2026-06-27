@@ -1,4 +1,4 @@
-# 1. Decentralize Project Documentation
+# 2. Decentralize Project Documentation
 
 Date: 2026-06-27
 

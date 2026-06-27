@@ -30,3 +30,8 @@ When operating within the `MKV-Filter-Metadata` workspace, adhere to the followi
    - When updating UI features or dependencies, ensure `frontend/README.md` is updated.
    - When updating pipeline logic or Rust dependencies, ensure `backend/README.md` is updated.
    - Update overarching documentation files (`docs/architecture.md`, `docs/scaffolding.md`, `docs/distribution.md`, `docs/troubleshooting.md`) as needed.
+
+5. **CI/CD Pipeline:**
+   - **Environment Setup**: All CI environment setup (Node, pnpm, Rust, Caching) must be delegated to the local Composite Action `.github/actions/mkv-filter-metadata-setup`.
+   - **Working Directories**: When authoring steps inside the composite action, always explicitly define `working-directory: mkv-filter-metadata` for pnpm/cargo commands to prevent monorepo pathing failures.
+   - **Test Deduplication**: The Ubuntu runner (`Test Coverage`) executes strictly `pnpm run test:coverage` without a standard `pnpm test` step to prevent redundant double-execution of the test suites.

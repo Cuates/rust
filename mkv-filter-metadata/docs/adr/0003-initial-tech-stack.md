@@ -4,7 +4,7 @@ status: "accepted"
 author: "AI Assistant"
 ---
 
-# 2. Initial Tech Stack Selection
+# 3. Initial Tech Stack Selection
 
 ## Context
 

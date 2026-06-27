@@ -5,9 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.2.0] - 2026-06-27
+## [1.2.1] - 2026-06-27
 
 ### Added
+- Overhauled GitHub Actions CI pipeline (`mkv-filter-metadata-ci.yml`) to use a centralized composite setup action.
+- Added macOS (Apple Silicon) and Windows test jobs to the CI pipeline to ensure cross-platform compatibility.
+
+### Changed
+- Promoted application to version 1.2.1.
+- Updated sidecar cache keys in CI to securely isolate OS and Architecture binaries.
+- Migrated Rust backend test coverage tool from `cargo-tarpaulin` to `cargo-llvm-cov` for standardized reporting.
+
+## [1.2.0] - 2026-06-27
 - Split monolithic README into a decentralized `docs/` structure, alongside `frontend/README.md` and `backend/README.md` for proper AI context ingestion.
 
 ### Changed

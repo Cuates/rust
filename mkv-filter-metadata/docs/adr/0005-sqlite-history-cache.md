@@ -4,7 +4,7 @@ status: "accepted"
 author: "AI Assistant"
 ---
 
-# 4. SQLite Processing History Cache
+# 5. SQLite Processing History Cache
 
 ## Context
 

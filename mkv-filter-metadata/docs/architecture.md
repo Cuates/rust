@@ -36,6 +36,11 @@ mkv-filter-metadata/
 ├── .agents/                      # AI assistant configuration and skills
 │   ├── AGENTS.md                 # Agent behavior rules and architecture guidelines
 │   └── skills/                   # Custom agent workflows
+├── .github/                      # GitHub Actions CI/CD workflows
+│   ├── actions/
+│   │   └── mkv-filter-metadata-setup/ # Composite CI environment setup action
+│   └── workflows/
+│       └── mkv-filter-metadata-ci.yml # Main CI pipeline (multi-platform)
 ├── docs/                         # Project documentation and architecture records
 │   ├── architecture.md           # Architecture overview and tree structure
 │   ├── distribution.md           # Production build and distribution guide
@@ -43,7 +48,12 @@ mkv-filter-metadata/
 │   ├── troubleshooting.md        # Common pitfalls and issues
 │   ├── KNOWLEDGE_GRAPH.md        # Mermaid diagrams of system data flow
 │   └── adr/                      # Architecture Decision Records
-│       └── 0001-split-documentation.md
+│       ├── 0001-record-architecture-decisions.md
+│       ├── 0002-split-documentation.md
+│       ├── 0003-initial-tech-stack.md
+│       ├── 0004-embedded-binary-sidecars.md
+│       ├── 0005-sqlite-history-cache.md
+│       └── 0006-centralized-ci-setup.md
 ├── package.json                  # Root workspace orchestrator scripts
 ├── pnpm-workspace.yaml           # Monorepo boundary (frontend only)
 ├── README.md                     # Monorepo root README

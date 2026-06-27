@@ -17,6 +17,7 @@ tarpaulin-report.json
 backend/coverage.json
 Html/
 *.profraw
+lcov.info
 
 # Tauri Backend Sidecars
 backend/sidecars/*

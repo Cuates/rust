@@ -11,6 +11,7 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 ## 🎯 Current Objectives
 - [x] Decentralize monolithic README for improved AI agent ingestion.
 - [x] Establish standard documentation (START_HERE, KNOWLEDGE_GRAPH, ADRs).
+- [x] Refactor GitHub Actions CI/CD to use centralized setup and cross-platform jobs.
 - [ ] Monitor pipeline telemetry stability across platforms.
 - [ ] Optimize hardware-accelerated preset defaults based on user feedback.
 

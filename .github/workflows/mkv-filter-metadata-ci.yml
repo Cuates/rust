@@ -23,46 +23,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Tauri OS Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'pnpm'
-          cache-dependency-path: mkv-filter-metadata/pnpm-lock.yaml
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: mkv-filter-metadata/backend
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Cache sidecar binaries
-        uses: actions/cache@v4
-        id: sidecar-cache
-        with:
-          path: mkv-filter-metadata/backend/sidecars
-          key: sidecars-${{ hashFiles('mkv-filter-metadata/scripts/download-sidecars.mjs') }}
-
-      - name: Download sidecars
-        if: steps.sidecar-cache.outputs.cache-hit != 'true'
-        run: pnpm prebuild
+      - name: Setup Environment
+        uses: ./.github/actions/mkv-filter-metadata-setup
 
       - name: Frontend check
         run: pnpm -F frontend check
@@ -77,8 +39,7 @@ jobs:
         run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 
   test:
-    name: Test & Coverage
-    needs: [lint]
+    name: Test Coverage
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -87,57 +48,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Tauri OS Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11
-          run_install: false
+      - name: Setup Environment
+        uses: ./.github/actions/mkv-filter-metadata-setup
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'pnpm'
-          cache-dependency-path: mkv-filter-metadata/pnpm-lock.yaml
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: mkv-filter-metadata/backend
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Cache sidecar binaries
-        uses: actions/cache@v4
-        id: sidecar-cache
-        with:
-          path: mkv-filter-metadata/backend/sidecars
-          key: sidecars-${{ hashFiles('mkv-filter-metadata/scripts/download-sidecars.mjs') }}
-
-      - name: Download sidecars
-        if: steps.sidecar-cache.outputs.cache-hit != 'true'
-        run: pnpm prebuild
-
-      - name: Install cargo-tarpaulin
-        uses: taiki-e/install-action@cargo-tarpaulin
-
-      - name: Run tests
-        run: pnpm test
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Enforce test coverage
         run: pnpm run test:coverage
 
   build:
     name: Build Validation
-    needs: [lint]
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -146,45 +67,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Tauri OS Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'pnpm'
-          cache-dependency-path: mkv-filter-metadata/pnpm-lock.yaml
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: mkv-filter-metadata/backend
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Cache sidecar binaries
-        uses: actions/cache@v4
-        id: sidecar-cache
-        with:
-          path: mkv-filter-metadata/backend/sidecars
-          key: sidecars-${{ hashFiles('mkv-filter-metadata/scripts/download-sidecars.mjs') }}
-
-      - name: Download sidecars
-        if: steps.sidecar-cache.outputs.cache-hit != 'true'
-        run: pnpm prebuild
+      - name: Setup Environment
+        uses: ./.github/actions/mkv-filter-metadata-setup
 
       - name: Build Application
         run: CARGO_PROFILE_RELEASE_LTO=false pnpm exec tauri build --no-bundle
+
+  test-windows:
+    name: Test on Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: mkv-filter-metadata
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/mkv-filter-metadata-setup
+
+      - name: Run tests
+        run: pnpm test
+
+  test-macos:
+    name: Test on macOS
+    strategy:
+      matrix:
+        os: [macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      RUST_BACKTRACE: "1"
+    defaults:
+      run:
+        working-directory: mkv-filter-metadata
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/mkv-filter-metadata-setup
+
+      - name: Run tests
+        run: |
+          pnpm -F frontend test:unit --run
+          cargo test --manifest-path backend/Cargo.toml -- --nocapture

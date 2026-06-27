@@ -1,6 +1,6 @@
 {
   "name": "mkv-filter-metadata",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -14,7 +14,7 @@
     "app-info": "tauri info",
     "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
     "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
-    "test:coverage": "pnpm -F frontend coverage && cargo tarpaulin --manifest-path backend/Cargo.toml --out Html"
+    "test:coverage": "pnpm -F frontend coverage && cargo llvm-cov --manifest-path backend/Cargo.toml --all-features --workspace --lcov --output-path lcov.info"
   },
   "license": "MIT",
   "devDependencies": {

@@ -4,7 +4,7 @@ status: "accepted"
 author: "AI Assistant"
 ---
 
-# 3. Embedded Binary Sidecars
+# 4. Embedded Binary Sidecars
 
 ## Context
 
