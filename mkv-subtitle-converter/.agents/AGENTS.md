@@ -18,6 +18,7 @@ When assisting with this project, adhere to the following rules:
 - Core scripts (`pnpm dev`, `pnpm build`) are mapped in the root `package.json`.
 
 ## Documentation Maintenance
+- The project documentation is modular. Frontend docs are in `frontend/`, backend in `backend/`, and general architecture in `docs/`.
 - Use the `docs/adr/` directory for any new Architecture Decision Records.
 - Update `START_HERE.md` or `plan.md` if significant architectural or roadmap changes occur.
 

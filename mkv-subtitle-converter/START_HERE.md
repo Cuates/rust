@@ -1,6 +1,6 @@
 ---
 title: "Start Here"
-last_updated: 2026-06-26
+last_updated: 2026-06-27
 audience: "Contributors"
 ---
 
@@ -29,6 +29,6 @@ Run these from the **workspace root**:
 - `pnpm clean`: Purges workspace artifacts, caches, and modules cleanly.
 
 ## 📚 Dive Deeper
-- See the comprehensive [README.md](./README.md) for full architecture and setup details.
+- See the comprehensive [README.md](./README.md) and the `docs/` directory for full architecture and setup details.
 - See the [Knowledge Graph](./docs/KNOWLEDGE_GRAPH.md) for data flow diagrams.
 - See the [Architecture Decision Records](./docs/adr) for historical tech choices.
