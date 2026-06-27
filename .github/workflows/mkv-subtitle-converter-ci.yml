@@ -39,7 +39,7 @@ jobs:
         run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 
   test:
-    name: Test & Coverage
+    name: Test Coverage
     runs-on: ubuntu-latest
     defaults:
       run:

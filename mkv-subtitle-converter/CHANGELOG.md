@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **CI/CD Pipeline**: Refactored GitHub Actions workflows to run multiple test targets (Windows, macOS, Linux) in parallel, and removed redundant double-execution of the test suite on Ubuntu runners to significantly decrease pipeline duration.
+- **CI/CD Pipeline**: Refactored GitHub Actions workflows to run multiple test targets (Windows, macOS, Linux) in parallel, removed redundant double-execution of the test suite on Ubuntu runners to significantly decrease pipeline duration, and renamed the Ubuntu job to "Test Coverage" for semantic clarity.
 - **Environment Automation**: Added a reusable Composite Action (`.github/actions/mkv-subtitle-converter-setup`) to centralize Node, pnpm, and Rust environment setups.
 - **Test Coverage**: Updated `package.json` test scripts to integrate frontend coverage collection alongside backend coverage using `cargo llvm-cov`.
 - **Documentation**: Updated repository guides (`scaffolding.md`, `architecture.md`) to correctly reflect the direct `frontend`/`backend` directory structure.

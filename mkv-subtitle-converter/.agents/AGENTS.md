@@ -31,4 +31,4 @@ When assisting with this project, adhere to the following rules:
 ## CI/CD Pipeline
 - **Environment Setup**: All CI environment setup (Node, pnpm, Rust, Caching) must be delegated to the local Composite Action `.github/actions/mkv-subtitle-converter-setup`.
 - **Working Directories**: When authoring steps inside the composite action, always explicitly define `working-directory: mkv-subtitle-converter` for pnpm/cargo commands to prevent monorepo pathing failures.
-- **Test Deduplication**: The Ubuntu runner (`Test & Coverage`) executes strictly `pnpm run test:coverage` without a standard `pnpm test` step to prevent redundant double-execution of the test suites.
+- **Test Deduplication**: The Ubuntu runner (`Test Coverage`) executes strictly `pnpm run test:coverage` without a standard `pnpm test` step to prevent redundant double-execution of the test suites.
