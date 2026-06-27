@@ -1081,7 +1081,7 @@ mod tests {
 
         // Setup db
         let conn = crate::history::init_db(handle).unwrap();
-        *state.db.blocking_lock() = Some(conn);
+        *state.db.lock().await = Some(conn);
 
         let count = get_history_count(handle.clone()).await.unwrap();
         assert_eq!(count, 0);
