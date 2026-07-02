@@ -53,6 +53,7 @@ export interface AppConfig {
   crf: number;
   reencode_concurrency: number;
   remux_concurrency: number;
+  storage_type: 'ssd' | 'hdd';
   notifications: boolean;
 }
 
@@ -70,6 +71,7 @@ const DEFAULT_CONFIG: AppConfig = {
   crf: 18,
   reencode_concurrency: 2,
   remux_concurrency: 4,
+  storage_type: 'ssd',
   notifications: true
 };
 
@@ -106,6 +108,10 @@ export async function loadConfig() {
     config.remux_concurrency = 8;
   }
 
+  if (config.storage_type === 'hdd') {
+    config.remux_concurrency = 1;
+  }
+
   configState.isLoaded = true;
 }
 
@@ -130,6 +136,7 @@ export function initConfigWatcher() {
       crf: config.crf,
       reencode_concurrency: config.reencode_concurrency,
       remux_concurrency: config.remux_concurrency,
+      storage_type: config.storage_type,
       notifications: config.notifications
     };
 

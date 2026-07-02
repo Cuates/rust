@@ -38,3 +38,7 @@ When operating within the `MKV-Filter-Metadata` workspace, adhere to the followi
 
 6. **Frontend Testing:**
    - **TypeScript & SvelteKit Sync**: During isolated testing routines (e.g. CI environments), ensure frontend testing scripts (`vitest`) are always prefixed with `svelte-kit sync`. This guarantees the `.svelte-kit` directory and base `tsconfig.json` are dynamically generated, preventing compiler resolution warnings.
+
+7. **Storage & Concurrency:**
+   - Always ensure `reencode_concurrency` remains fully decoupled from mechanical drive constraints. HDD thrashing only applies to streaming `Remux` writes, not slow CPU/GPU re-encodes.
+   - When modifying pipeline execution, respect the `sysinfo` Adaptive Throttling safeguards to prevent total OS lockups.

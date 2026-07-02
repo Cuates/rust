@@ -53,7 +53,8 @@ mkv-filter-metadata/
 │       ├── 0003-initial-tech-stack.md
 │       ├── 0004-embedded-binary-sidecars.md
 │       ├── 0005-sqlite-history-cache.md
-│       └── 0006-centralized-ci-setup.md
+│       ├── 0006-centralized-ci-setup.md
+│       └── 0007-adaptive-throttling-and-storage-concurrency.md
 ├── package.json                  # Root workspace orchestrator scripts
 ├── pnpm-workspace.yaml           # Monorepo boundary (frontend only)
 ├── README.md                     # Monorepo root README
@@ -105,7 +106,7 @@ mkv-filter-metadata/
 │
 └── backend/                      # Rust + Tauri v2 Native System Layer
     ├── README.md                 # Backend layer documentation
-    ├── Cargo.toml                # Rust dependencies
+    ├── Cargo.toml                # Rust dependencies (rusqlite, sysinfo, etc.)
     ├── tauri.conf.json           # Window, plugins, bundle, security config
     ├── capabilities/
     │   └── default.json          # Tauri v2 permission scopes

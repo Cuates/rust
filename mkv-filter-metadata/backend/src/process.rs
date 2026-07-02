@@ -415,6 +415,65 @@ pub fn parse_ffmpeg_time(time_str: &str) -> Option<f64> {
     }
 }
 
+// Lowers OS scheduling priority for a freshly spawned sidecar so it yields
+// to foreground work instead of starving the whole machine. Best-effort -
+// failures here are silently ignored, never block processing.
+fn lower_process_priority(pid: u32) {
+    // --- Windows -------------------------------------------------------------
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Threading::{
+            BELOW_NORMAL_PRIORITY_CLASS, OpenProcess, PROCESS_SET_INFORMATION, SetPriorityClass,
+        };
+        unsafe {
+            if let Ok(handle) = OpenProcess(PROCESS_SET_INFORMATION, false, pid) {
+                // NOT PROCESS_MODE_BACKGROUND_BEGIN - that flag only works on
+                // the calling process itself, not on a spawned child.
+                let _ = SetPriorityClass(handle, BELOW_NORMAL_PRIORITY_CLASS);
+                let _ = CloseHandle(handle);
+            }
+        }
+    }
+
+    // --- Unix (Linux + macOS): guaranteed POSIX baseline -------------------
+    #[cfg(unix)]
+    unsafe {
+        // Nice value 10: below default (0), well below foreground apps.
+        // setpriority() is standard POSIX, present in libc on every Unix
+        // target - no syscall-table uncertainty. This alone measurably
+        // reduces how aggressively ffmpeg competes for CPU, which indirectly
+        // throttles how fast it can issue I/O too.
+        libc::setpriority(libc::PRIO_PROCESS, pid as libc::id_t, 10);
+    }
+
+    // --- Linux: optional I/O-scheduler enhancement -----------------------
+    // glibc ships no wrapper for ioprio_set - it must go through the raw
+    // syscall. If `libc::SYS_ioprio_set` doesn't resolve on your toolchain,
+    // delete this block; setpriority() above still does real work on its own.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        const IOPRIO_CLASS_BE: i64 = 2; // best-effort scheduling class
+        const IOPRIO_LEVEL_LOWEST: i64 = 7; // 0 = highest, 7 = lowest
+        const IOPRIO_WHO_PROCESS: i64 = 1;
+        let ioprio = (IOPRIO_CLASS_BE << 13) | IOPRIO_LEVEL_LOWEST;
+        libc::syscall(libc::SYS_ioprio_set, IOPRIO_WHO_PROCESS, pid as i64, ioprio);
+    }
+
+    // --- macOS: optional I/O-scheduler enhancement -----------------------
+    // setiopolicy_np is the real API macOS's own ionice-equivalent tools
+    // use (shipped since Mac OS X 10.5). Same caveat as above - if these
+    // constants aren't exported by your libc version, delete this block.
+    #[cfg(target_os = "macos")]
+    unsafe {
+        libc::setiopolicy_np(
+            libc::IOPOL_TYPE_DISK,
+            libc::IOPOL_SCOPE_PROCESS,
+            libc::IOPOL_THROTTLE,
+        );
+    }
+}
+
 /// Helper function to execute a sidecar command and handle its events.
 pub async fn run_sidecar_command<R: tauri::Runtime>(
     app: &AppHandle<R>,
@@ -439,6 +498,8 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
             "Failed allocating processing thread instance context: {e}"
         ))
     })?;
+
+    lower_process_priority(child.pid());
 
     let cancel_token = {
         let mut session = state.process.lock().await;

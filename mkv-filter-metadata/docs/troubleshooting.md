@@ -9,3 +9,5 @@
 | **FFmpeg subtitle errors** | The self-healing fallback handles most cases automatically. If a container truly doesn't support any subtitle format, the file will be processed without subtitles. |
 | **Package script name conflicts** | Root scripts avoid names that collide with pnpm internals (e.g., `app-info` instead of `info`). |
 | **Silent crashes in production** | The release binary includes a panic hook. If the app spontaneously exits, check the bottom of `session.log` in your app data directory for a `[FATAL] PANIC:` message. |
+| **Pipeline automatically pausing (Yellow Toast)** | This is a safety feature known as **Adaptive System Throttling**. If your CPU usage spikes above 90% or available RAM falls below 15%, the app stops spawning new tasks to prevent your OS from freezing. Processing will automatically resume (Green Toast) when resources recover. |
+| **Remux slider stuck at 1** | If you selected **HDD** (Mechanical Hard Drive) as your target drive type in Settings, the app strictly clamps Remux concurrency to 1 to prevent severe physical read/write head thrashing. Re-encoding concurrency is not affected by this lock. |

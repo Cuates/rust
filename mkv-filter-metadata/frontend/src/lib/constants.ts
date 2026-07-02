@@ -20,5 +20,6 @@ export const TAURI_EVENTS = {
   DB_INIT_FAILED: 'db-init-failed',
   DRAG_ENTER: 'tauri://drag-enter',
   DRAG_LEAVE: 'tauri://drag-leave',
-  DRAG_DROP: 'tauri://drag-drop'
+  DRAG_DROP: 'tauri://drag-drop',
+  RESOURCE_THROTTLE: 'resource-throttle'
 } as const;

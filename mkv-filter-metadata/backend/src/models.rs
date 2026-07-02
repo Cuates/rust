@@ -53,6 +53,14 @@ pub enum Preset {
     Default,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum StorageType {
+    Ssd,
+    Hdd,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoPipelinePayload {
     pub input_directories: Vec<String>,
@@ -66,6 +74,7 @@ pub struct VideoPipelinePayload {
     pub crf: String,
     pub reencode_concurrency: usize,
     pub remux_concurrency: usize,
+    pub storage_type: StorageType,
 }
 
 #[derive(Serialize, Clone)]
@@ -100,6 +109,7 @@ pub struct AppState {
     pub log_writer: std::sync::Mutex<Option<SessionLog>>,
     pub encoder_caps: tokio::sync::OnceCell<EncoderCapabilities>,
     pub db: tokio::sync::Mutex<Option<rusqlite::Connection>>,
+    pub resource_monitor: tokio::sync::Mutex<sysinfo::System>,
 }
 
 pub struct ProcessSession {
@@ -125,6 +135,7 @@ impl Default for AppState {
             log_writer: std::sync::Mutex::new(None),
             encoder_caps: tokio::sync::OnceCell::new(),
             db: tokio::sync::Mutex::new(None),
+            resource_monitor: tokio::sync::Mutex::new(sysinfo::System::new()),
         }
     }
 }

@@ -208,11 +208,23 @@ describe('DirectoryQueue.svelte', () => {
     await fireEvent.drop(box);
   });
 
-  it.skip('tests pointer down functionality and drag logic', async () => {
+  it('tests pointer down functionality and drag logic', async () => {
     config.input_directories = ['/folder1', '/folder2'];
     const { component, container } = render(DirectoryQueue);
 
     const items = container.querySelectorAll('.queue-item');
+    const box = container.querySelector('#queue-box') as HTMLElement;
+    box.getBoundingClientRect = vi.fn(() => ({
+      top: 50,
+      bottom: 264,
+      left: 0,
+      right: 200,
+      width: 200,
+      height: 214,
+      x: 0,
+      y: 50,
+      toJSON: () => {}
+    }));
 
     // Simulate pointer down on first item
     await fireEvent.pointerDown(items[0], { clientY: 100 });
@@ -256,11 +268,11 @@ describe('DirectoryQueue.svelte', () => {
     await fireEvent.pointerDown(items[0], { clientY: 150 });
 
     // Pointer move below the top boundary threshold (auto scroll up)
-    component.handleGlobalPointerMove({ clientY: 105 } as PointerEvent);
+    await fireEvent.pointerMove(window, { clientY: 105 });
 
     // Pointer move above the bottom boundary threshold (auto scroll down)
-    component.handleGlobalPointerMove({ clientY: 260 } as PointerEvent);
+    await fireEvent.pointerMove(window, { clientY: 260 });
 
-    component.handleGlobalPointerUp();
+    await fireEvent.pointerUp(window);
   });
 });

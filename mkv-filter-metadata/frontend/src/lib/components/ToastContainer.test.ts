@@ -17,14 +17,17 @@ describe('ToastContainer.svelte', () => {
   it('renders toasts from store', async () => {
     addToast('Test Message 1', 'success');
     addToast('Test Message 2', 'error');
+    addToast('Test Message 3', 'warning');
 
     const { container } = render(ToastContainer);
 
     expect(screen.getByText('Test Message 1')).toBeInTheDocument();
     expect(screen.getByText('Test Message 2')).toBeInTheDocument();
-    expect(container.querySelectorAll('.toast').length).toBe(2);
+    expect(screen.getByText('Test Message 3')).toBeInTheDocument();
+    expect(container.querySelectorAll('.toast').length).toBe(3);
     expect(container.querySelectorAll('.toast-success').length).toBe(1);
     expect(container.querySelectorAll('.toast-error').length).toBe(1);
+    expect(container.querySelectorAll('.toast-warning').length).toBe(1);
   });
 
   it('removes toast when close button is clicked', async () => {

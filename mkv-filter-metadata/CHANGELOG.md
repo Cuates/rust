@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-07-01
+
+### Added
+- Implemented Adaptive System Throttling utilizing the `sysinfo` crate to actively monitor global CPU and RAM usage, automatically pausing pipeline generation when CPU > 90% or RAM < 15% to prevent system lockups.
+- Added a Target Drive Type (HDD vs SSD) dropdown configuration to apply storage-aware constraints.
+
+### Changed
+- Promoted application to version 1.2.2.
+- Decoupled `reencode_concurrency` from mechanical drive restrictions. GPU-accelerated re-encodes will now run at max concurrency even when targeting an HDD, while purely IO-bound `remux_concurrency` tasks are heavily clamped to 1 to prevent read/write head thrashing.
+
+### Fixed
+- Fixed an unstable Vitest DOM drag-and-drop boundary mock in `DirectoryQueue.svelte`, restoring branch coverage back over 80%.
+
 ## [1.2.1] - 2026-06-27
 
 ### Added

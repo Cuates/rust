@@ -69,7 +69,7 @@ describe('TerminalLog.svelte', () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Log 1\n');
 
     // Test copiedStatus reset
-    vi.runAllTimers();
+    await vi.runAllTimersAsync();
     vi.useRealTimers();
   });
 
@@ -119,7 +119,7 @@ describe('TerminalLog.svelte', () => {
     expect(invoke).toHaveBeenCalledWith('save_log_file', { path: 'C:\\logs\\test.log' });
 
     // Test savedStatus reset
-    vi.runAllTimers();
+    await vi.runAllTimersAsync();
     vi.useRealTimers();
   });
 

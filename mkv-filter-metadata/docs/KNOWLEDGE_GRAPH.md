@@ -29,9 +29,11 @@ sequenceDiagram
     Backend->>Backend: Skip existing, filter remaining by extension
     
     %% Processing Phase
+    Backend->>Backend: Check System Resources via sysinfo (CPU/RAM)<br/>Pause task spawning if >90% CPU or <15% RAM
     Backend->>FFprobe: Scan file streams (Identify subtitle languages)
     FFprobe-->>Backend: Return stream metadata (ISO 639 codes)
     Backend->>Backend: Build HW-accelerated FFmpeg command<br/>(Apply codec, preset, CRF, and track maps)
+    Backend->>Backend: Enforce Storage-Aware Concurrency<br/>(Clamp Remux to 1 on HDD, decouple Re-encode)
     Backend->>FFmpeg: Spawn Async Subprocess (Remux/Reencode)
     Backend->>MKVMerge: (Optional) Spawn Subprocess for specific MKV muxing tasks
     

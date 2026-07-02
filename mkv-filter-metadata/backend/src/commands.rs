@@ -320,6 +320,15 @@ fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
         }
     }
 
+    if payload.storage_type == crate::models::StorageType::Hdd
+        && payload.conversion_mode == ConversionMode::Remux
+        && payload.remux_concurrency > 1
+    {
+        return Err(AppError::Process(
+            "Remux concurrency must be 1 on HDD - concurrent stream copies thrash the physical read/write head.".into(),
+        ));
+    }
+
     if payload.output_extension.is_empty() {
         return Err(AppError::Process("Output extension is required".into()));
     }
@@ -667,6 +676,80 @@ async fn process_one_file<R: tauri::Runtime>(
     Ok(res)
 }
 
+#[derive(Clone, serde::Serialize)]
+pub struct ResourceThrottlePayload {
+    pub throttled: bool,
+    pub cpu_percent: f32,
+    pub available_memory_percent: f32,
+}
+
+pub struct ResourceThresholds {
+    pub max_cpu_percent: f32,
+    pub min_available_mem_percent: f32,
+}
+
+impl Default for ResourceThresholds {
+    fn default() -> Self {
+        Self {
+            max_cpu_percent: 90.0,
+            min_available_mem_percent: 15.0,
+        }
+    }
+}
+
+pub async fn wait_for_resources<R: tauri::Runtime>(
+    app: &AppHandle<R>,
+    state: &tauri::State<'_, AppState>,
+    thresholds: &ResourceThresholds,
+) {
+    let mut announced = false;
+    loop {
+        let (cpu, avail_pct) = {
+            let mut sys = state.resource_monitor.lock().await;
+            sys.refresh_cpu_usage();
+            sys.refresh_memory();
+            let cpu = sys.global_cpu_info().cpu_usage();
+            let avail_pct = if sys.total_memory() > 0 {
+                (sys.available_memory() as f32 / sys.total_memory() as f32) * 100.0
+            } else {
+                100.0
+            };
+            (cpu, avail_pct)
+        };
+
+        let congested =
+            cpu > thresholds.max_cpu_percent || avail_pct < thresholds.min_available_mem_percent;
+
+        if !congested {
+            if announced {
+                let _ = app.emit(
+                    crate::constants::EVENT_RESOURCE_THROTTLE,
+                    ResourceThrottlePayload {
+                        throttled: false,
+                        cpu_percent: cpu,
+                        available_memory_percent: avail_pct,
+                    },
+                );
+            }
+            return;
+        }
+
+        if !announced {
+            let _ = app.emit(
+                crate::constants::EVENT_RESOURCE_THROTTLE,
+                ResourceThrottlePayload {
+                    throttled: true,
+                    cpu_percent: cpu,
+                    available_memory_percent: avail_pct,
+                },
+            );
+            announced = true;
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+    }
+}
+
 #[tauri::command]
 pub async fn process_video_pipeline<R: tauri::Runtime>(
     app: AppHandle<R>,
@@ -757,6 +840,8 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
     let sem = std::sync::Arc::new(tokio::sync::Semaphore::new(concurrency_limit));
     let mut set = tokio::task::JoinSet::new();
 
+    let resource_thresholds = ResourceThresholds::default();
+
     for (index, (queue_dir, file_path)) in target_files.into_iter().enumerate() {
         if cancel_token.is_cancelled() {
             return Err(AppError::Aborted);
@@ -767,6 +852,9 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
             .acquire_owned()
             .await
             .map_err(|_| AppError::Aborted)?;
+
+        wait_for_resources(&app, &state, &resource_thresholds).await;
+
         let app_clone = app.clone();
         let payload_clone = payload.clone();
         let cancel_token_clone = cancel_token.clone();
@@ -1263,5 +1351,45 @@ mod tests {
         assert!(
             validate_preset_codec_compat(&VideoCodec::HevcVideotoolbox, &Preset::Fast).is_err()
         );
+    }
+
+    #[test]
+    fn test_validate_payload_hdd_remux_clamping() {
+        use crate::models::{VideoPipelinePayload, StorageType, ConversionMode, VideoCodec, Preset};
+        let mut payload = VideoPipelinePayload {
+            input_directories: vec!["/dummy".into()],
+            file_extensions: "mkv".into(),
+            recursive: true,
+            subtitle_tracks: "eng".into(),
+            output_extension: "mp4".into(),
+            conversion_mode: ConversionMode::Remux,
+            video_codec: VideoCodec::Libx264,
+            preset: Preset::Default,
+            crf: "23".into(),
+            reencode_concurrency: 4,
+            remux_concurrency: 2,
+            storage_type: StorageType::Hdd,
+        };
+
+        // HDD + Remux + remux_concurrency > 1 should fail
+        assert!(validate_payload(&payload).is_err());
+
+        // HDD + Remux + remux_concurrency == 1 should pass
+        payload.remux_concurrency = 1;
+        assert!(validate_payload(&payload).is_ok());
+
+        // HDD + Reencode + reencode_concurrency > 1 should pass (reencode concurrency is decoupled)
+        payload.conversion_mode = ConversionMode::Reencode;
+        payload.video_codec = VideoCodec::HevcNvenc; // Hardware codec allows > 2
+        payload.preset = Preset::P4;
+        payload.reencode_concurrency = 4;
+        payload.remux_concurrency = 2; // ignored during Reencode validation for HDD
+        assert!(validate_payload(&payload).is_ok());
+
+        // SSD + Remux + remux_concurrency > 1 should pass
+        payload.storage_type = StorageType::Ssd;
+        payload.conversion_mode = ConversionMode::Remux;
+        payload.remux_concurrency = 4;
+        assert!(validate_payload(&payload).is_ok());
     }
 }

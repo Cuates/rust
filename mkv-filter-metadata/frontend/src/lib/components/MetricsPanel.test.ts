@@ -81,4 +81,26 @@ describe('MetricsPanel.svelte', () => {
     render(MetricsPanel);
     expect(screen.queryByText('Storage Saved:')).not.toBeInTheDocument();
   });
+
+  it('renders negative storage saved correctly (increased size)', () => {
+    pipeline.totalFilesCount = 1;
+    pipeline.completedFilesCount = 1; // 100%
+    pipeline.storageOriginalBytes = 1000;
+    pipeline.storageOutputBytes = 2000; // Increased size
+
+    render(MetricsPanel);
+    expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
+    expect(screen.getByText(/-100.00%/)).toBeInTheDocument();
+  });
+
+  it('renders zero storage saved correctly (unchanged size)', () => {
+    pipeline.totalFilesCount = 1;
+    pipeline.completedFilesCount = 1; // 100%
+    pipeline.storageOriginalBytes = 1000;
+    pipeline.storageOutputBytes = 1000; // No change
+
+    render(MetricsPanel);
+    expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
+    expect(screen.getByText(/0.00%/)).toBeInTheDocument();
+  });
 });

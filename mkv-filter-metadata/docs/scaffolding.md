@@ -10,10 +10,10 @@
 | **Rust Components** | `clippy`, `rustfmt` | `rustup component add clippy rustfmt` |
 | **OS Build Tools** | — | See below |
 
-**OS-Specific Build Tools:**
-- **Windows:** Visual Studio C++ Build Tools
-- **macOS:** Xcode Command Line Tools
-- **Linux:** `build-essential`, `curl`, `wget`, `file`, `libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev`
+**OS-Specific Build Tools & Sysinfo Hooks:**
+- **Windows:** Visual Studio C++ Build Tools (Required for `sysinfo` CPU/RAM telemetry hooks and Tauri).
+- **macOS:** Xcode Command Line Tools (Provides `sysinfo` access to `mach` kernel telemetry).
+- **Linux:** `build-essential`, `curl`, `wget`, `file`, `libssl-dev`, `libgtk-3-dev`, `libwebkit2gtk-4.1-dev` (Provides `sysinfo` access to `/proc` stats).
 
 ---
 

@@ -208,6 +208,29 @@
 
       <div class="shortcut-row">
         <div style="width: 200px; display: flex; flex-direction: column;">
+          <span>Target Drive Type:</span>
+          <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
+            >(Clamps max concurrency on HDDs)</span
+          >
+        </div>
+        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
+          <select
+            bind:value={config.storage_type}
+            onchange={() => {
+              if (config.storage_type === 'hdd') {
+                config.remux_concurrency = 1;
+              }
+            }}
+            style="padding: 0.5rem; background: var(--background); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;"
+          >
+            <option value="ssd">Solid State Drive (SSD / NVMe)</option>
+            <option value="hdd">Mechanical Hard Drive (HDD)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="shortcut-row">
+        <div style="width: 200px; display: flex; flex-direction: column;">
           <span>Re-encode Concurrency:</span>
           <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
             >(Recommended: 1-2 CPU, 2-4 GPU)</span
@@ -245,14 +268,14 @@
           <input
             type="range"
             min="1"
-            max="8"
+            max={config.storage_type === 'hdd' ? 1 : 8}
             bind:value={config.remux_concurrency}
             style="flex: 1;"
           />
           <span
             style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
           >
-            {config.remux_concurrency} (Max: 8)
+            {config.remux_concurrency} (Max: {config.storage_type === 'hdd' ? 1 : 8})
           </span>
         </div>
       </div>

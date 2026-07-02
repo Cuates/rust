@@ -228,6 +228,26 @@
         emitLog(`❌ History DB Error: ${event.payload}`);
       });
 
+      const unlistenThrottle = await listen<{
+        throttled: boolean;
+        cpu_percent: number;
+        available_memory_percent: number;
+      }>(TAURI_EVENTS.RESOURCE_THROTTLE, (event) => {
+        pipeline.resourceThrottled = event.payload.throttled;
+        if (event.payload.throttled) {
+          addToast(
+            `⚠️ Resource limits exceeded (CPU: ${event.payload.cpu_percent.toFixed(
+              0
+            )}%, Memory left: ${event.payload.available_memory_percent.toFixed(
+              0
+            )}%). Pausing new tasks...`,
+            'warning'
+          );
+        } else {
+          addToast('✅ Resources recovered. Resuming pipeline...', 'success');
+        }
+      });
+
       const appWindow = getCurrentWindow();
       let isClosing = false;
       const unlistenCloseFn = await appWindow.onCloseRequested((event) => {
@@ -250,6 +270,7 @@
         unlistenLargeBatchFn();
         unlistenCloseFn();
         unlistenDbInit();
+        unlistenThrottle();
         unlistenDrop();
         unlistenDrag();
         unlistenDragCancelled();

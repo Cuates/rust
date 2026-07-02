@@ -12,6 +12,8 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 - [x] Decentralize monolithic README for improved AI agent ingestion.
 - [x] Establish standard documentation (START_HERE, KNOWLEDGE_GRAPH, ADRs).
 - [x] Refactor GitHub Actions CI/CD to use centralized setup and cross-platform jobs.
+- [x] Implement system resource management (CPU/RAM telemetry) to prevent freezes.
+- [x] Implement target drive type (HDD vs SSD) constraints to prevent IO thrashing.
 - [ ] Monitor pipeline telemetry stability across platforms.
 - [ ] Optimize hardware-accelerated preset defaults based on user feedback.
 
