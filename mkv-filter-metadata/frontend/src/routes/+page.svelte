@@ -1,7 +1,8 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
-  import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window';
+  import { getCurrentWindow } from '@tauri-apps/api/window';
+  import type { ProgressBarStatus } from '@tauri-apps/api/window';
   import { onMount, tick } from 'svelte';
 
   import { config, appState, configState } from '../lib/stores/config.svelte';
@@ -55,17 +56,17 @@
         if (pipeline.overallProgress < 100) {
           appWindow
             .setProgressBar({
-              status: ProgressBarStatus.Normal,
+              status: 'normal' as ProgressBarStatus,
               progress: pipeline.overallProgress
             })
             .catch(console.error);
         } else {
-          appWindow.setProgressBar({ status: ProgressBarStatus.None }).catch(console.error);
+          appWindow.setProgressBar({ status: 'none' as ProgressBarStatus }).catch(console.error);
         }
       }
     } else if (!pipeline.processingActive && lastProgressPercentage !== -1) {
       lastProgressPercentage = -1;
-      appWindow.setProgressBar({ status: ProgressBarStatus.None }).catch(console.error);
+      appWindow.setProgressBar({ status: 'none' as ProgressBarStatus }).catch(console.error);
     }
   });
 

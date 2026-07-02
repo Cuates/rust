@@ -1,5 +1,5 @@
 ---
-title: "Frontend Layer (SvelteKit)"
+title: 'Frontend Layer (SvelteKit)'
 last_updated: 2026-07-02
 ---
 
