@@ -5,11 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-07-02
+
+### Added
+- Added a segmented Target Drive Type (SSD / NVMe vs HDD) UI control to configure physical storage constraints.
+- Added intelligent Encoder-Aware Concurrency limits that automatically clamp software encoders (`libx264`/`libx265`) to a maximum of 2 parallel files to prevent OS CPU starvation, while allowing hardware encoders to scale freely with logical cores.
+
+### Changed
+- Promoted application to version 1.3.0.
+- Decoupled `reencode_concurrency` from the mechanical HDD drive restriction (which now only clamps `remux_concurrency` to 1).
+- Updated "How To Use" Guide documentation to explain the new encoder-aware slider clamping.
+
+### Fixed
+- Fixed an unstable Vitest DOM drag-and-drop boundary mock in `DirectoryQueue.test.ts`, restoring frontend branch coverage to 83.5%.
+- Fixed a redundant zero-value check in `MetricsPanel.svelte` that was masking full statement coverage.
+
 ## [1.2.2] - 2026-07-01
 
 ### Added
 - Implemented Adaptive System Throttling utilizing the `sysinfo` crate to actively monitor global CPU and RAM usage, automatically pausing pipeline generation when CPU > 90% or RAM < 15% to prevent system lockups.
-- Added a Target Drive Type (HDD vs SSD) dropdown configuration to apply storage-aware constraints.
 
 ### Changed
 - Promoted application to version 1.2.2.

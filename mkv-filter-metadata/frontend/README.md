@@ -4,14 +4,14 @@ This directory contains the reactive Svelte 5 / SvelteKit web-view frontend layo
 
 ## Frontend Component Architecture
 
-| Component                   | Responsibility                                                                                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`+page.svelte`**          | Root orchestrator: mounts all components, manages Tauri event listeners, timer logic, theme toggling, and the processing lifecycle             |
-| **`DirectoryQueue.svelte`** | Multi-directory queue with drag-and-drop reorder, per-row status badges, directory stats tooltips, open-folder actions, and file-drop handling |
-| **`ConfigPanel.svelte`**    | Conversion mode, file extension filter, subtitle filter, storage target drive, encoder/preset/CRF selection with dynamic hardware detection    |
-| **`MetricsPanel.svelte`**   | Overall progress bar, per-file progress bar, total conversion time, ETA, and storage savings display                                           |
-| **`TerminalLog.svelte`**    | Streaming FFmpeg log output with auto-scroll, copy-to-clipboard, and save-to-file                                                              |
-| **`ToastContainer.svelte`** | Stacked toast notifications with auto-dismiss, severity-based styling, and XSS-safe rendering. Also handles `sysinfo` throttling alerts        |
+| Component                   | Responsibility                                                                                                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`+page.svelte`**          | Root orchestrator: mounts all components, manages Tauri event listeners, timer logic, theme toggling, and the processing lifecycle                                                |
+| **`DirectoryQueue.svelte`** | Multi-directory queue with drag-and-drop reorder, per-row status badges, directory stats tooltips, open-folder actions, and file-drop handling                                    |
+| **`ConfigPanel.svelte`**    | Conversion mode, file extension filter, subtitle filter, storage target drive toggle (SSD/HDD), encoder/preset/CRF selection with intelligent hardware-aware concurrency clamping |
+| **`MetricsPanel.svelte`**   | Overall progress bar, per-file progress bar, total conversion time, ETA, and storage savings display                                                                              |
+| **`TerminalLog.svelte`**    | Streaming FFmpeg log output with auto-scroll, copy-to-clipboard, and save-to-file                                                                                                 |
+| **`ToastContainer.svelte`** | Stacked toast notifications with auto-dismiss, severity-based styling, and XSS-safe rendering. Also handles `sysinfo` throttling alerts                                           |
 
 ### State Management (Svelte 5 Runes)
 

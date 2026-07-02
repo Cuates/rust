@@ -54,7 +54,8 @@ mkv-filter-metadata/
 │       ├── 0004-embedded-binary-sidecars.md
 │       ├── 0005-sqlite-history-cache.md
 │       ├── 0006-centralized-ci-setup.md
-│       └── 0007-adaptive-throttling-and-storage-concurrency.md
+│       ├── 0007-adaptive-throttling-and-storage-concurrency.md
+│       └── 0008-encoder-aware-concurrency.md
 ├── package.json                  # Root workspace orchestrator scripts
 ├── pnpm-workspace.yaml           # Monorepo boundary (frontend only)
 ├── README.md                     # Monorepo root README

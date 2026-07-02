@@ -213,19 +213,35 @@
             >(Clamps max concurrency on HDDs)</span
           >
         </div>
-        <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
-          <select
-            bind:value={config.storage_type}
-            onchange={() => {
-              if (config.storage_type === 'hdd') {
-                config.remux_concurrency = 1;
-              }
-            }}
-            style="padding: 0.5rem; background: var(--background); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px;"
-          >
-            <option value="ssd">Solid State Drive (SSD / NVMe)</option>
-            <option value="hdd">Mechanical Hard Drive (HDD)</option>
-          </select>
+        <div style="display: flex; align-items: center; justify-content: flex-end; flex: 1;">
+          <div class="segmented-control" style="width: 100%; max-width: 300px;">
+            <label>
+              <input
+                type="radio"
+                value="ssd"
+                bind:group={config.storage_type}
+                onchange={() => {
+                  if (config.storage_type === 'hdd') {
+                    config.remux_concurrency = 1;
+                  }
+                }}
+              />
+              <span style="padding: 0.35rem; font-size: 0.85rem;">SSD / NVMe ⚡</span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                value="hdd"
+                bind:group={config.storage_type}
+                onchange={() => {
+                  if (config.storage_type === 'hdd') {
+                    config.remux_concurrency = 1;
+                  }
+                }}
+              />
+              <span style="padding: 0.35rem; font-size: 0.85rem;">HDD 💽</span>
+            </label>
+          </div>
         </div>
       </div>
 

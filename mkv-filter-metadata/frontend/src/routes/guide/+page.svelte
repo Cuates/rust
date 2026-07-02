@@ -125,12 +125,27 @@
 
       <h3 style="margin-top: 1rem;">Target Drive Type (SSD vs HDD)</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
-        When <strong>Mechanical Hard Drive (HDD)</strong> is selected in the
-        <a href="/settings" class="guide-link">Settings (⚙️)</a>, the application will automatically
-        clamp <strong>Remux</strong> concurrency to 1. This prevents physical head thrashing that
-        occurs when attempting to write multiple massive video streams simultaneously to a spinning
-        disk. <strong>Re-encoding</strong> concurrency is fully decoupled and will still utilize the maximum
-        limits of your CPU/GPU, as it is bottlenecked by the encoder rather than disk write speeds.
+        You can configure the physical drive type where your files are being saved using the <strong
+          >SSD / NVMe ⚡</strong
+        >
+        or <strong>HDD 💽</strong> toggle in the
+        <a href="/settings" class="guide-link">Settings (⚙️)</a>. When <strong>HDD</strong> is
+        selected, the application will automatically snap and clamp <strong>Remux</strong>
+        concurrency to a maximum of 1. This prevents physical head thrashing that occurs when
+        attempting to write multiple massive video streams simultaneously to a spinning disk.
+        <strong>Re-encoding</strong> concurrency is fully decoupled from this setting and will still utilize
+        the maximum limits of your hardware, as it is bottlenecked by the encoder rather than disk write
+        speeds.
+      </p>
+
+      <h3 style="margin-top: 1.5rem;">Encoder-Aware Concurrency Limits</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
+        The Re-encode concurrency slider intelligently adapts to your chosen video codec. If you
+        select a software encoder (like <strong>libx264</strong> or <strong>libx265</strong>), the
+        slider is clamped to a maximum of 2 concurrent files. This is because these software
+        encoders already heavily multi-thread across all your CPU cores internally to process a
+        single file. Hardware encoders (like NVENC, AMF, or QSV) will allow higher concurrency
+        limits based on your system hardware.
       </p>
 
       <h3 style="margin-top: 1.5rem;">Adaptive System Throttling</h3>

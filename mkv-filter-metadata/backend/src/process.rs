@@ -459,8 +459,6 @@ fn lower_process_priority(pid: u32) {
         let ioprio = (IOPRIO_CLASS_BE << 13) | IOPRIO_LEVEL_LOWEST;
         libc::syscall(libc::SYS_ioprio_set, IOPRIO_WHO_PROCESS, pid as i64, ioprio);
     }
-
-
 }
 
 /// Helper function to execute a sidecar command and handle its events.

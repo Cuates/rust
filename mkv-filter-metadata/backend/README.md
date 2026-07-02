@@ -15,6 +15,7 @@ Input Directory
       → FFprobe: inspect streams, identify subtitle tracks by language
       → Build command (FFmpeg or MKVMerge)
       → Validate Storage Concurrency (Clamp `ConversionMode::Remux` to 1 on `StorageType::Hdd`)
+      → Validate Encoder Concurrency (Clamp software encoders like `libx264` to max 2)
       → Execute sidecar (HW-Accelerated FFmpeg for transcode/remux, or MKVMerge for muxing)
       → Stream stderr/output for progress parsing
       → On subtitle incompatibility → auto-retry with ASS conversion or MKVMerge fallback

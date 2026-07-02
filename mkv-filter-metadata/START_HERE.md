@@ -1,6 +1,6 @@
 ---
 title: "Start Here"
-last_updated: 2026-06-27
+last_updated: 2026-07-02
 audience: "Contributors"
 ---
 
@@ -15,7 +15,8 @@ This project is a highly decoupled **pnpm monorepo**:
 - **Backend (`/backend`)**: Tauri 2.0 and Rust, using `tauri-plugin-store` for configuration state persistence and `sysinfo` for adaptive system throttling.
 - **Sidecars (`/backend/sidecars`)**: Embedded FFmpeg, FFprobe, and MKVMerge binaries for native processing without global system dependencies.
 - **Database**: SQLite (via `rusqlite`) for caching processed files and maintaining history.
-- **Storage-Aware Concurrency**: Dynamically clamps Remux stream-copying on mechanical drives (HDDs) to prevent physical head thrashing, while allowing maximum decoupled GPU concurrency for slow re-encodes.
+- **Storage-Aware Concurrency**: Dynamically clamps Remux stream-copying on mechanical drives (HDDs) to prevent physical head thrashing.
+- **Encoder-Aware Concurrency**: Intelligently clamps software encoders (like `libx264`) to a maximum of 2 parallel files to prevent CPU starvation, while letting hardware encoders decouple and run at maximum capacity.
 
 ## 🛠️ Prerequisites
 

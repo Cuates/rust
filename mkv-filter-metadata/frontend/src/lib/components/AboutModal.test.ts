@@ -141,4 +141,27 @@ describe('AboutModal.svelte', () => {
       expect(document.activeElement).toBe(lastElement);
     }
   });
+
+  it('ignores irrelevant key presses during focus trap', async () => {
+    const onClose = vi.fn();
+    const { container } = render(AboutModal, { props: { show: true, onClose } });
+    const backdrop = container.querySelector('.modal-backdrop');
+    if (backdrop) {
+      const preventDefault = vi.fn();
+      await fireEvent.keyDown(backdrop, { key: 'A', preventDefault });
+      expect(onClose).not.toHaveBeenCalled();
+      expect(preventDefault).not.toHaveBeenCalled();
+    }
+  });
+
+  it('automatically focuses the close button after a tick', async () => {
+    vi.useFakeTimers();
+    render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+
+    vi.runAllTimers();
+    vi.useRealTimers();
+
+    const closeBtn = screen.getByText('Close');
+    expect(document.activeElement).toBe(closeBtn);
+  });
 });

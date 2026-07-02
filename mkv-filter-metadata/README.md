@@ -2,7 +2,7 @@
 
 [![Maintained? yes](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Cuates/rust/graphs/commit-activity)
 [![MKV Filter Metadata CI](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.2.2-blue.svg)](https://github.com/Cuates/rust)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/Cuates/rust)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-FF3E00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8.svg)](https://tauri.app/)
@@ -12,7 +12,7 @@ A powerful batch-processing desktop application for filtering MKV metadata, stri
 
 Built on top of a highly optimized **pnpm monorepo workspace architecture**, the app cleanly splits its responsibilities across a reactive **Svelte 5 / SvelteKit** web-view frontend layout layer and a native **Tauri v2 / Rust** system execution backend layer. Crucially, the app ships completely self-contained by embedding cross-platform, static **FFmpeg**, **FFprobe**, and **MKVMerge** architecture sidecars, completely removing the requirement for users to have global dependencies installed on their operating systems.
 
-The processing pipeline features **Adaptive System Throttling** to monitor host CPU/RAM resources in real-time, preventing freezes during massive workloads, alongside **Storage-Aware Concurrency Constraints** that protect mechanical hard drives (HDDs) from physical read/write head thrashing during stream copies while still allowing maximum GPU parallelization during re-encodes.
+The processing pipeline features **Adaptive System Throttling** to monitor host CPU/RAM resources in real-time, preventing freezes during massive workloads, alongside **Storage-Aware Concurrency Constraints** that protect mechanical hard drives (HDDs) from physical read/write head thrashing during stream copies. Intelligent **Encoder-Aware Concurrency** dynamically clamps software encoders (like libx264) to prevent CPU starvation while allowing maximum hardware-accelerated parallelization.
 
 ---
 

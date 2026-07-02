@@ -243,9 +243,9 @@ describe('DirectoryQueue.svelte', () => {
     component.handleGlobalPointerUp();
   });
 
-  it('tests auto scroll boundaries', async () => {
+  it('tests auto scroll boundaries and scroll thresholds', async () => {
     config.input_directories = ['/folder1', '/folder2', '/folder3', '/folder4', '/folder5'];
-    const { container } = render(DirectoryQueue);
+    const { component, container } = render(DirectoryQueue);
 
     // Mock getBoundingClientRect
     const box = container.querySelector('#queue-box') as HTMLElement;
@@ -268,11 +268,32 @@ describe('DirectoryQueue.svelte', () => {
     await fireEvent.pointerDown(items[0], { clientY: 150 });
 
     // Pointer move below the top boundary threshold (auto scroll up)
-    await fireEvent.pointerMove(window, { clientY: 105 });
+    component.handleGlobalPointerMove({ clientY: 105 } as PointerEvent);
 
     // Pointer move above the bottom boundary threshold (auto scroll down)
-    await fireEvent.pointerMove(window, { clientY: 260 });
+    component.handleGlobalPointerMove({ clientY: 260 } as PointerEvent);
 
-    await fireEvent.pointerUp(window);
+    // Pointer move beyond bounding box
+    component.handleGlobalPointerMove({ clientY: 50 } as PointerEvent); // clamped to rect.top
+    component.handleGlobalPointerMove({ clientY: 300 } as PointerEvent); // clamped to rect.bottom
+
+    component.handleGlobalPointerUp();
+  });
+
+  it('renders non-issue tooltip for existing directory', () => {
+    config.input_directories = ['/folder1'];
+    pipeline.hasProcessClicked = true;
+    pipeline.directoryStats['/folder1'] = {
+      exists: true,
+      file_count: 5,
+      total_size_bytes: 500000,
+      files: []
+    } as import('../types').DirStats;
+
+    const { container } = render(DirectoryQueue);
+
+    // An info-circle without the "issue" class should be rendered
+    const infoCircle = container.querySelector('.info-circle:not(.issue)');
+    expect(infoCircle).toBeInTheDocument();
   });
 });

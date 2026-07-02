@@ -1,6 +1,6 @@
 ---
 title: "Project Plan & Sandbox"
-last_updated: 2026-06-27
+last_updated: 2026-07-02
 status: "active"
 ---
 
@@ -14,8 +14,9 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 - [x] Refactor GitHub Actions CI/CD to use centralized setup and cross-platform jobs.
 - [x] Implement system resource management (CPU/RAM telemetry) to prevent freezes.
 - [x] Implement target drive type (HDD vs SSD) constraints to prevent IO thrashing.
-- [ ] Monitor pipeline telemetry stability across platforms.
-- [ ] Optimize hardware-accelerated preset defaults based on user feedback.
+- [x] Implement encoder-aware concurrency limits to protect OS CPU resources.
+- [x] Monitor pipeline telemetry stability across platforms and expand Vitest coverage.
+- [x] Synchronize all markdown documentation files to perfectly reflect the 1.3.0 release.
 
 ## 💡 Sandbox Notes
 *(Use this space to draft ideas, outline upcoming Epics, or sketch workflows before converting them into GitHub issues or ADRs)*

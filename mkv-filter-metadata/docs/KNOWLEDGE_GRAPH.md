@@ -1,7 +1,7 @@
 ---
 title: "Architecture & Data Flow"
 tags: [tauri, svelte, rust, architecture, ffmpeg]
-last_updated: 2026-06-27
+last_updated: 2026-07-02
 ---
 
 # 🧠 Knowledge Graph
@@ -33,7 +33,8 @@ sequenceDiagram
     Backend->>FFprobe: Scan file streams (Identify subtitle languages)
     FFprobe-->>Backend: Return stream metadata (ISO 639 codes)
     Backend->>Backend: Build HW-accelerated FFmpeg command<br/>(Apply codec, preset, CRF, and track maps)
-    Backend->>Backend: Enforce Storage-Aware Concurrency<br/>(Clamp Remux to 1 on HDD, decouple Re-encode)
+    Backend->>Backend: Enforce Storage-Aware Concurrency<br/>(Clamp Remux to 1 on HDD)
+    Backend->>Backend: Enforce Encoder-Aware Concurrency<br/>(Clamp software encoders like libx264/libx265 to max 2)
     Backend->>FFmpeg: Spawn Async Subprocess (Remux/Reencode)
     Backend->>MKVMerge: (Optional) Spawn Subprocess for specific MKV muxing tasks
     

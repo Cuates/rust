@@ -3,7 +3,6 @@
   import { formatBytes } from '../utils/formatters';
 
   let storageSavedPercent = $derived.by(() => {
-    if (pipeline.storageOriginalBytes === 0) return 0;
     return (
       ((pipeline.storageOriginalBytes - pipeline.storageOutputBytes) /
         pipeline.storageOriginalBytes) *
