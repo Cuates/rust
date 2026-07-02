@@ -460,18 +460,7 @@ fn lower_process_priority(pid: u32) {
         libc::syscall(libc::SYS_ioprio_set, IOPRIO_WHO_PROCESS, pid as i64, ioprio);
     }
 
-    // --- macOS: optional I/O-scheduler enhancement -----------------------
-    // setiopolicy_np is the real API macOS's own ionice-equivalent tools
-    // use (shipped since Mac OS X 10.5). Same caveat as above - if these
-    // constants aren't exported by your libc version, delete this block.
-    #[cfg(target_os = "macos")]
-    unsafe {
-        libc::setiopolicy_np(
-            libc::IOPOL_TYPE_DISK,
-            libc::IOPOL_SCOPE_PROCESS,
-            libc::IOPOL_THROTTLE,
-        );
-    }
+
 }
 
 /// Helper function to execute a sidecar command and handle its events.
