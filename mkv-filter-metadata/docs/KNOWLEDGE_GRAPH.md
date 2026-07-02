@@ -51,4 +51,10 @@ sequenceDiagram
     Backend->>SQLite: Log successful conversions (path, size, mtime)
     Backend-->>Frontend: emit("LogMessage", ProgressPayload)
     Frontend-->>User: Display Progress UI, ETA, and Storage Savings
+    
+    %% Post-Processing
+    User->>Frontend: Click "Open Folder" Icon
+    Frontend->>Backend: invoke("open_processed_folder")
+    Backend->>Backend: Resolve cross-platform output path
+    Backend-->>User: Launch native OS file explorer
 ```

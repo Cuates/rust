@@ -28,7 +28,7 @@ This directory contains the reactive Svelte 5 / SvelteKit web-view frontend layo
 
 ## Features (UI Layer)
 
-- **Multi-Directory Processing Queue:** Drag-and-drop or browse to add multiple directories. Reorder via drag. Per-row status indicators.
+- **Multi-Directory Processing Queue:** Drag-and-drop or browse to add multiple directories. Reorder via drag. Per-row status indicators and one-click access to open completed output folders in the native OS file explorer.
 - **Real-Time Pipeline Telemetry:** Live progress bars (overall + per-file), OS taskbar progress indicator, running timer, and ETA estimation.
 - **Storage Savings Metrics:** After completion, displays original vs. output size with percentage saved.
 - **Streaming Terminal Log:** Real-time FFmpeg output with auto-scroll, copy-to-clipboard, and save-to-file.

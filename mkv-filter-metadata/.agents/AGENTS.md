@@ -44,3 +44,4 @@ When operating within the `MKV-Filter-Metadata` workspace, adhere to the followi
    - Always ensure `reencode_concurrency` remains fully decoupled from mechanical drive constraints. HDD thrashing only applies to streaming `Remux` writes, not slow CPU/GPU re-encodes.
    - When modifying backend concurrency logic, software encoders (`libx264`, `libx265`) must be strictly clamped to prevent OS CPU starvation, as they heavily parallelize internally.
    - When modifying pipeline execution, respect the `sysinfo` Adaptive Throttling safeguards to prevent total OS lockups.
+   - **File System Operations**: When modifying or opening file paths, always account for recursive nested subfolders and cross-platform path separators (Windows `\` vs Unix `/`).

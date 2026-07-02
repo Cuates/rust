@@ -84,26 +84,40 @@ frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 │   ├── lib/
 │   │   ├── components/           # Svelte UI components and their tests
 │   │   │   ├── AboutModal.svelte
+│   │   │   ├── AboutModal.test.ts
 │   │   │   ├── ConfigPanel.svelte
+│   │   │   ├── ConfigPanel.test.ts
 │   │   │   ├── ConfirmationModal.svelte
+│   │   │   ├── ConfirmationModal.test.ts
 │   │   │   ├── DirectoryQueue.svelte
+│   │   │   ├── DirectoryQueue.test.ts
 │   │   │   ├── MetricsPanel.svelte
+│   │   │   ├── MetricsPanel.test.ts
 │   │   │   ├── TerminalLog.svelte
+│   │   │   ├── TerminalLog.test.ts
 │   │   │   ├── TestWrapper.svelte
-│   │   │   └── ToastContainer.svelte
+│   │   │   ├── ToastContainer.svelte
+│   │   │   └── ToastContainer.test.ts
 │   │   ├── stores/               # Svelte 5 Runes state management
 │   │   │   ├── config.svelte.ts
+│   │   │   ├── config.test.ts
 │   │   │   ├── pipeline.svelte.ts
+│   │   │   ├── pipeline.test.ts
 │   │   │   ├── shortcuts.svelte.ts
-│   │   │   └── toast.svelte.ts
+│   │   │   ├── shortcuts.test.ts
+│   │   │   ├── toast.svelte.ts
+│   │   │   └── toast.test.ts
 │   │   ├── utils/                # Utility functions and tests
 │   │   │   ├── formatters.ts
-│   │   │   └── logClassifier.ts
+│   │   │   ├── formatters.test.ts
+│   │   │   ├── logClassifier.ts
+│   │   │   └── logClassifier.test.ts
 │   │   ├── constants.ts          # Shared frontend constants
 │   │   └── types.ts              # Zod schemas & TypeScript type definitions
 │   ├── routes/
 │   │   ├── guide/                # "How To Use" documentation page
-│   │   │   └── +page.svelte
+│   │   │   ├── +page.svelte
+│   │   │   └── page.test.ts
 │   │   ├── settings/             # Configuration, performance, and history management
 │   │   │   └── +page.svelte
 │   │   ├── +layout.svelte        # Global layout wrapper and font imports

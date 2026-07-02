@@ -17,6 +17,7 @@ This project is a highly decoupled **pnpm monorepo**:
 - **Database**: SQLite (via `rusqlite`) for caching processed files and maintaining history.
 - **Storage-Aware Concurrency**: Dynamically clamps Remux stream-copying on mechanical drives (HDDs) to prevent physical head thrashing.
 - **Encoder-Aware Concurrency**: Intelligently clamps software encoders (like `libx264`) to a maximum of 2 parallel files to prevent CPU starvation, while letting hardware encoders decouple and run at maximum capacity.
+- **Native File System Integration**: Utilizes `tauri-plugin-opener` for robust, cross-platform resolution of processed output directories directly in the user's OS file explorer.
 
 ## 🛠️ Prerequisites
 

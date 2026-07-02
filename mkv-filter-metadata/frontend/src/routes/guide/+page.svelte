@@ -201,6 +201,27 @@
         toggle in the <a href="/settings" class="guide-link">Settings (⚙️)</a> page.
       </p>
 
+      <h3 style="margin-top: 1.5rem;">Accessing Processed Files</h3>
+      <p
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.75rem;"
+      >
+        Once a batch finishes, you can quickly jump to your newly created files without having to
+        manually hunt through your file system:
+      </p>
+      <ol class="guide-list" style="list-style-type: decimal; padding-left: 2rem;">
+        <li>
+          Locate the completed directory in your <strong>Target Processing Queue</strong> (it will have
+          a green success state).
+        </li>
+        <li>
+          Click the <strong>Open Folder</strong> icon located on the far right side of that queue item.
+        </li>
+        <li>
+          Your operating system's native file explorer will instantly open the correct output
+          directory (even if the files were generated inside nested subfolders).
+        </li>
+      </ol>
+
       <h3 style="margin-top: 1.5rem;">Clear Processing History</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
         The application keeps track of which files have already been processed to prevent redundant

@@ -1288,10 +1288,29 @@ pub fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<bool, A
     Ok(false)
 }
 
+pub fn resolve_existing_parent_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut target_path = path.to_path_buf();
+
+    // If the exact folder (like 'processed_files' at the root) doesn't exist
+    // because files were processed in nested subfolders, traverse upwards.
+    while !target_path.exists() {
+        if let Some(parent) = target_path.parent() {
+            target_path = parent.to_path_buf();
+        } else {
+            break;
+        }
+    }
+
+    target_path
+}
+
 #[tauri::command]
 pub fn open_folder<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result<(), AppError> {
+    let target_path = resolve_existing_parent_path(std::path::Path::new(&path));
+    let resolved_path = target_path.to_string_lossy().to_string();
+
     app.opener()
-        .open_path(path, None::<&str>)
+        .open_path(resolved_path, None::<&str>)
         .map_err(|e| AppError::Process(format!("Failed to open folder: {}", e)))?;
     Ok(())
 }
@@ -1393,5 +1412,24 @@ mod tests {
         payload.conversion_mode = ConversionMode::Remux;
         payload.remux_concurrency = 4;
         assert!(validate_payload(&payload).is_ok());
+    }
+
+    #[test]
+    fn test_resolve_existing_parent_path() {
+        let temp = std::env::temp_dir();
+
+        // Exact existing path
+        assert_eq!(super::resolve_existing_parent_path(&temp), temp);
+
+        // Non-existent target, existing parent
+        let fake_child = temp.join("does_not_exist_12345");
+        assert_eq!(super::resolve_existing_parent_path(&fake_child), temp);
+
+        // Multiple levels of non-existent targets
+        let deep_fake = temp
+            .join("fake1_12345")
+            .join("fake2_12345")
+            .join("fake3_12345");
+        assert_eq!(super::resolve_existing_parent_path(&deep_fake), temp);
     }
 }

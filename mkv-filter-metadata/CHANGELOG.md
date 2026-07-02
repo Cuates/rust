@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-07-02
+
+### Added
+- Added an "Open Processed Files Folder" button to the Target Processing Queue UI, allowing users to instantly open their newly generated files in their native OS file explorer.
+
+### Changed
+- Promoted application to version 1.4.0.
+- Updated user documentation to explicitly explain the new post-processing file access workflow.
+
+### Fixed
+- Fixed a cross-platform path resolution bug in the Rust backend where opening a processed output folder would fail if the files were generated deeply inside nested subfolders during a recursive directory scan.
+
 ## [1.3.1] - 2026-07-02
 
 ### Changed
