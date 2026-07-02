@@ -1355,7 +1355,9 @@ mod tests {
 
     #[test]
     fn test_validate_payload_hdd_remux_clamping() {
-        use crate::models::{VideoPipelinePayload, StorageType, ConversionMode, VideoCodec, Preset};
+        use crate::models::{
+            ConversionMode, Preset, StorageType, VideoCodec, VideoPipelinePayload,
+        };
         let mut payload = VideoPipelinePayload {
             input_directories: vec!["/dummy".into()],
             file_extensions: "mkv".into(),

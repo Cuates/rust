@@ -8,18 +8,18 @@ This directory contains the reactive Svelte 5 / SvelteKit web-view frontend layo
 | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`+page.svelte`**          | Root orchestrator: mounts all components, manages Tauri event listeners, timer logic, theme toggling, and the processing lifecycle             |
 | **`DirectoryQueue.svelte`** | Multi-directory queue with drag-and-drop reorder, per-row status badges, directory stats tooltips, open-folder actions, and file-drop handling |
-| **`ConfigPanel.svelte`**    | Conversion mode, file extension filter, subtitle filter, storage target drive, encoder/preset/CRF selection with dynamic hardware detection |
+| **`ConfigPanel.svelte`**    | Conversion mode, file extension filter, subtitle filter, storage target drive, encoder/preset/CRF selection with dynamic hardware detection    |
 | **`MetricsPanel.svelte`**   | Overall progress bar, per-file progress bar, total conversion time, ETA, and storage savings display                                           |
 | **`TerminalLog.svelte`**    | Streaming FFmpeg log output with auto-scroll, copy-to-clipboard, and save-to-file                                                              |
 | **`ToastContainer.svelte`** | Stacked toast notifications with auto-dismiss, severity-based styling, and XSS-safe rendering. Also handles `sysinfo` throttling alerts        |
 
 ### State Management (Svelte 5 Runes)
 
-| Store                | Purpose                                                                                |
-| -------------------- | -------------------------------------------------------------------------------------- |
+| Store                | Purpose                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------- |
 | `config.svelte.ts`   | Input directories, encoder settings, HDD/SSD config, UI state (theme, hardware capabilities) |
-| `pipeline.svelte.ts` | Processing telemetry: progress, file index, timer, ETA, log buffer, directory statuses |
-| `toast.svelte.ts`    | Toast notification queue with add/dismiss helpers                                      |
+| `pipeline.svelte.ts` | Processing telemetry: progress, file index, timer, ETA, log buffer, directory statuses       |
+| `toast.svelte.ts`    | Toast notification queue with add/dismiss helpers                                            |
 
 ## Features (UI Layer)
 

@@ -245,7 +245,7 @@ describe('DirectoryQueue.svelte', () => {
 
   it('tests auto scroll boundaries', async () => {
     config.input_directories = ['/folder1', '/folder2', '/folder3', '/folder4', '/folder5'];
-    const { component, container } = render(DirectoryQueue);
+    const { container } = render(DirectoryQueue);
 
     // Mock getBoundingClientRect
     const box = container.querySelector('#queue-box') as HTMLElement;

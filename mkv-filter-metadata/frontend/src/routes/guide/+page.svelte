@@ -125,12 +125,30 @@
 
       <h3 style="margin-top: 1rem;">Target Drive Type (SSD vs HDD)</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
-        When <strong>Mechanical Hard Drive (HDD)</strong> is selected in the <a href="/settings" class="guide-link">Settings (⚙️)</a>, the application will automatically clamp <strong>Remux</strong> concurrency to 1. This prevents physical head thrashing that occurs when attempting to write multiple massive video streams simultaneously to a spinning disk. <strong>Re-encoding</strong> concurrency is fully decoupled and will still utilize the maximum limits of your CPU/GPU, as it is bottlenecked by the encoder rather than disk write speeds.
+        When <strong>Mechanical Hard Drive (HDD)</strong> is selected in the
+        <a href="/settings" class="guide-link">Settings (⚙️)</a>, the application will automatically
+        clamp <strong>Remux</strong> concurrency to 1. This prevents physical head thrashing that
+        occurs when attempting to write multiple massive video streams simultaneously to a spinning
+        disk. <strong>Re-encoding</strong> concurrency is fully decoupled and will still utilize the maximum
+        limits of your CPU/GPU, as it is bottlenecked by the encoder rather than disk write speeds.
       </p>
 
       <h3 style="margin-top: 1.5rem;">Adaptive System Throttling</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
-        The application continuously monitors your global system resources. If your CPU usage spikes above 90% or your available memory falls below 15%, the processing pipeline will automatically pause spawning new tasks to prevent your computer from freezing. You will see a <span class="log-warning" style="display:inline; margin:0; font-weight:600; color:var(--warning-color);">Yellow Toast</span> indicating the pause, followed by a <span class="log-success" style="display:inline; margin:0; font-weight:600; color:var(--success-color);">Green Toast</span> once system resources have recovered and processing resumes.
+        The application continuously monitors your global system resources. If your CPU usage spikes
+        above 90% or your available memory falls below 15%, the processing pipeline will
+        automatically pause spawning new tasks to prevent your computer from freezing. You will see
+        a <span
+          class="log-warning"
+          style="display:inline; margin:0; font-weight:600; color:var(--warning-color);"
+          >Yellow Toast</span
+        >
+        indicating the pause, followed by a
+        <span
+          class="log-success"
+          style="display:inline; margin:0; font-weight:600; color:var(--success-color);"
+          >Green Toast</span
+        > once system resources have recovered and processing resumes.
       </p>
     </div>
 
