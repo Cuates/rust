@@ -2,6 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/svelte';
 import AboutModal from './AboutModal.svelte';
+import { appState } from '$lib/stores/config.svelte';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 vi.mock('@tauri-apps/plugin-opener', () => ({
@@ -27,9 +28,28 @@ describe('AboutModal.svelte', () => {
   });
 
   it('renders correctly when show is true', () => {
+    appState.ffmpegVersion = '';
+    appState.ffprobeVersion = '';
+    appState.mkvmergeVersion = '';
+
     render(AboutModal, { props: { show: true, onClose: vi.fn() } });
     expect(screen.getByText('About MKV Filter Metadata')).toBeInTheDocument();
     expect(screen.getByText('1.0.0')).toBeInTheDocument();
+
+    // Check loading state
+    const loadingElements = screen.getAllByText('Loading...');
+    expect(loadingElements.length).toBe(3);
+  });
+
+  it('renders loaded versions correctly', () => {
+    appState.ffmpegVersion = 'v7.0.1';
+    appState.ffprobeVersion = 'v7.0.1';
+    appState.mkvmergeVersion = 'v86.0';
+
+    render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+    const v701Elements = screen.getAllByText('v7.0.1', { exact: false });
+    expect(v701Elements.length).toBeGreaterThan(0);
+    expect(screen.getByText('v86.0', { exact: false })).toBeInTheDocument();
   });
 
   it('calls onClose when backdrop or close button is clicked', async () => {
@@ -163,5 +183,65 @@ describe('AboutModal.svelte', () => {
 
     const closeBtn = screen.getByText('Close');
     expect(document.activeElement).toBe(closeBtn);
+  });
+
+  it('returns early from focus trap if no focusable elements exist', async () => {
+    const { container } = render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+    const backdrop = container.querySelector('.modal-backdrop');
+    if (backdrop) {
+      // Mock querySelectorAll to return an empty array
+      const originalQuerySelectorAll = backdrop.querySelectorAll.bind(backdrop);
+      backdrop.querySelectorAll = vi.fn().mockReturnValue({ length: 0 });
+
+      const preventDefault = vi.fn();
+      await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: false, preventDefault });
+
+      expect(preventDefault).not.toHaveBeenCalled();
+
+      // Restore
+      backdrop.querySelectorAll = originalQuerySelectorAll;
+    }
+  });
+
+  it('does not prevent default on Tab when active element is not the last element', async () => {
+    const { container } = render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+    const backdrop = container.querySelector('.modal-backdrop');
+    const focusableElements = backdrop?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+
+    if (backdrop && focusableElements && focusableElements.length > 1) {
+      const firstElement = focusableElements[0];
+
+      // Simulate focus on the first element and press Tab (not the last element)
+      firstElement.focus();
+      expect(document.activeElement).toBe(firstElement);
+
+      const preventDefault = vi.fn();
+      await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: false, preventDefault });
+
+      expect(preventDefault).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not prevent default on Shift+Tab when active element is not the first element', async () => {
+    const { container } = render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+    const backdrop = container.querySelector('.modal-backdrop');
+    const focusableElements = backdrop?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+    );
+
+    if (backdrop && focusableElements && focusableElements.length > 1) {
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      // Simulate focus on the last element and press Shift+Tab (not the first element)
+      lastElement.focus();
+      expect(document.activeElement).toBe(lastElement);
+
+      const preventDefault = vi.fn();
+      await fireEvent.keyDown(backdrop, { key: 'Tab', shiftKey: true, preventDefault });
+
+      expect(preventDefault).not.toHaveBeenCalled();
+    }
   });
 });

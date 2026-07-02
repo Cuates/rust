@@ -1,3 +1,9 @@
+---
+title: "ADR 0002: Decentralize Project Documentation"
+status: "Accepted"
+last_updated: 2026-07-02
+---
+
 # 2. Decentralize Project Documentation
 
 Date: 2026-06-27

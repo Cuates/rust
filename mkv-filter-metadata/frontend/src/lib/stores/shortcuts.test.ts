@@ -1,7 +1,12 @@
 import TestWrapper from '../components/TestWrapper.svelte';
 import { render } from '@testing-library/svelte';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { shortcuts, resetShortcutsToDefaults, loadShortcuts } from './shortcuts.svelte';
+import {
+  shortcuts,
+  resetShortcutsToDefaults,
+  loadShortcuts,
+  isShortcutsDefault
+} from './shortcuts.svelte';
 
 import { load } from '@tauri-apps/plugin-store';
 import {} from 'svelte';
@@ -14,6 +19,16 @@ describe('shortcuts.svelte', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     resetShortcutsToDefaults();
+  });
+
+  it('isShortcutsDefault should return true when defaults are active and false otherwise', () => {
+    expect(isShortcutsDefault()).toBe(true);
+
+    shortcuts.startPipeline = 'F5';
+    expect(isShortcutsDefault()).toBe(false);
+
+    resetShortcutsToDefaults();
+    expect(isShortcutsDefault()).toBe(true);
   });
 
   it('loadShortcuts should load from store and override defaults', async () => {

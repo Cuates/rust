@@ -270,6 +270,9 @@ describe('DirectoryQueue.svelte', () => {
     // Pointer move below the top boundary threshold (auto scroll up)
     component.handleGlobalPointerMove({ clientY: 105 } as PointerEvent);
 
+    // Wait for requestAnimationFrame to fire scrollStep
+    await new Promise((r) => setTimeout(r, 50));
+
     // Pointer move above the bottom boundary threshold (auto scroll down)
     component.handleGlobalPointerMove({ clientY: 260 } as PointerEvent);
 

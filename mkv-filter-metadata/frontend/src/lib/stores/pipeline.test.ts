@@ -80,6 +80,10 @@ describe('pipeline.svelte', () => {
     expect(pipeline.intraFileProgress).toBe(0);
     pipeline.activeFiles = { f1: 10, f2: 85 };
     expect(pipeline.intraFileProgress).toBe(85);
+
+    // Test falsy branch: when progress is exactly 0
+    pipeline.activeFiles = { f3: 0 };
+    expect(pipeline.intraFileProgress).toBe(0);
   });
 
   it('emitLog should call invoke', async () => {
@@ -135,6 +139,40 @@ describe('pipeline.svelte', () => {
     vi.advanceTimersByTime(5000);
 
     expect(pipeline.etaFormatted).toBe('5s 0ms');
+  });
+
+  it('startPipelineTimer should compute sumIntra and set ETA to 0ms when exactly complete', () => {
+    pipeline.totalFilesCount = 2;
+    pipeline.completedFilesCount = 1;
+    pipeline.activeFiles = { 'file.mkv': 100 }; // 1 + 100% = 2 = total
+
+    vi.setSystemTime(new Date(1000000000000));
+    startPipelineTimer();
+
+    vi.advanceTimersByTime(100);
+    // eta should be 0ms since it hit 100% completion
+    expect(pipeline.etaFormatted).toBe('0ms');
+  });
+
+  it('startPipelineTimer should catch and log errors during tick', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Force an error by mocking Object.values to throw
+    const originalObjectValues = Object.values;
+    Object.values = vi.fn().mockImplementation(() => {
+      throw new Error('Simulated error');
+    });
+
+    vi.setSystemTime(new Date(1000000000000));
+    startPipelineTimer();
+
+    vi.advanceTimersByTime(100);
+
+    expect(consoleSpy).toHaveBeenCalledWith('Timer tick error:', expect.any(Error));
+
+    // Cleanup
+    Object.values = originalObjectValues;
+    consoleSpy.mockRestore();
   });
 
   it('stopPipelineTimer should stop updating running time', () => {

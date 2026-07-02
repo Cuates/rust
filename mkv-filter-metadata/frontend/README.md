@@ -1,3 +1,8 @@
+---
+title: "Frontend Layer (SvelteKit)"
+last_updated: 2026-07-02
+---
+
 # Frontend Layer (SvelteKit)
 
 This directory contains the reactive Svelte 5 / SvelteKit web-view frontend layout layer.

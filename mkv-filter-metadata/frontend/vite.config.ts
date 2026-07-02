@@ -33,10 +33,10 @@ export default defineConfig(() => ({
       provider: 'v8' as const,
       reporter: ['text', 'json', 'html'],
       thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 83,
-        statements: 90
+        lines: 97,
+        functions: 100,
+        branches: 88,
+        statements: 97
       }
     }
   },

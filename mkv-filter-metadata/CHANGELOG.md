@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-07-02
+
+### Changed
+- Promoted application to version 1.3.1.
+- Synchronized all workspace markdown documentation and Architecture Decision Records (ADRs) to perfectly reflect the 1.3.1 application state and current git repository tree structure.
+
+### Fixed
+- Fixed strict `@typescript-eslint/no-explicit-any` linting errors in frontend test suites by enforcing standard `unknown` casting on Tauri plugin store mocks.
+- Restored missing YAML frontmatter across all documentation files for AI agent compatibility.
+
 ## [1.3.0] - 2026-07-02
 
 ### Added

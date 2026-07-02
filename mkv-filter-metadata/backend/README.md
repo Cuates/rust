@@ -1,3 +1,8 @@
+---
+title: "Backend Layer (Rust)"
+last_updated: 2026-07-02
+---
+
 # Backend Layer (Rust)
 
 This directory contains the Tauri v2 / Rust native system execution backend layer.

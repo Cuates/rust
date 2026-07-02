@@ -7,7 +7,8 @@ import {
   isConfigDefault,
   loadConfig,
   configState,
-  appState
+  appState,
+  getResolvedTheme
 } from './config.svelte';
 import { load } from '@tauri-apps/plugin-store';
 import {} from 'svelte';
@@ -73,6 +74,49 @@ describe('config.svelte', () => {
     // test save_queue_list clearing
     expect(config.input_directories).toEqual([]);
     expect(configState.isLoaded).toBe(true);
+  });
+
+  it('loadConfig should clamp remux_concurrency to 1 for hdd storage', async () => {
+    const mockStore = {
+      get: vi.fn((key: string) => {
+        if (key === 'storage_type') return Promise.resolve('hdd');
+        if (key === 'remux_concurrency') return Promise.resolve(4);
+        return Promise.resolve(null);
+      }),
+      set: vi.fn(),
+      save: vi.fn()
+    };
+    vi.mocked(load).mockResolvedValue(
+      mockStore as unknown as import('@tauri-apps/plugin-store').Store
+    );
+
+    await loadConfig();
+    expect(config.remux_concurrency).toBe(1);
+  });
+
+  it('loadConfig should retain input_directories if save_queue_list is true', async () => {
+    config.save_queue_list = true;
+    config.input_directories = ['/keep/this'];
+    const mockStore = { get: vi.fn(), set: vi.fn(), save: vi.fn() };
+    vi.mocked(load).mockResolvedValue(
+      mockStore as unknown as import('@tauri-apps/plugin-store').Store
+    );
+
+    await loadConfig();
+    expect(config.input_directories).toEqual(['/keep/this']);
+  });
+
+  it('getResolvedTheme should return osTheme when theme is system, else return theme', () => {
+    const originalOsTheme = appState.osTheme;
+    appState.osTheme = 'light';
+
+    config.theme = 'system';
+    expect(getResolvedTheme()).toBe('light');
+
+    config.theme = 'dark';
+    expect(getResolvedTheme()).toBe('dark');
+
+    appState.osTheme = originalOsTheme;
   });
 
   it('appState should have initial structure', () => {

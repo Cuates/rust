@@ -1,3 +1,9 @@
+---
+title: "ADR 0008: Encoder-Aware Concurrency and CPU Throttling Constraints"
+status: "Accepted"
+last_updated: 2026-07-02
+---
+
 # 8. Encoder-Aware Concurrency and CPU Throttling Constraints
 
 Date: 2026-07-02

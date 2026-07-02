@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import MetricsPanel from './MetricsPanel.svelte';
 import { pipeline } from '$lib/stores/pipeline.svelte';
+import { tick } from 'svelte';
 
 describe('MetricsPanel.svelte', () => {
   beforeEach(() => {
@@ -102,5 +103,45 @@ describe('MetricsPanel.svelte', () => {
     render(MetricsPanel);
     expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
     expect(screen.getByText(/0.00%/)).toBeInTheDocument();
+  });
+
+  it('updates reactively when pipeline state changes', async () => {
+    // Initial state: empty active files, 0 progress
+    pipeline.totalFilesCount = 2;
+    pipeline.completedFilesCount = 0;
+    pipeline.storageOriginalBytes = 0;
+    pipeline.storageOutputBytes = 0;
+
+    render(MetricsPanel);
+
+    // Assert initial state
+    expect(screen.getByText('0%')).toBeInTheDocument();
+    expect(screen.queryByText('video1.mkv')).not.toBeInTheDocument();
+    expect(screen.queryByText('Storage Saved:')).not.toBeInTheDocument();
+
+    // Update state to trigger reactivity (adding an active file)
+    pipeline.activeFiles = { 'video1.mkv': 50 };
+    await tick();
+
+    // Assert updated state
+    expect(screen.getByText('video1.mkv')).toBeInTheDocument();
+    expect(screen.getByText('50.0%')).toBeInTheDocument();
+
+    // Update state to trigger storage saved section
+    pipeline.completedFilesCount = 2; // 100% overall progress
+    pipeline.activeFiles = {};
+    pipeline.storageOriginalBytes = 2000;
+    pipeline.storageOutputBytes = 1000;
+    await tick();
+
+    // Assert storage saved section appeared
+    expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
+    expect(screen.getByText(/50.00%/)).toBeInTheDocument();
+
+    // Update to negative storage saved
+    pipeline.storageOutputBytes = 3000;
+    await tick();
+
+    expect(screen.getByText(/-50.00%/)).toBeInTheDocument();
   });
 });

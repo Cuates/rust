@@ -1,3 +1,8 @@
+---
+title: "Scaffolding & Setup"
+last_updated: 2026-07-02
+---
+
 # Scaffolding & Setup
 
 ## Prerequisites

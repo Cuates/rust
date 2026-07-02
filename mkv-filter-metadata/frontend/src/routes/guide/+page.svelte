@@ -131,8 +131,8 @@
         or <strong>HDD 💽</strong> toggle in the
         <a href="/settings" class="guide-link">Settings (⚙️)</a>. When <strong>HDD</strong> is
         selected, the application will automatically snap and clamp <strong>Remux</strong>
-        concurrency to a maximum of 1. This prevents physical head thrashing that occurs when
-        attempting to write multiple massive video streams simultaneously to a spinning disk.
+        concurrency to a maximum of 1. This prevents physical head thrashing that occurs when attempting
+        to write multiple massive video streams simultaneously to a spinning disk.
         <strong>Re-encoding</strong> concurrency is fully decoupled from this setting and will still utilize
         the maximum limits of your hardware, as it is bottlenecked by the encoder rather than disk write
         speeds.

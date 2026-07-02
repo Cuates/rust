@@ -1,6 +1,6 @@
 [package]
 name = "mkv-filter-metadata-rust"
-version = "1.3.0"
+version = "1.3.1"
 description = "A powerful batch-processing desktop app for filtering MKV metadata and tracks"
 authors = ["Cuates"]
 edition = "2024"
