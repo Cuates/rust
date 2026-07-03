@@ -143,6 +143,7 @@ async fn run_mkvmerge_fallback<R: tauri::Runtime>(
     }
 
     let mut mkvmerge_args = vec![
+        "--gui-mode".to_string(),
         "-o".to_string(),
         output_file_path.to_string_lossy().into_owned(),
     ];
@@ -697,6 +698,10 @@ impl Default for ResourceThresholds {
     }
 }
 
+pub fn is_system_congested(cpu: f32, avail_pct: f32, thresholds: &ResourceThresholds) -> bool {
+    cpu > thresholds.max_cpu_percent || avail_pct < thresholds.min_available_mem_percent
+}
+
 pub async fn wait_for_resources<R: tauri::Runtime>(
     app: &AppHandle<R>,
     state: &tauri::State<'_, AppState>,
@@ -717,8 +722,7 @@ pub async fn wait_for_resources<R: tauri::Runtime>(
             (cpu, avail_pct)
         };
 
-        let congested =
-            cpu > thresholds.max_cpu_percent || avail_pct < thresholds.min_available_mem_percent;
+        let congested = is_system_congested(cpu, avail_pct, thresholds);
 
         if !congested {
             if announced {
@@ -1431,5 +1435,28 @@ mod tests {
             .join("fake2_12345")
             .join("fake3_12345");
         assert_eq!(super::resolve_existing_parent_path(&deep_fake), temp);
+    }
+
+    #[test]
+    fn test_is_system_congested() {
+        let thresholds = ResourceThresholds {
+            max_cpu_percent: 90.0,
+            min_available_mem_percent: 15.0,
+        };
+
+        // Normal state
+        assert!(!is_system_congested(50.0, 50.0, &thresholds));
+
+        // CPU congested
+        assert!(is_system_congested(95.0, 50.0, &thresholds));
+
+        // Memory congested
+        assert!(is_system_congested(50.0, 10.0, &thresholds));
+
+        // Both congested
+        assert!(is_system_congested(95.0, 10.0, &thresholds));
+
+        // Edge cases
+        assert!(!is_system_congested(90.0, 15.0, &thresholds));
     }
 }

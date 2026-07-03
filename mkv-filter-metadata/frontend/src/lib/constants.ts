@@ -10,7 +10,12 @@ export const TAURI_COMMANDS = {
   INITIALIZE_SESSION_LOG: 'initialize_session_log',
   LOG_MESSAGE: 'log_message',
   OPEN_FOLDER: 'open_folder',
-  CLEAR_PROCESSING_HISTORY: 'clear_processing_history'
+  CLEAR_PROCESSING_HISTORY: 'clear_processing_history',
+  GET_HISTORY_COUNT: 'get_history_count'
+} as const;
+
+export const RESERVED_SHORTCUTS = {
+  COMMAND_PALETTE: 'Ctrl+K'
 } as const;
 
 export const TAURI_EVENTS = {

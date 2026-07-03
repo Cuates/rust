@@ -15,8 +15,9 @@
     stopPipelineTimer
   } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
+  import { registerCommand, unregisterCommand, paletteState } from '../lib/stores/commands.svelte';
   import type { DirStats } from '$lib/types';
-  import { DirStatsSchema, EncoderCapabilitiesSchema } from '$lib/types';
+  import { DirStatsSchema, EncoderCapabilitiesSchema, PipelineSummarySchema } from '$lib/types';
   import { z } from 'zod';
   import { formatDuration } from '../lib/utils/formatters';
   import { TAURI_COMMANDS, TAURI_EVENTS } from '../lib/constants';
@@ -49,24 +50,30 @@
   // Taskbar Progress Synchronization
   let lastProgressPercentage = $state(-1);
   $effect(() => {
-    const appWindow = getCurrentWindow();
-    if (pipeline.totalFilesCount > 0 && pipeline.processingActive) {
-      if (pipeline.overallProgress !== lastProgressPercentage) {
-        lastProgressPercentage = pipeline.overallProgress;
-        if (pipeline.overallProgress < 100) {
-          appWindow
-            .setProgressBar({
-              status: 'normal' as ProgressBarStatus,
-              progress: pipeline.overallProgress
-            })
-            .catch(console.error);
-        } else {
-          appWindow.setProgressBar({ status: 'none' as ProgressBarStatus }).catch(console.error);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!(window as any).__TAURI_INTERNALS__?.metadata) return; // Prevent crashes in raw browser
+      const appWindow = getCurrentWindow();
+      if (pipeline.totalFilesCount > 0 && pipeline.processingActive) {
+        if (pipeline.overallProgress !== lastProgressPercentage) {
+          lastProgressPercentage = pipeline.overallProgress;
+          if (pipeline.overallProgress < 100) {
+            appWindow
+              .setProgressBar({
+                status: 'normal' as ProgressBarStatus,
+                progress: pipeline.overallProgress
+              })
+              .catch(console.error);
+          } else {
+            appWindow.setProgressBar({ status: 'none' as ProgressBarStatus }).catch(console.error);
+          }
         }
+      } else if (!pipeline.processingActive && lastProgressPercentage !== -1) {
+        lastProgressPercentage = -1;
+        appWindow.setProgressBar({ status: 'none' as ProgressBarStatus }).catch(console.error);
       }
-    } else if (!pipeline.processingActive && lastProgressPercentage !== -1) {
-      lastProgressPercentage = -1;
-      appWindow.setProgressBar({ status: 'none' as ProgressBarStatus }).catch(console.error);
+    } catch (err) {
+      console.warn('Failed to sync taskbar progress:', err);
     }
   });
 
@@ -99,6 +106,43 @@
         }
       })();
     }
+  });
+
+  // ─── Register commands ───────────
+  $effect(() => {
+    registerCommand({
+      id: 'start-pipeline',
+      label: 'Start Processing Queue',
+      shortcutHint: shortcuts.startPipeline,
+      enabled: () => !pipeline.processingActive && config.input_directories.length > 0,
+      action: () => executePipeline()
+    });
+    registerCommand({
+      id: 'stop-pipeline',
+      label: 'Stop Execution',
+      shortcutHint: shortcuts.abortPipeline,
+      enabled: () => pipeline.processingActive,
+      action: () => abortPipeline()
+    });
+    registerCommand({
+      id: 'clear-history',
+      label: 'Clear Processing History',
+      enabled: () => !pipeline.processingActive,
+      action: () => clearHistory()
+    });
+    registerCommand({
+      id: 'toggle-about',
+      label: 'About MKV Filter Metadata',
+      enabled: () => true,
+      action: () => (showAboutModal = true)
+    });
+
+    return () => {
+      unregisterCommand('start-pipeline');
+      unregisterCommand('stop-pipeline');
+      unregisterCommand('clear-history');
+      unregisterCommand('toggle-about');
+    };
   });
 
   onMount(() => {
@@ -278,7 +322,7 @@
       };
     };
 
-    init();
+    init().catch((e) => console.error('Failed to initialize page:', e));
 
     return () => {
       if (cleanup) cleanup();
@@ -314,7 +358,6 @@
     }
 
     pipeline.processingActive = true;
-    pipeline.showMetricsPanel = true;
     pipeline.activeFiles = {};
     pipeline.completedFilesCount = 0;
     pipeline.completedFilesPerDir = {};
@@ -367,13 +410,6 @@
       }
 
       pipeline.hasProcessClicked = true;
-
-      const PipelineSummarySchema = z.object({
-        message: z.string(),
-        original_size_bytes: z.number(),
-        output_size_bytes: z.number(),
-        skipped_files: z.number()
-      });
 
       let payload = {
         ...config,
@@ -438,6 +474,21 @@
       const finalTimeStr = formatDuration(elapsedMs);
       pipeline.runningTimeFormatted = finalTimeStr;
 
+      // Populate lastRunSummary for MetricsPanel idle display
+      const savedPercent =
+        pipeline.storageOriginalBytes > 0
+          ? ((pipeline.storageOriginalBytes - pipeline.storageOutputBytes) /
+              pipeline.storageOriginalBytes) *
+            100
+          : 0;
+      pipeline.lastRunSummary = {
+        filesProcessed: pipeline.completedFilesCount,
+        timeFormatted: finalTimeStr,
+        storageSavedPercent: savedPercent,
+        originalBytes: pipeline.storageOriginalBytes,
+        outputBytes: pipeline.storageOutputBytes
+      };
+
       addToast(`Pipeline execution complete! (${finalTimeStr})`, 'success');
       emitLog(
         `Session finished at: ${endDate.toLocaleString()}`,
@@ -480,7 +531,10 @@
     }
   }
 
-  function handleKeydown(e: KeyboardEvent) {
+  function handleWindowKeydown(e: KeyboardEvent) {
+    // If palette is open, all other keys are handled by CommandPalette itself
+    if (paletteState.isOpen) return;
+
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
     const keyCombo = [];
@@ -518,7 +572,7 @@
 </script>
 
 <svelte:window
-  onkeydown={handleKeydown}
+  onkeydown={handleWindowKeydown}
   onpointermove={handlePointerMove}
   onpointerup={handlePointerUp}
   onpointercancel={handlePointerUp}
@@ -528,10 +582,32 @@
   <header class="navbar-layer">
     <h1>MKV Filter Metadata</h1>
     <div class="nav-actions">
+      <button
+        class="theme-toggle-icon-btn"
+        aria-label="Open command palette"
+        title="Command palette (Ctrl+K)"
+        onclick={() => (paletteState.isOpen = true)}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          width="16"
+          height="16"
+          stroke="currentColor"
+          stroke-width="2"
+          fill="none"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="4 17 10 11 4 5"></polyline>
+          <line x1="12" y1="19" x2="20" y2="19"></line>
+        </svg>
+      </button>
       <a
         class="theme-toggle-icon-btn"
         href="/guide"
         aria-label="How To Use Guide"
+        title="How To Use Guide"
         style="text-decoration: none; display: flex;"
       >
         <svg
@@ -554,12 +630,14 @@
         class="theme-toggle-icon-btn"
         href="/settings"
         aria-label="Settings"
+        title="Settings"
         style="text-decoration: none;">⚙️</a
       >
       <button
         class="theme-toggle-icon-btn"
         onclick={() => (showAboutModal = true)}
         aria-label="About Application"
+        title="About Application"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -580,77 +658,77 @@
     </div>
   </header>
 
+  <!-- Three-tier responsive layout.
+       Tier 1 (<800px):   single column — form-workspace-pane scrolls, output below.
+       Tier 2 (≥800px):   two columns — form | divider | output, each independently scrollable.
+       Tier 3 (≥1400px):  three columns — queue | config | output.
+       Layout primitives live in app.scss so all routes share the same shell.
+  -->
   <div class="content-scroll-area">
-    <div class="form-workspace-card">
-      <DirectoryQueue bind:this={queueComponent} {isDraggingOS} />
-      <ConfigPanel onclearhistory={clearHistory} />
+    <div class="left-column-wrapper">
+      <div class="form-workspace-pane">
+        <div class="form-workspace-card">
+          <DirectoryQueue bind:this={queueComponent} {isDraggingOS} />
 
-      <div class="action-row">
-        {#if pipeline.processingActive}
-          <button class="action-abort-btn" onclick={abortPipeline}>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              class="stop-icon"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
-            > Stop Execution
-          </button>
-        {:else}
-          <button
-            class="action-trigger-btn"
-            onclick={executePipeline}
-            disabled={config.input_directories.length === 0}
-          >
-            Start Processing
-          </button>
-        {/if}
+          <div class="action-row">
+            {#if pipeline.processingActive}
+              <button class="action-abort-btn" onclick={abortPipeline}>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  class="stop-icon"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
+                > Stop Execution
+              </button>
+            {:else}
+              <button
+                class="action-trigger-btn"
+                onclick={executePipeline}
+                disabled={config.input_directories.length === 0}
+              >
+                Start Processing
+              </button>
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <div class="column-divider second-divider" aria-hidden="true"></div>
+
+      <div class="config-workspace-pane">
+        <div class="form-workspace-card">
+          <ConfigPanel onclearhistory={clearHistory} />
+        </div>
       </div>
     </div>
 
-    <div class="output-workspace-area">
-      {#if pipeline.showMetricsPanel}
-        <MetricsPanel />
-      {/if}
+    <div class="column-divider main-divider" aria-hidden="true"></div>
+
+    <div class="output-workspace-pane">
+      <!-- MetricsPanel is always mounted — no conditional guard.
+           Eliminates the layout jump on every pipeline start. -->
+      <MetricsPanel />
       <TerminalLog bind:this={terminalComponent} />
     </div>
   </div>
+
+  <ConfirmationModal
+    show={showClearHistoryModal}
+    title="Clear Processing History"
+    message="Are you sure you want to clear the processing history database?&#10;&#10;This will cause any previously completed files to be re-processed if they are queued again."
+    confirmText="Clear History"
+    cancelText="Cancel"
+    onConfirm={executeClearHistory}
+    onCancel={() => (showClearHistoryModal = false)}
+  />
+
+  <AboutModal show={showAboutModal} onClose={() => (showAboutModal = false)} />
 </main>
 
-<ConfirmationModal
-  show={showClearHistoryModal}
-  title="Clear Processing History"
-  message="Are you sure you want to clear the processing history database?&#10;&#10;This will cause any previously completed files to be re-processed if they are queued again."
-  confirmText="Clear History"
-  cancelText="Cancel"
-  onConfirm={executeClearHistory}
-  onCancel={() => (showClearHistoryModal = false)}
-/>
-
-<AboutModal show={showAboutModal} onClose={() => (showAboutModal = false)} />
-
 <style lang="scss">
-  .app-container {
-    box-sizing: border-box;
-    max-width: 850px;
-    height: 100vh;
-    margin: 0 auto;
-    padding: 0 1rem 0 1rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-
-  .content-scroll-area {
-    flex: 1;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.2rem;
-    padding-bottom: 1rem;
-    padding-right: 0.5rem;
-    margin-right: -0.5rem;
-  }
+  /* .app-container, .content-scroll-area, .form-workspace-pane, .output-workspace-pane,
+     and .column-divider are defined in app.scss and shared across all routes. */
 
   .navbar-layer {
     display: flex;
@@ -688,31 +766,24 @@
     align-items: center;
     justify-content: center;
     padding: 0;
-    transition: all 0.2s ease;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      opacity 0.2s ease;
 
     &:hover {
       background: var(--border-color);
     }
   }
 
-  .form-workspace-card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 0.75rem 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    flex-shrink: 0;
-    margin-top: 0;
-  }
-
   .action-row {
+    margin-top: auto;
     display: flex;
     width: 100%;
     align-items: center;
     gap: 0.75rem;
+    flex-shrink: 0;
   }
 
   .action-trigger-btn {
@@ -762,12 +833,5 @@
   .stop-icon {
     margin-right: 6px;
     fill: currentColor;
-  }
-
-  .output-workspace-area {
-    display: flex;
-    flex-direction: column;
-    gap: 0.6rem;
-    flex-shrink: 0;
   }
 </style>

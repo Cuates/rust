@@ -27,69 +27,26 @@ describe('ConfigPanel.svelte', () => {
     expect(screen.getByLabelText(/Output Extension/i)).toBeInTheDocument();
   });
 
+  it('updates conversion mode on mode card click', async () => {
+    render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
+    const remuxBtn = screen.getByText('Remux').closest('button');
+    await fireEvent.click(remuxBtn!);
+    expect(config.conversion_mode).toBe('remux');
+  });
+
   it('disables inputs when pipeline is active', () => {
     pipeline.processingActive = true;
     render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
 
-    const convMode = screen.getByLabelText(/Conversion Mode/i);
-    expect(convMode).toBeDisabled();
+    // Conversion mode toggle cards should be disabled when processing is active
+    const remuxBtn = screen.getByText('Remux').closest('button');
+    expect(remuxBtn).toBeDisabled();
+
+    const reencodeBtn = screen.getByText('Re-encode').closest('button');
+    expect(reencodeBtn).toBeDisabled();
 
     const outExt = screen.getByLabelText(/Output Extension/i);
     expect(outExt).toBeDisabled();
-  });
-
-  it('reacts to video_codec changes and updates preset for nvenc', async () => {
-    render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
-
-    const codecSelect = screen.getByLabelText(/Video Encoder/i);
-    await fireEvent.change(codecSelect, { target: { value: 'hevc_nvenc' } });
-
-    expect(config.video_codec).toBe('hevc_nvenc');
-    expect(config.preset).toBe('p4'); // since 'medium' is incompatible
-  });
-
-  it('reacts to video_codec changes and updates preset for amf', async () => {
-    render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
-
-    const codecSelect = screen.getByLabelText(/Video Encoder/i);
-    await fireEvent.change(codecSelect, { target: { value: 'hevc_amf' } });
-
-    expect(config.video_codec).toBe('hevc_amf');
-    expect(config.preset).toBe('balanced');
-  });
-
-  it('reacts to video_codec changes and updates preset for videotoolbox', async () => {
-    render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
-
-    const codecSelect = screen.getByLabelText(/Video Encoder/i);
-    await fireEvent.change(codecSelect, { target: { value: 'hevc_videotoolbox' } });
-
-    expect(config.video_codec).toBe('hevc_videotoolbox');
-    expect(config.preset).toBe('default');
-  });
-
-  it('reacts to video_codec changes and updates preset for CPU (libx264)', async () => {
-    config.video_codec = 'hevc_nvenc';
-    config.preset = 'p1';
-    render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
-
-    const codecSelect = screen.getByLabelText(/Video Encoder/i);
-    await fireEvent.change(codecSelect, { target: { value: 'libx264' } });
-
-    expect(config.video_codec).toBe('libx264');
-    expect(config.preset).toBe('faster'); // fallback for incompatible CPU preset
-  });
-
-  it('caps reencode_concurrency to 2 for software codecs', async () => {
-    config.video_codec = 'hevc_nvenc';
-    config.reencode_concurrency = 4;
-    render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
-
-    const codecSelect = screen.getByLabelText(/Video Encoder/i);
-    await fireEvent.change(codecSelect, { target: { value: 'libx265' } });
-
-    expect(config.video_codec).toBe('libx265');
-    expect(config.reencode_concurrency).toBe(2);
   });
 
   it('calls onclearhistory when clear history button is clicked', async () => {
@@ -100,5 +57,36 @@ describe('ConfigPanel.svelte', () => {
     await fireEvent.click(btn);
 
     expect(onclearhistory).toHaveBeenCalled();
+  });
+
+  it('renders different presets based on video_codec', async () => {
+    config.video_codec = 'hevc_nvenc';
+    const { unmount: u1 } = render(ConfigPanel);
+    expect(screen.getByText('p1 (Fastest)')).toBeInTheDocument();
+    u1();
+
+    config.video_codec = 'hevc_amf';
+    const { unmount: u2 } = render(ConfigPanel);
+    expect(screen.getByText('speed')).toBeInTheDocument();
+    u2();
+
+    config.video_codec = 'hevc_videotoolbox';
+    const { unmount: u3 } = render(ConfigPanel);
+    expect(screen.getByText('default')).toBeInTheDocument();
+    u3();
+  });
+
+  it('renders hardware encoder options if supported', async () => {
+    const { appState } = await import('../../lib/stores/config.svelte');
+    appState.hardwareEncoders = { nvenc: true, qsv: true, amf: true, videotoolbox: true };
+    render(ConfigPanel, { props: { onclearhistory: vi.fn() } });
+
+    const reencodeBtn = screen.getByText('Re-encode').closest('button');
+    await fireEvent.click(reencodeBtn!);
+
+    expect(screen.getByText(/hevc_nvenc/i)).toBeInTheDocument();
+    expect(screen.getByText(/hevc_qsv/i)).toBeInTheDocument();
+    expect(screen.getByText(/hevc_amf/i)).toBeInTheDocument();
+    expect(screen.getByText(/hevc_videotoolbox/i)).toBeInTheDocument();
   });
 });

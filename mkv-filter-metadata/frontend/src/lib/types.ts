@@ -20,3 +20,10 @@ export const EncoderCapabilitiesSchema = z.object({
 });
 
 export type DirStats = z.infer<typeof DirStatsSchema>;
+
+export const PipelineSummarySchema = z.object({
+  message: z.string(),
+  original_size_bytes: z.number(),
+  output_size_bytes: z.number(),
+  skipped_files: z.number()
+});

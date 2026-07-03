@@ -1,6 +1,6 @@
 ---
 title: "Start Here"
-last_updated: 2026-07-02
+last_updated: 2026-07-03
 audience: "Contributors"
 ---
 
@@ -18,6 +18,7 @@ This project is a highly decoupled **pnpm monorepo**:
 - **Storage-Aware Concurrency**: Dynamically clamps Remux stream-copying on mechanical drives (HDDs) to prevent physical head thrashing.
 - **Encoder-Aware Concurrency**: Intelligently clamps software encoders (like `libx264`) to a maximum of 2 parallel files to prevent CPU starvation, while letting hardware encoders decouple and run at maximum capacity.
 - **Native File System Integration**: Utilizes `tauri-plugin-opener` for robust, cross-platform resolution of processed output directories directly in the user's OS file explorer.
+- **Persistent State**: Utilizes `tauri-plugin-window-state` to memorize the window dimensions, coordinates, and maximized state across sessions.
 
 ## 🛠️ Prerequisites
 

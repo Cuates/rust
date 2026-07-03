@@ -166,3 +166,91 @@ export const appState = $state({
 export function getResolvedTheme() {
   return config.theme === 'system' ? appState.osTheme : config.theme;
 }
+
+// ─── Named Config Presets ─────────────────────────────────────────────────────
+// Persisted in a separate `presets.json` store so personal settings (theme,
+// directories, notifications) and workflow presets remain fully decoupled.
+// Excluded fields: theme, input_directories, save_queue_list, notifications.
+
+interface WorkflowConfig {
+  file_extensions: string;
+  recursive: boolean;
+  subtitle_tracks: string;
+  output_extension: string;
+  conversion_mode: ConversionMode;
+  video_codec: VideoCodec;
+  preset: Preset;
+  crf: number;
+  reencode_concurrency: number;
+  remux_concurrency: number;
+  storage_type: 'ssd' | 'hdd';
+}
+
+export interface NamedPreset {
+  name: string;
+  config: WorkflowConfig;
+}
+
+export const savedPresets = $state<NamedPreset[]>([]);
+
+let presetsStore: Store | null = null;
+
+export async function loadPresets(): Promise<void> {
+  presetsStore = await load('presets.json', { autoSave: false, defaults: {} });
+  const stored = await presetsStore.get<NamedPreset[]>('presets');
+  if (Array.isArray(stored)) {
+    savedPresets.splice(0, savedPresets.length, ...stored);
+  }
+}
+
+async function persistPresets(): Promise<void> {
+  if (!presetsStore) return;
+  await presetsStore.set('presets', savedPresets.slice());
+  await presetsStore.save();
+}
+
+/* v8 ignore next 7 */
+export function initPresetsWatcher(): void {
+  $effect(() => {
+    void savedPresets.length; // track length changes
+    if (!presetsStore) return; // guard: don't write before the store is loaded
+    persistPresets().catch(console.error);
+  });
+}
+
+export function saveCurrentAsPreset(name: string): void {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  const workflowSnapshot: WorkflowConfig = {
+    file_extensions: config.file_extensions,
+    recursive: config.recursive,
+    subtitle_tracks: config.subtitle_tracks,
+    output_extension: config.output_extension,
+    conversion_mode: config.conversion_mode,
+    video_codec: config.video_codec,
+    preset: config.preset,
+    crf: config.crf,
+    reencode_concurrency: config.reencode_concurrency,
+    remux_concurrency: config.remux_concurrency,
+    storage_type: config.storage_type
+  };
+
+  const existing = savedPresets.findIndex((p) => p.name === trimmed);
+  if (existing >= 0) {
+    savedPresets[existing] = { name: trimmed, config: workflowSnapshot };
+  } else {
+    savedPresets.push({ name: trimmed, config: workflowSnapshot });
+  }
+}
+
+export function applyPreset(preset: NamedPreset): void {
+  Object.assign(config, preset.config);
+}
+
+export function deletePreset(name: string): void {
+  const index = savedPresets.findIndex((p) => p.name === name);
+  if (index >= 0) {
+    savedPresets.splice(index, 1);
+  }
+}

@@ -1,7 +1,7 @@
 ---
 title: "Architecture & Data Flow"
 tags: [tauri, svelte, rust, architecture, ffmpeg]
-last_updated: 2026-07-02
+last_updated: 2026-07-03
 ---
 
 # 🧠 Knowledge Graph
@@ -19,6 +19,12 @@ sequenceDiagram
     participant FFprobe as FFprobe Sidecar
     participant FFmpeg as FFmpeg Sidecar
     participant MKVMerge as MKVMerge Sidecar
+
+    %% Pre-flight Phase
+    User->>Frontend: Click "Show matched files"
+    Frontend->>Backend: invoke("get_directory_stats")
+    Backend-->>Frontend: Return filtered file list & sizes
+    Frontend-->>User: Display pre-flight summary ("Will process X files")
 
     User->>Frontend: Select Directory & Start
     Frontend->>Backend: invoke("process_mkv_directory")

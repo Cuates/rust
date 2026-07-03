@@ -1,7 +1,6 @@
 {
   "name": "mkv-filter-metadata",
-  "version": "1.4.0",
-  "private": true,
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "prebuild": "node scripts/download-sidecars.mjs",

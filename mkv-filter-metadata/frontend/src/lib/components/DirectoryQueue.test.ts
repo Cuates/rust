@@ -278,9 +278,62 @@ describe('DirectoryQueue.svelte', () => {
 
     // Pointer move beyond bounding box
     component.handleGlobalPointerMove({ clientY: 50 } as PointerEvent); // clamped to rect.top
-    component.handleGlobalPointerMove({ clientY: 300 } as PointerEvent); // clamped to rect.bottom
-
+    component.handleGlobalPointerMove({ clientY: 300 } as PointerEvent);
+    // requestAnimationFrame handles the scroll
     component.handleGlobalPointerUp();
+  });
+
+  describe('Pre-flight file list', () => {
+    it('toggles preflight panel and loads directory stats', async () => {
+      config.input_directories = ['/path/to/folder'];
+      vi.mocked(invoke).mockResolvedValueOnce({
+        exists: true,
+        file_count: 2,
+        total_size_bytes: 1000,
+        files: [
+          { name: 'video1.mkv', size_bytes: 500 },
+          { name: 'video2.mkv', size_bytes: 500 }
+        ]
+      });
+
+      render(DirectoryQueue);
+
+      const toggleBtn = screen.getByTitle('Show matched files');
+      await fireEvent.click(toggleBtn);
+
+      expect(invoke).toHaveBeenCalledWith('get_directory_stats', expect.any(Object));
+
+      // Should show the loading state briefly, then the loaded files
+      const countLabel = await screen.findByText(/Will process/i);
+      expect(countLabel).toBeInTheDocument();
+      expect(screen.getByText('video1.mkv')).toBeInTheDocument();
+      expect(screen.getByText('video2.mkv')).toBeInTheDocument();
+    });
+
+    it('shows empty message when no files match', async () => {
+      config.input_directories = ['/path/to/empty'];
+      vi.mocked(invoke).mockResolvedValueOnce({
+        exists: true,
+        file_count: 0,
+        total_size_bytes: 0,
+        files: []
+      });
+
+      render(DirectoryQueue);
+      await fireEvent.click(screen.getByTitle('Show matched files'));
+
+      expect(await screen.findByText('No files match the current filters.')).toBeInTheDocument();
+    });
+
+    it('shows error state if invoke fails', async () => {
+      config.input_directories = ['/path/to/error'];
+      vi.mocked(invoke).mockRejectedValueOnce(new Error('Permission denied'));
+
+      render(DirectoryQueue);
+      await fireEvent.click(screen.getByTitle('Show matched files'));
+
+      expect(await screen.findByText('Failed to scan directory.')).toBeInTheDocument();
+    });
   });
 
   it('renders non-issue tooltip for existing directory', () => {

@@ -243,7 +243,12 @@ pub struct FfmpegJobConfig<'a> {
 
 /// Builds the base ffmpeg arg list (maps + codec flags) for either reencode or remux mode.
 pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
-    let mut args = vec!["-y".to_string()];
+    let mut args = vec![
+        "-y".to_string(),
+        "-nostats".to_string(),
+        "-progress".to_string(),
+        "-".to_string(),
+    ];
 
     // Dynamically inject the exact hardware acceleration framework needed for decoding
     if let ConversionMode::Reencode = config.mode
@@ -278,6 +283,15 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
                 let mut reencode_args = reencode
                     .video_codec
                     .get_hardware_args(reencode.preset, reencode.crf);
+
+                // CRITICAL SAFETY CLAMP: Software encoders (libx264/libx265) will spawn threads
+                // equal to logical cores by default. On high-end CPUs (24+ cores), this leads
+                // to thermal runaway (100C+ temps) and massive RAM allocation (60GB+).
+                // We restrict it to 6 threads per instance to prevent hardware damage/OOM.
+                if reencode.video_codec.is_software() {
+                    reencode_args.extend(["-threads".to_string(), "6".to_string()]);
+                }
+
                 reencode_args.extend(["-c:a".to_string(), "copy".to_string()]);
                 args.extend(reencode_args);
             }
@@ -523,10 +537,49 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
                 for line in sanitized.lines() {
                     let t = line.trim();
                     if !t.is_empty() {
+                        if !is_mkvmerge {
+                            if let Some(time_str) = t.strip_prefix("out_time=") {
+                                if time_str != "N/A"
+                                    && let Some(secs) = parse_ffmpeg_time(time_str)
+                                        && let Some(total_secs) = total_duration_secs {
+                                            let mut percent = (secs / total_secs) * 100.0;
+                                            if percent > 100.0 {
+                                                percent = 100.0;
+                                            }
+                                            let _ = app.emit(
+                                                crate::constants::EVENT_PROCESS_PROGRESS,
+                                                serde_json::json!({
+                                                    "intra_progress": percent,
+                                                    "current_filename": file_name
+                                                }),
+                                            );
+                                        }
+                                continue;
+                            } else if t.contains('=') && !t.contains(' ') {
+                                // Filter out other ffmpeg -progress stdout variables
+                                continue;
+                            }
+                        } else {
+                            if t.starts_with("#GUI#progress ") {
+                                if let Some(percent_str) = t.strip_prefix("#GUI#progress ").and_then(|s| s.strip_suffix('%'))
+                                    && let Ok(percent) = percent_str.parse::<f64>() {
+                                        let _ = app.emit(
+                                            crate::constants::EVENT_PROCESS_PROGRESS,
+                                            serde_json::json!({
+                                                "intra_progress": percent,
+                                                "current_filename": file_name
+                                            }),
+                                        );
+                                    }
+                                continue;
+                            } else if t.starts_with("#GUI#") {
+                                // Filter out other gui-mode tags
+                                continue;
+                            }
+                        }
+
                         if is_error_line(t) {
                             append_log(app, format!("  | [ERROR] {}", t));
-                        } else {
-                            append_log(app, format!("  | [INFO] {}", t));
                         }
                     }
                 }
@@ -602,8 +655,6 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
 
                         if is_error_line(t) {
                             append_log(app, format!("  | [ERROR] {}", t));
-                        } else {
-                            append_log(app, format!("  | [INFO] {}", t));
                         }
                     }
                 }

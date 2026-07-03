@@ -1,6 +1,6 @@
 ---
 title: "Architecture & Tree Structure"
-last_updated: 2026-07-02
+last_updated: 2026-07-03
 ---
 
 # Architecture
@@ -18,14 +18,15 @@ last_updated: 2026-07-02
 │  │  DirectoryQueue     │    │  process.rs  (FFmpeg logic) │ │
 │  │  ConfigPanel        │    │  models.rs   (Type defs)   │ │
 │  │  MetricsPanel       │    │  error.rs    (Error types)  │ │
-│  │  TerminalLog        │    │  lib.rs      (Plugin init) │ │
-│  │  ToastContainer     │    │                            │ │
-│  │                     │    │  Sidecars:                  │ │
-│  │  Stores:            │    │    ffmpeg, ffprobe,         │ │
-│  │    config.svelte.ts │    │    mkvmerge                 │ │
-│  │    pipeline.svelte  │    │                            │ │
-│  │    toast.svelte.ts  │    │  Capabilities:             │ │
-│  │                     │    │    default.json             │ │
+│  │  CommandPalette     │    │  lib.rs      (Plugin init) │ │
+│  │  TerminalLog        │    │                            │ │
+│  │  ToastContainer     │    │  Sidecars:                  │ │
+│  │                     │    │    ffmpeg, ffprobe,         │ │
+│  │  Stores:            │    │    mkvmerge                 │ │
+│  │    config.svelte.ts │    │                            │ │
+│  │    pipeline.svelte  │    │  Capabilities:             │ │
+│  │    commands.svelte  │    │    default.json             │ │
+│  │    toast.svelte.ts  │    │    presets.json             │ │
 │  └─────────────────────┘    └────────────────────────────┘ │
 └────────────────────────────────────────────────────────────┘
 ```
@@ -62,7 +63,8 @@ mkv-filter-metadata/
 │       ├── 0005-sqlite-history-cache.md
 │       ├── 0006-centralized-ci-setup.md
 │       ├── 0007-adaptive-throttling-and-storage-concurrency.md
-│       └── 0008-encoder-aware-concurrency.md
+│       ├── 0008-encoder-aware-concurrency.md
+│       └── 0009-responsive-layout-and-ux-enhancements.md
 ├── scripts/                      # Build helper scripts
 │   ├── README.md                 # Script documentation
 │   ├── download-sidecars.mjs     # Fetches sidecars and validates checksums
@@ -81,10 +83,11 @@ mkv-filter-metadata/
 
 frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 ├── src/
-│   ├── lib/
 │   │   ├── components/           # Svelte UI components and their tests
 │   │   │   ├── AboutModal.svelte
 │   │   │   ├── AboutModal.test.ts
+│   │   │   ├── CommandPalette.svelte
+│   │   │   ├── CommandPalette.test.ts
 │   │   │   ├── ConfigPanel.svelte
 │   │   │   ├── ConfigPanel.test.ts
 │   │   │   ├── ConfirmationModal.svelte
@@ -99,6 +102,8 @@ frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 │   │   │   ├── ToastContainer.svelte
 │   │   │   └── ToastContainer.test.ts
 │   │   ├── stores/               # Svelte 5 Runes state management
+│   │   │   ├── commands.svelte.ts
+│   │   │   ├── commands.test.ts
 │   │   │   ├── config.svelte.ts
 │   │   │   ├── config.test.ts
 │   │   │   ├── pipeline.svelte.ts
@@ -119,7 +124,8 @@ frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 │   │   │   ├── +page.svelte
 │   │   │   └── page.test.ts
 │   │   ├── settings/             # Configuration, performance, and history management
-│   │   │   └── +page.svelte
+│   │   │   ├── +page.svelte
+│   │   │   └── page.test.ts
 │   │   ├── +layout.svelte        # Global layout wrapper and font imports
 │   │   ├── +layout.ts
 │   │   └── +page.svelte          # Main application view & event orchestration

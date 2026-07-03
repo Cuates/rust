@@ -1,6 +1,6 @@
 ---
 title: "Project Plan & Sandbox"
-last_updated: 2026-07-02
+last_updated: 2026-07-03
 status: "active"
 ---
 
@@ -19,6 +19,10 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 - [x] Synchronize all markdown documentation files to perfectly reflect the 1.3.0 release.
 - [x] Bump application to version 1.3.1 and execute a full documentation sync and architecture tree refresh.
 - [x] Bump application to version 1.4.0 and implement the "Open Processed Files Folder" cross-platform feature.
+- [x] Execute major UI/UX redesign (Three-Tier Responsive Grid, Command Palette).
+- [x] Integrate `tauri-plugin-window-state` for persistent session memory.
+- [x] Implement clean, real-time pipeline output logging.
+- [x] Bump application to major version 2.0.0 and sync all monorepo documentation.
 
 ## 💡 Sandbox Notes
 *(Use this space to draft ideas, outline upcoming Epics, or sketch workflows before converting them into GitHub issues or ADRs)*

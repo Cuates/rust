@@ -89,6 +89,60 @@
     </div>
 
     <div class="form-workspace-card">
+      <h2>Settings & Advanced Features</h2>
+      <p class="description">
+        Supercharge your workflow using the Command Palette, custom shortcuts, and reusable presets.
+      </p>
+
+      <h3 style="margin-top: 1rem;">Command Palette & Keyboard Shortcuts</h3>
+      <p
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.75rem;"
+      >
+        Navigate the application at lightning speed without taking your hands off the keyboard:
+      </p>
+      <ol class="guide-list" style="list-style-type: decimal; padding-left: 2rem;">
+        <li>
+          Press <strong>Ctrl+K</strong> from anywhere in the application to open the
+          <strong>Command Palette</strong>.
+        </li>
+        <li>
+          Type a command (like "Settings", "Guide", or "Clear History") and hit <strong
+            >Enter</strong
+          > to instantly execute it.
+        </li>
+        <li>
+          You can configure custom keyboard shortcuts for starting or aborting the processing queue.
+          To do this, open the <strong>Settings (⚙️)</strong> page, click on a shortcut input field, and
+          press your desired key combination on your keyboard.
+        </li>
+      </ol>
+
+      <h3 style="margin-top: 1.5rem;">User Presets</h3>
+      <p
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.75rem;"
+      >
+        If you find yourself using the same video encoder and configuration frequently, you can save
+        them as a custom preset:
+      </p>
+      <ol class="guide-list" style="list-style-type: decimal; padding-left: 2rem;">
+        <li>
+          Configure your desired conversion mode, codec, and parameters on the main dashboard.
+        </li>
+        <li>
+          Open the <strong>Settings (⚙️)</strong> page and locate the
+          <strong>Configuration Presets</strong> section.
+        </li>
+        <li>
+          Type a name for your preset in the input box and click the <strong>Save Preset</strong> button.
+        </li>
+        <li>
+          Your preset will appear in the list below. You can click <strong>Apply</strong> to instantly
+          restore those settings in the future, or the red trash icon to delete it.
+        </li>
+      </ol>
+    </div>
+
+    <div class="form-workspace-card">
       <h2>Conversion Modes</h2>
       <p class="description">
         Understand the difference between the Remux and Re-encode processing modes.
@@ -123,7 +177,14 @@
         Learn how the application optimizes concurrency and system resources based on your hardware.
       </p>
 
-      <h3 style="margin-top: 1rem;">Target Drive Type (SSD vs HDD)</h3>
+      <h3 style="margin-top: 1rem;">Parallel Processing</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
+        The application is designed to process multiple video files in <strong>parallel</strong> simultaneously,
+        drastically reducing the total time required for large batches. The number of files processed
+        at once depends on your hardware and settings.
+      </p>
+
+      <h3 style="margin-top: 1.5rem;">Target Drive Type (SSD vs HDD)</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
         You can configure the physical drive type where your files are being saved using the <strong
           >SSD / NVMe ⚡</strong
@@ -170,10 +231,53 @@
     <div class="form-workspace-card">
       <h2>What to Expect</h2>
       <p class="description">
-        How to interpret the feedback the application provides during processing.
+        How to interpret the feedback the application provides and how the interface adapts to your
+        workspace.
       </p>
 
-      <h3>Terminal Output Logs</h3>
+      <h3>Three-Tier Responsive Design</h3>
+      <p
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 0.75rem;"
+      >
+        The application interface is built with a dynamic, three-tier responsive grid that
+        automatically adapts to the physical width of your application window to maximize your
+        productivity:
+      </p>
+      <ul class="guide-list" style="margin-bottom: 1.5rem;">
+        <li>
+          <strong>Tier 3 (Large Desktop - 1400px+):</strong> The ultimate power-user view. The interface
+          expands into a massive three-column layout, displaying your Queue, Configuration panel, and
+          Real-time Output Log side-by-side simultaneously.
+        </li>
+        <li>
+          <strong>Tier 2 (Medium Display - 800px to 1399px):</strong> The balanced view. The interface
+          collapses into a split two-column layout. The left column neatly stacks your Queue and Configuration
+          panels, while the right column remains dedicated to monitoring the Output Log.
+        </li>
+        <li>
+          <strong>Tier 1 (Small Window / Mobile - under 800px):</strong> The focused view. Everything
+          stacks into a single, scrollable vertical column to prioritize the element you are actively
+          interacting with without feeling cramped.
+        </li>
+      </ul>
+      <p
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1.5rem; padding-left: 0.5rem; border-left: 3px solid var(--accent-color);"
+      >
+        <strong>Persistent Layout Memory:</strong> You don't need to resize the application every time
+        you launch it. The application automatically tracks your exact window dimensions, coordinates,
+        and maximized state. Whenever you exit, this data is seamlessly saved, ensuring the window snaps
+        perfectly back to the exact layout tier and location you left it in on your next launch.
+      </p>
+
+      <h3>Clean Real-Time Pipeline Output</h3>
+      <p
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1rem;"
+      >
+        Instead of throwing an unreadable wall of raw technical text at you, the terminal now
+        cleanly parses the real-time processing data behind the scenes. You will only see clear,
+        concise status updates for each file, including its exact progress percentage, speed, and
+        any relevant warnings.
+      </p>
       <ul class="guide-list log-legend">
         <li>
           <span class="log-success">🟢 Successes:</span> Indicates a file was successfully processed.
@@ -270,15 +374,10 @@
 </main>
 
 <style lang="scss">
+  /* Guide uses the global .app-container shell from app.scss.
+     Override: single-column layout only. */
   .app-container {
-    box-sizing: border-box;
-    max-width: 850px;
-    height: 100vh;
-    margin: 0 auto;
-    padding: 0 1rem 0 1rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    max-width: none;
   }
 
   .content-scroll-area {
@@ -295,7 +394,7 @@
   .navbar-layer {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 1rem;
     border-bottom: 1px solid var(--border-color);
     padding: 1rem 0 0.5rem 0;
     margin-bottom: 1rem;
@@ -326,11 +425,7 @@
   }
 
   .form-workspace-card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 1.25rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    flex: none;
 
     h2 {
       font-size: 1.1rem;

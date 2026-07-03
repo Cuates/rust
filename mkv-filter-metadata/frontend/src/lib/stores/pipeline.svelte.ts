@@ -4,8 +4,14 @@ import { formatDuration } from '../utils/formatters';
 export const pipeline = $state({
   consoleLogs: [] as { id: number; text: string }[],
   processingActive: false,
-  showMetricsPanel: false,
   resourceThrottled: false,
+  lastRunSummary: null as {
+    filesProcessed: number;
+    timeFormatted: string;
+    storageSavedPercent: number;
+    originalBytes: number;
+    outputBytes: number;
+  } | null,
 
   // Layout Metric Sync Parameters
   totalFilesCount: 0,

@@ -7,6 +7,8 @@
   import { addToast } from '../stores/toast.svelte';
   import { buildTooltip } from '../utils/formatters';
   import { TAURI_COMMANDS } from '../constants';
+  import { DirStatsSchema } from '$lib/types';
+  import type { DirStats } from '$lib/types';
 
   let { isDraggingOS = false } = $props();
 
@@ -54,12 +56,13 @@
     pipeline.completedFilesCount = 0;
     pipeline.activeFiles = {};
     pipeline.runningTimeFormatted = '0ms';
-    pipeline.showMetricsPanel = false;
     pipeline.directoryStatuses = {};
     pipeline.directoryErrors = {};
     pipeline.currentActiveDirectory = null;
     pipeline.directoryStats = {};
     pipeline.hasProcessClicked = false;
+    preflightFiles = {};
+    preflightLoading = {};
   }
 
   function removeDirectory(index: number) {
@@ -188,11 +191,40 @@
     e.preventDefault();
     isDragging = false;
   }
+
+  // ─── Pre-flight file list ──────────────────────────────────────────────────
+  // Expanded on demand: triggers a fresh GET_DIRECTORY_STATS invoke each time
+  // so the list always reflects the current filter config, not stale state.
+  let preflightOpen = $state<Record<string, boolean>>({});
+  let preflightFiles = $state<Record<string, DirStats | null>>({});
+  let preflightLoading = $state<Record<string, boolean>>({});
+
+  async function togglePreflight(dir: string): Promise<void> {
+    const isOpen = preflightOpen[dir];
+    preflightOpen[dir] = !isOpen;
+    if (isOpen || preflightFiles[dir] !== undefined) return; // already loaded or closing
+
+    preflightLoading[dir] = true;
+    try {
+      const rawStats = await invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
+        dirPath: dir,
+        fileExtensions: config.file_extensions,
+        recursive: config.recursive
+      });
+      preflightFiles[dir] = DirStatsSchema.parse(rawStats);
+    } catch {
+      preflightFiles[dir] = null;
+    } finally {
+      preflightLoading[dir] = false;
+    }
+  }
 </script>
 
 <div class="row queue-header-row">
   <div class="queue-header">
-    <label for="queue-box">Target Processing Queue ({config.input_directories.length})</label>
+    <label for="queue-box" title="Target Processing Queue ({config.input_directories.length})"
+      >Target Processing Queue ({config.input_directories.length})</label
+    >
     <div class="queue-header-actions">
       {#if config.input_directories.length > 0}
         <button
@@ -283,8 +315,8 @@
                 <div class="status-indicator warning" title="Finished with warnings or errors">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
+                    width="20"
+                    height="20"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -305,8 +337,8 @@
                 <div class="status-indicator done" title="Finished successfully">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
+                    width="20"
+                    height="20"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -321,8 +353,8 @@
                 <div class="status-indicator skipped" title="Skipped (Directory does not exist)">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
+                    width="20"
+                    height="20"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -343,8 +375,8 @@
                 <div class="status-indicator skipped" title="Skipped (Directory is empty)">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
+                    width="20"
+                    height="20"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -399,6 +431,32 @@
                 </div>
               {/if}
             {/if}
+            <!-- Pre-flight disclosure toggle -->
+            {#if !pipeline.processingActive}
+              <button
+                class="preflight-btn"
+                onclick={() => togglePreflight(dir)}
+                aria-expanded={preflightOpen[dir] ?? false}
+                aria-label="Show matched files"
+                title="Show matched files"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="preflight-chevron"
+                  class:open={preflightOpen[dir]}
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
+            {/if}
             {#if pipeline.directoryStatuses[dir] === 'done'}
               <button
                 class="open-folder-btn"
@@ -446,6 +504,27 @@
             </button>
           </div>
         </div>
+        <!-- Pre-flight file list (expandable) -->
+        {#if preflightOpen[dir]}
+          <div class="preflight-panel">
+            {#if preflightLoading[dir]}
+              <span class="preflight-loading">Scanning…</span>
+            {:else if preflightFiles[dir] === null}
+              <span class="preflight-error">Failed to scan directory.</span>
+            {:else if preflightFiles[dir] && preflightFiles[dir].files.length > 0}
+              <p class="preflight-count">
+                Will process <strong>{preflightFiles[dir].files.length}</strong> file(s)
+              </p>
+              <ul class="preflight-file-list">
+                {#each preflightFiles[dir].files as f (f.name)}
+                  <li class="preflight-file-item" title={f.name}>{f.name}</li>
+                {/each}
+              </ul>
+            {:else}
+              <span class="preflight-empty">No files match the current filters.</span>
+            {/if}
+          </div>
+        {/if}
       {/each}
     {/if}
   </div>
@@ -472,6 +551,8 @@
       color: var(--text-secondary);
       white-space: nowrap;
       flex-grow: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
   }
 
@@ -490,7 +571,11 @@
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease,
+      opacity 0.15s ease;
     white-space: nowrap;
     width: fit-content;
     display: inline-flex;
@@ -514,7 +599,11 @@
     padding: 0.25rem 0.4rem;
     border-radius: 4px;
     cursor: pointer;
-    transition: all 0.15s;
+    transition:
+      background-color 0.15s ease,
+      border-color 0.15s ease,
+      color 0.15s ease,
+      opacity 0.15s ease;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -534,14 +623,26 @@
     background-color: var(--bg-canvas);
     border: 1px solid var(--border-color);
     border-radius: 6px;
+    flex: 1;
     min-height: 164px;
-    max-height: 164px;
+    max-height: 35vh; /* Tier 1 constraint */
     overflow-y: auto;
     padding: 0.4rem;
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
-    transition: all 0.2s ease-in-out;
+    transition:
+      border-color 0.2s ease-in-out,
+      background-color 0.2s ease-in-out,
+      box-shadow 0.2s ease-in-out;
+
+    @media (min-width: 800px) {
+      max-height: 45vh; /* Tier 2 constraint */
+    }
+
+    @media (min-width: 1400px) {
+      max-height: calc(100vh - 12rem);
+    }
 
     &.dragging {
       border-color: var(--accent-color);
@@ -591,6 +692,7 @@
     }
     &.status-processing {
       border-color: var(--accent-color);
+      border-left: 3px solid var(--accent-color);
     }
     &.status-done {
       border-color: #22c55e;
@@ -652,14 +754,87 @@
 
   .spinner {
     animation: rotate 2s linear infinite;
-    width: 14px;
-    height: 14px;
+    width: 20px;
+    height: 20px;
 
     .path {
       stroke: currentColor;
       stroke-linecap: round;
       animation: dash 1.5s ease-in-out infinite;
     }
+  }
+
+  /* ─── Pre-flight file list ─── */
+  .preflight-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    transition: color 0.15s;
+
+    &:hover {
+      color: var(--accent-color);
+    }
+  }
+
+  .preflight-chevron {
+    transition: transform 0.2s ease;
+    &.open {
+      transform: rotate(180deg);
+    }
+  }
+
+  .preflight-panel {
+    padding: 0.4rem 0.6rem;
+    background-color: var(--bg-canvas);
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 4px 4px;
+  }
+
+  .preflight-count {
+    margin: 0 0 0.3rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    strong {
+      color: var(--text-primary);
+    }
+  }
+
+  .preflight-file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 120px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+
+  .preflight-file-item {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0.1rem 0;
+  }
+
+  .preflight-loading,
+  .preflight-error,
+  .preflight-empty {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  .preflight-error {
+    color: var(--danger-color);
   }
 
   @keyframes rotate {
@@ -701,7 +876,11 @@
     justify-content: center;
     padding: 0.2rem;
     border-radius: 4px;
-    transition: all 0.2s ease;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      opacity 0.2s ease;
   }
 
   .remove-btn {

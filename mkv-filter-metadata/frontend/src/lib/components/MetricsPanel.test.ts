@@ -1,147 +1,182 @@
-import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/svelte';
 import MetricsPanel from './MetricsPanel.svelte';
 import { pipeline } from '$lib/stores/pipeline.svelte';
-import { tick } from 'svelte';
 
 describe('MetricsPanel.svelte', () => {
   beforeEach(() => {
+    // Reset pipeline to a clean idle state before each test
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = false;
+    pipeline.lastRunSummary = null;
+    pipeline.consoleLogs = [];
     pipeline.totalFilesCount = 0;
     pipeline.completedFilesCount = 0;
-    pipeline.activeFiles = {};
-    pipeline.runningTimeFormatted = '0ms';
-    pipeline.etaFormatted = '0ms';
-    pipeline.processingActive = false;
     pipeline.storageOriginalBytes = 0;
     pipeline.storageOutputBytes = 0;
+    pipeline.runningTimeFormatted = '0ms';
+    pipeline.etaFormatted = '--';
+    vi.clearAllMocks();
   });
 
-  it('renders overall metrics correctly', () => {
-    pipeline.totalFilesCount = 5;
-    pipeline.completedFilesCount = 2;
-    pipeline.activeFiles = { 'video1.mkv': 50 }; // completed = 2 + 0.5 = 2.5/5 = 50%
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // ── Idle state (never run) ────────────────────────────────────────────────
+
+  it('renders idle placeholder when panel has never been used', () => {
+    render(MetricsPanel);
+    expect(screen.getByText(/Ready — run history will appear here\./i)).toBeInTheDocument();
+  });
+
+  it('always renders the metrics panel (no conditional mount guard)', () => {
+    // MetricsPanel must be present in the DOM regardless of state
+    render(MetricsPanel);
+    // The outer container should always be present
+    const panel = document.querySelector('[aria-live="polite"]');
+    expect(panel).not.toBeNull();
+  });
+
+  it('does not show active progress content when idle', () => {
+    render(MetricsPanel);
+    expect(screen.queryByText(/Overall Progress/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Total Conversion Time/i)).not.toBeInTheDocument();
+  });
+
+  // ── Active processing state ───────────────────────────────────────────────
+
+  it('shows active progress bar when processing is active', async () => {
+    pipeline.processingActive = true;
+    pipeline.hasProcessClicked = true;
+    pipeline.totalFilesCount = 10;
+    pipeline.completedFilesCount = 3;
+    pipeline.runningTimeFormatted = '1m 20s';
+    pipeline.etaFormatted = '3m 10s';
 
     render(MetricsPanel);
 
-    expect(screen.getByText(/Total Scanned:/)).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument(); // completed (2) + active (1) = 3
-    expect(screen.getByText(/5 file\(s\)/)).toBeInTheDocument();
-    expect(screen.getByText('50%')).toBeInTheDocument();
+    // Overall progress label should be visible
+    expect(screen.getByText(/Overall Progress:/i)).toBeInTheDocument();
+    expect(screen.getByText(/30%/i)).toBeInTheDocument();
   });
 
-  it('renders active tasks correctly', () => {
-    pipeline.activeFiles = {
-      'video1.mkv': 33.33,
-      'video2.mkv': 66.66
+  it('does not show idle placeholder when processing is active', () => {
+    pipeline.processingActive = true;
+    pipeline.hasProcessClicked = true;
+
+    render(MetricsPanel);
+    expect(screen.queryByText(/Ready — run history will appear here\./i)).not.toBeInTheDocument();
+  });
+
+  // ── Last Run summary state ─────────────────────────────────────────────────
+
+  it('shows last run summary card after a run completes', async () => {
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 7,
+      timeFormatted: '2m 5s',
+      storageSavedPercent: 12.34,
+      originalBytes: 2000,
+      outputBytes: 1753
     };
 
     render(MetricsPanel);
 
-    expect(screen.getByText('video1.mkv')).toBeInTheDocument();
-    expect(screen.getByText('33.3%')).toBeInTheDocument();
-    expect(screen.getByText('video2.mkv')).toBeInTheDocument();
-    expect(screen.getByText('66.7%')).toBeInTheDocument();
+    expect(screen.getByText(/Last Run/i)).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument(); // exact match: files processed
+    expect(screen.getByText(/2m 5s/)).toBeInTheDocument();
   });
 
-  it('renders time metrics', () => {
-    pipeline.runningTimeFormatted = '1m 20s';
+  it('shows positive storage delta in green-coloured span', async () => {
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 3,
+      timeFormatted: '30s',
+      storageSavedPercent: 50,
+      originalBytes: 2000,
+      outputBytes: 1000
+    };
+
     render(MetricsPanel);
-    expect(screen.getByText('1m 20s')).toBeInTheDocument();
-
-    // ETA should not be visible when processing is inactive
-    expect(screen.queryByText('ETA:')).not.toBeInTheDocument();
+    // Should show a positive percentage
+    expect(screen.getByText(/\+50\.00%/)).toBeInTheDocument();
   });
 
-  it('renders ETA when processing is active', () => {
+  it('shows neutral storage delta when output equals original', () => {
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 1,
+      timeFormatted: '1s',
+      originalBytes: 1000,
+      outputBytes: 1000,
+      storageSavedPercent: 0
+    };
+    render(MetricsPanel);
+    // 0.00% should be text-primary
+    expect(screen.getByText(/0\.00%/)).toBeInTheDocument();
+  });
+
+  it('shows negative storage delta when output is larger', async () => {
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 1,
+      timeFormatted: '10s',
+      storageSavedPercent: -100,
+      originalBytes: 1000,
+      outputBytes: 2000
+    };
+
+    render(MetricsPanel);
+    expect(screen.getByText(/-100\.00%/)).toBeInTheDocument();
+  });
+
+  it('shows idle placeholder (not last run) when hasProcessClicked is false even if lastRunSummary is set', () => {
+    // Edge case: lastRunSummary set but hasProcessClicked is false (shouldn't normally happen)
+    pipeline.hasProcessClicked = false;
+    pipeline.lastRunSummary = {
+      filesProcessed: 5,
+      timeFormatted: '1m',
+      storageSavedPercent: 10,
+      originalBytes: 1000,
+      outputBytes: 900
+    };
+
+    render(MetricsPanel);
+    // Idle placeholder should still show (hasEverRun is false)
+    expect(screen.getByText(/Ready — run history will appear here\./i)).toBeInTheDocument();
+    expect(screen.queryByText(/Last Run/i)).not.toBeInTheDocument();
+  });
+
+  it('does not show storage delta block when originalBytes is 0', async () => {
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 2,
+      timeFormatted: '5s',
+      storageSavedPercent: 0,
+      originalBytes: 0,
+      outputBytes: 0
+    };
+
+    render(MetricsPanel);
+    expect(screen.queryByText(/Storage delta/i)).not.toBeInTheDocument();
+  });
+
+  it('renders active task list when processing', async () => {
     pipeline.processingActive = true;
-    pipeline.etaFormatted = '5m 10s';
-    render(MetricsPanel);
-    expect(screen.getByText('ETA:')).toBeInTheDocument();
-    expect(screen.getByText('5m 10s')).toBeInTheDocument();
-  });
-
-  it('renders storage saved when progress is 100% and original bytes > 0', () => {
-    pipeline.totalFilesCount = 1;
-    pipeline.completedFilesCount = 1; // 100%
-    pipeline.storageOriginalBytes = 2000;
-    pipeline.storageOutputBytes = 1000;
+    pipeline.activeFiles = {
+      'video1.mkv': 45.5,
+      'video2.mkv': 80.2
+    };
 
     render(MetricsPanel);
-    expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
-    // (2000 - 1000) / 2000 * 100 = 50.00%
-    expect(screen.getByText(/50.00%/)).toBeInTheDocument();
-  });
-
-  it('does not render storage saved when original bytes is 0', () => {
-    pipeline.totalFilesCount = 1;
-    pipeline.completedFilesCount = 1; // 100%
-    pipeline.storageOriginalBytes = 0;
-    pipeline.storageOutputBytes = 0;
-
-    render(MetricsPanel);
-    expect(screen.queryByText('Storage Saved:')).not.toBeInTheDocument();
-  });
-
-  it('renders negative storage saved correctly (increased size)', () => {
-    pipeline.totalFilesCount = 1;
-    pipeline.completedFilesCount = 1; // 100%
-    pipeline.storageOriginalBytes = 1000;
-    pipeline.storageOutputBytes = 2000; // Increased size
-
-    render(MetricsPanel);
-    expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
-    expect(screen.getByText(/-100.00%/)).toBeInTheDocument();
-  });
-
-  it('renders zero storage saved correctly (unchanged size)', () => {
-    pipeline.totalFilesCount = 1;
-    pipeline.completedFilesCount = 1; // 100%
-    pipeline.storageOriginalBytes = 1000;
-    pipeline.storageOutputBytes = 1000; // No change
-
-    render(MetricsPanel);
-    expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
-    expect(screen.getByText(/0.00%/)).toBeInTheDocument();
-  });
-
-  it('updates reactively when pipeline state changes', async () => {
-    // Initial state: empty active files, 0 progress
-    pipeline.totalFilesCount = 2;
-    pipeline.completedFilesCount = 0;
-    pipeline.storageOriginalBytes = 0;
-    pipeline.storageOutputBytes = 0;
-
-    render(MetricsPanel);
-
-    // Assert initial state
-    expect(screen.getByText('0%')).toBeInTheDocument();
-    expect(screen.queryByText('video1.mkv')).not.toBeInTheDocument();
-    expect(screen.queryByText('Storage Saved:')).not.toBeInTheDocument();
-
-    // Update state to trigger reactivity (adding an active file)
-    pipeline.activeFiles = { 'video1.mkv': 50 };
-    await tick();
-
-    // Assert updated state
     expect(screen.getByText('video1.mkv')).toBeInTheDocument();
-    expect(screen.getByText('50.0%')).toBeInTheDocument();
-
-    // Update state to trigger storage saved section
-    pipeline.completedFilesCount = 2; // 100% overall progress
-    pipeline.activeFiles = {};
-    pipeline.storageOriginalBytes = 2000;
-    pipeline.storageOutputBytes = 1000;
-    await tick();
-
-    // Assert storage saved section appeared
-    expect(screen.getByText('Storage Saved:')).toBeInTheDocument();
-    expect(screen.getByText(/50.00%/)).toBeInTheDocument();
-
-    // Update to negative storage saved
-    pipeline.storageOutputBytes = 3000;
-    await tick();
-
-    expect(screen.getByText(/-50.00%/)).toBeInTheDocument();
+    expect(screen.getByText('45.5%')).toBeInTheDocument();
+    expect(screen.getByText('video2.mkv')).toBeInTheDocument();
+    expect(screen.getByText('80.2%')).toBeInTheDocument();
   });
 });

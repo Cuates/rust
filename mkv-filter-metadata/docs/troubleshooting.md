@@ -1,6 +1,6 @@
 ---
 title: "Troubleshooting & Common Pitfalls"
-last_updated: 2026-07-02
+last_updated: 2026-07-03
 ---
 
 # Troubleshooting & Common Pitfalls

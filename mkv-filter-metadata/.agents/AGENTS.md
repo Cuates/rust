@@ -1,7 +1,7 @@
 ---
 title: "Agent Rules for MKV Filter Metadata"
 audience: "AI Agents"
-last_updated: 2026-07-02
+last_updated: 2026-07-03
 ---
 
 # Agent Guidelines

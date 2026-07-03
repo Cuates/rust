@@ -166,4 +166,25 @@ describe('ConfirmationModal.svelte', () => {
     const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
     expect(document.activeElement).toBe(cancelBtn);
   });
+
+  it('traps focus with Tab and Shift+Tab', async () => {
+    const { container } = render(ConfirmationModal, {
+      props: { show: true, onConfirm: vi.fn(), onCancel: vi.fn() }
+    });
+
+    await new Promise((r) => setTimeout(r, 20)); // wait for mount focus
+    const backdrop = container.querySelector('.modal-backdrop');
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
+
+    // Focus first element (cancel) and Shift+Tab
+    cancelBtn.focus();
+    await fireEvent.keyDown(backdrop!, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(confirmBtn);
+
+    // Focus last element (confirm) and Tab
+    confirmBtn.focus();
+    await fireEvent.keyDown(backdrop!, { key: 'Tab' });
+    expect(document.activeElement).toBe(cancelBtn);
+  });
 });

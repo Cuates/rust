@@ -21,7 +21,7 @@ describe('pipeline.svelte', () => {
     // reset state
     pipeline.consoleLogs = [];
     pipeline.processingActive = false;
-    pipeline.showMetricsPanel = false;
+    pipeline.lastRunSummary = null;
     pipeline.totalFilesCount = 0;
     pipeline.completedFilesCount = 0;
     pipeline.completedFilesPerDir = {};

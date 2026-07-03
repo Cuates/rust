@@ -2,64 +2,100 @@
   import { pipeline } from '$lib/stores/pipeline.svelte';
   import { formatBytes } from '../utils/formatters';
 
-  let storageSavedPercent = $derived.by(() => {
-    return (
-      ((pipeline.storageOriginalBytes - pipeline.storageOutputBytes) /
-        pipeline.storageOriginalBytes) *
-      100
-    );
-  });
-
-  let storageColor = $derived.by(() => {
-    if (storageSavedPercent > 0.01) return '#22c55e';
-    if (storageSavedPercent < -0.01) return 'var(--danger-color)';
-    return 'var(--text-primary)';
-  });
+  /** True once the user has ever started a run in this session. */
+  let hasEverRun = $derived(pipeline.hasProcessClicked);
 </script>
 
-<div class="metrics-panel-row" aria-live="polite" aria-atomic="false">
-  <div class="progress-container-block">
-    <div class="progress-bar-track">
-      <div class="progress-bar-fill" style="width: {pipeline.overallProgress}%"></div>
-    </div>
-    <div class="progress-labels-sub-row">
-      <span class="sub-metric-label"
-        >Total Scanned: <strong>{pipeline.currentFileIndex}</strong> / {pipeline.totalFilesCount} file(s)</span
-      >
-      <span class="sub-metric-label text-right"
-        >Overall Progress: <strong>{pipeline.overallProgress}%</strong></span
-      >
-    </div>
-    {#each pipeline.activeTaskList as activeFile (activeFile.filename)}
-      <div class="progress-bar-track intra-track">
-        <div class="progress-bar-fill intra-fill" style="width: {activeFile.progress}%;"></div>
+<!--
+  MetricsPanel is always mounted. It never conditionally appears/disappears,
+  eliminating the layout jump that occurred on every pipeline start.
+  Content inside transitions between three states:
+    1. Idle (never run)    — placeholder
+    2. Active              — live progress bars
+    3. Last Run (summary)  — post-run summary card
+-->
+<div
+  class="metrics-panel-row"
+  aria-live="polite"
+  aria-atomic="false"
+  style="container-type: inline-size;"
+>
+  {#if pipeline.processingActive}
+    <!-- ── Active state ── -->
+    <div class="active-content">
+      <div class="progress-container-block">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" style="width: {pipeline.overallProgress}%"></div>
+        </div>
+        <div class="progress-labels-sub-row">
+          <span class="sub-metric-label"
+            >Total Scanned: <strong>{pipeline.currentFileIndex}</strong> / {pipeline.totalFilesCount}
+            file(s)</span
+          >
+          <span class="sub-metric-label text-right"
+            >Overall Progress: <strong>{pipeline.overallProgress}%</strong></span
+          >
+        </div>
+        {#each pipeline.activeTaskList as activeFile (activeFile.filename)}
+          <div class="progress-bar-track intra-track">
+            <div class="progress-bar-fill intra-fill" style="width: {activeFile.progress}%;"></div>
+          </div>
+          <div class="progress-labels-sub-row intra-row">
+            <span class="sub-metric-label intra-label" title={activeFile.filename}>
+              Processing: <strong>{activeFile.filename}</strong>
+            </span>
+            <span class="sub-metric-label text-right intra-value">
+              <strong>{activeFile.progress.toFixed(1)}%</strong>
+            </span>
+          </div>
+        {/each}
       </div>
-      <div class="progress-labels-sub-row intra-row">
-        <span class="sub-metric-label intra-label" title={activeFile.filename}>
-          Processing: <strong>{activeFile.filename}</strong>
-        </span>
-        <span class="sub-metric-label text-right intra-value">
-          <strong>{activeFile.progress.toFixed(1)}%</strong>
-        </span>
+      <div class="time-container-block">
+        <span class="total-time-title">Total Conversion Time:</span>
+        <span class="total-time-value">{pipeline.runningTimeFormatted}</span>
+        <span class="total-time-title" style="margin-left: 1rem;">ETA:</span>
+        <span class="total-time-value">{pipeline.etaFormatted}</span>
       </div>
-    {/each}
-  </div>
-  <div class="time-container-block">
-    <span class="total-time-title">Total Conversion Time:</span>
-    <span class="total-time-value">{pipeline.runningTimeFormatted}</span>
-    {#if pipeline.processingActive}
-      <span class="total-time-title" style="margin-left: 1rem;">ETA:</span>
-      <span class="total-time-value">{pipeline.etaFormatted}</span>
-    {/if}
-  </div>
-  {#if pipeline.overallProgress === 100 && pipeline.storageOriginalBytes > 0}
-    <div class="time-container-block">
-      <span class="total-time-title">Storage Saved:</span>
-      <span class="total-time-value" style="color: {storageColor};">
-        {storageSavedPercent > 0.01 ? '+' : ''}{storageSavedPercent.toFixed(2)}% ({formatBytes(
-          pipeline.storageOriginalBytes
-        )} -> {formatBytes(pipeline.storageOutputBytes)})
-      </span>
+    </div>
+  {:else if hasEverRun && pipeline.lastRunSummary}
+    <!-- ── Last Run summary card ── -->
+    <div class="last-run-content">
+      <p class="last-run-title">Last Run</p>
+      <div class="last-run-grid">
+        <div class="last-run-stat">
+          <span class="stat-label">Files processed</span>
+          <span class="stat-value">{pipeline.lastRunSummary.filesProcessed}</span>
+        </div>
+        <div class="last-run-stat">
+          <span class="stat-label">Duration</span>
+          <span class="stat-value">{pipeline.lastRunSummary.timeFormatted}</span>
+        </div>
+        {#if pipeline.lastRunSummary.originalBytes > 0}
+          <div class="last-run-stat">
+            <span class="stat-label">Storage delta</span>
+            <span
+              class="stat-value"
+              style="color: {pipeline.lastRunSummary.storageSavedPercent > 0.01
+                ? '#22c55e'
+                : pipeline.lastRunSummary.storageSavedPercent < -0.01
+                  ? 'var(--danger-color)'
+                  : 'var(--text-primary)'};"
+            >
+              {pipeline.lastRunSummary.storageSavedPercent > 0.01
+                ? '+'
+                : ''}{pipeline.lastRunSummary.storageSavedPercent.toFixed(2)}% ({formatBytes(
+                pipeline.lastRunSummary.originalBytes
+              )} →
+              {formatBytes(pipeline.lastRunSummary.outputBytes)})
+            </span>
+          </div>
+        {/if}
+      </div>
+    </div>
+  {:else}
+    <!-- ── Idle placeholder (never run this session) ── -->
+    <div class="idle-content">
+      <span class="idle-text">Ready — run history will appear here.</span>
     </div>
   {/if}
 </div>
@@ -75,12 +111,63 @@
     padding: 0.6rem 1rem;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
     flex-shrink: 0;
+    min-height: 52px; /* reserve space so no layout jump */
   }
 
+  /* ── Idle ── */
+  .idle-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+  }
+
+  .idle-text {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  /* ── Last Run ── */
+  .last-run-title {
+    margin: 0 0 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .last-run-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+  }
+
+  .last-run-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .stat-value {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Active ── */
   .progress-container-block {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
+    margin-bottom: 0.5rem;
   }
   .progress-bar-track {
     background-color: var(--bg-canvas);
@@ -90,7 +177,7 @@
     overflow: hidden;
   }
   .progress-bar-fill {
-    background-color: var(--accent-color);
+    background: linear-gradient(90deg, var(--accent-color) 0%, var(--accent-hover) 100%);
     height: 100%;
     transition: width 0.2s ease-out;
   }
@@ -149,5 +236,9 @@
   .intra-value {
     font-size: 0.75rem;
     flex-shrink: 0;
+  }
+
+  .text-right {
+    text-align: right;
   }
 </style>

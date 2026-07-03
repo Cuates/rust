@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-07-03
+
+### Added
+- Added a global Command Palette (Ctrl+K) for rapid navigation and action execution.
+- Added persistent window state memory across sessions, ensuring the application re-opens with the same dimensions, coordinates, and maximized state.
+- Implemented a Three-Tier Responsive Grid design that dynamically adapts from a massive three-column power-user view down to a focused single-column view based on window width.
+- Introduced a clean, real-time pipeline output log that parses processing data into concise status updates (Success, Warning, Error) instead of raw terminal output.
+
+### Changed
+- Promoted application to major version 2.0.0.
+- Completely redesigned the frontend user interface and aesthetics for a premium, modern experience.
+
 ## [1.4.0] - 2026-07-02
 
 ### Added

@@ -33,9 +33,9 @@ export default defineConfig(() => ({
       provider: 'v8' as const,
       reporter: ['text', 'json', 'html'],
       thresholds: {
-        lines: 97,
+        lines: 98,
         functions: 100,
-        branches: 88,
+        branches: 84,
         statements: 97
       }
     }

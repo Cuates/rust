@@ -4,10 +4,19 @@
     resetShortcutsToDefaults,
     isShortcutsDefault
   } from '../../lib/stores/shortcuts.svelte';
-  import { config, resetConfigToDefaults, isConfigDefault } from '../../lib/stores/config.svelte';
+  import {
+    config,
+    resetConfigToDefaults,
+    isConfigDefault,
+    savedPresets,
+    saveCurrentAsPreset,
+    applyPreset,
+    deletePreset
+  } from '../../lib/stores/config.svelte';
   import { addToast } from '../../lib/stores/toast.svelte';
   import { pipeline } from '../../lib/stores/pipeline.svelte';
   import ConfirmationModal from '../../lib/components/ConfirmationModal.svelte';
+  import { TAURI_COMMANDS, RESERVED_SHORTCUTS } from '../../lib/constants';
   import { onMount } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
 
@@ -16,11 +25,12 @@
   let showClearHistoryModal = $state(false);
   let logicalCores = $state(8);
   let historyCount = $state<number | null>(null);
+  let newPresetName = $state('');
 
   onMount(async () => {
     logicalCores = window.navigator.hardwareConcurrency || 8;
     try {
-      historyCount = await invoke('get_history_count');
+      historyCount = await invoke(TAURI_COMMANDS.GET_HISTORY_COUNT);
     } catch (e) {
       console.error('Failed to get history count:', e);
     }
@@ -40,7 +50,18 @@
 
     if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
       keyCombo.push(key);
-      shortcuts[field] = keyCombo.join('+');
+      const comboStr = keyCombo.join('+');
+
+      if (comboStr === RESERVED_SHORTCUTS.COMMAND_PALETTE) {
+        addToast(
+          `${RESERVED_SHORTCUTS.COMMAND_PALETTE} is reserved for the Command Palette.`,
+          'error'
+        );
+        recordingFor = null;
+        return;
+      }
+
+      shortcuts[field] = comboStr;
       recordingFor = null;
     }
   }
@@ -68,8 +89,8 @@
 
   async function executeClearHistory() {
     try {
-      await invoke('clear_processing_history');
-      historyCount = await invoke('get_history_count');
+      await invoke(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
+      historyCount = await invoke(TAURI_COMMANDS.GET_HISTORY_COUNT);
       showClearHistoryModal = false;
       addToast('✅ Database history cleared successfully.', 'success');
     } catch (e) {
@@ -320,6 +341,77 @@
     </div>
 
     <div class="form-workspace-card">
+      <h2>Saved Presets</h2>
+      <p class="description">
+        Save your current workflow settings (codec, CRF, extensions, etc.) as a named preset for
+        quick recall. Personal settings (theme, directories, notifications) are not saved.
+      </p>
+
+      <div class="preset-save-row">
+        <input
+          id="preset-name-input"
+          class="preset-name-input"
+          type="text"
+          placeholder="Preset name…"
+          bind:value={newPresetName}
+          disabled={pipeline.processingActive}
+          onkeydown={(e) => {
+            if (e.key === 'Enter' && newPresetName.trim()) {
+              saveCurrentAsPreset(newPresetName);
+              addToast(`Preset "${newPresetName.trim()}" saved.`, 'success');
+              newPresetName = '';
+            }
+          }}
+        />
+        <button
+          class="preset-save-btn"
+          disabled={!newPresetName.trim() || pipeline.processingActive}
+          onclick={() => {
+            saveCurrentAsPreset(newPresetName);
+            addToast(`Preset "${newPresetName.trim()}" saved.`, 'success');
+            newPresetName = '';
+          }}
+        >
+          Save Current
+        </button>
+      </div>
+
+      {#if savedPresets.length === 0}
+        <p class="preset-empty">No presets saved yet.</p>
+      {:else}
+        <ul class="preset-list">
+          {#each savedPresets as preset (preset.name)}
+            <li class="preset-item">
+              <span class="preset-item-name" title={preset.name}>{preset.name}</span>
+              <div class="preset-item-actions">
+                <button
+                  class="preset-apply-btn"
+                  disabled={pipeline.processingActive}
+                  onclick={() => {
+                    applyPreset(preset);
+                    addToast(`Applied preset "${preset.name}".`, 'success');
+                  }}
+                >
+                  Apply
+                </button>
+                <button
+                  class="preset-delete-btn"
+                  disabled={pipeline.processingActive}
+                  onclick={() => {
+                    deletePreset(preset.name);
+                    addToast(`Preset "${preset.name}" deleted.`, 'info');
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+
+    <div class="form-workspace-card">
       <h2>Reset Defaults</h2>
       <p class="description">
         Restore all application settings, configurations, and keyboard shortcuts back to their
@@ -353,15 +445,10 @@
 />
 
 <style lang="scss">
+  /* Settings uses the global .app-container shell from app.scss.
+     Override: single-column layout only (no three-tier grid needed here). */
   .app-container {
-    box-sizing: border-box;
-    max-width: 850px;
-    height: 100vh;
-    margin: 0 auto;
-    padding: 0 1rem 0 1rem;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    max-width: none;
   }
 
   .content-scroll-area {
@@ -466,14 +553,9 @@
   }
 
   .form-workspace-card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
     padding: 1.5rem;
-    display: flex;
-    flex-direction: column;
     gap: 1.5rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    flex: none;
   }
 
   h2 {
@@ -603,6 +685,134 @@
         box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
         font-weight: 600;
       }
+    }
+  }
+
+  /* ─── Saved Presets ─── */
+  .preset-save-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .preset-name-input {
+    flex: 1;
+    background-color: var(--bg-body);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s;
+
+    &:focus:not(:disabled) {
+      border-color: var(--accent-color);
+    }
+  }
+
+  .preset-save-btn {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.15s;
+    white-space: nowrap;
+
+    &:hover:not(:disabled) {
+      background-color: var(--accent-hover);
+    }
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .preset-empty {
+    margin: 0;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    font-style: italic;
+  }
+
+  .preset-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .preset-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-body);
+  }
+
+  .preset-item-name {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .preset-item-actions {
+    display: flex;
+    gap: 0.35rem;
+    flex-shrink: 0;
+  }
+
+  .preset-apply-btn {
+    background-color: transparent;
+    color: var(--accent-color);
+    border: 1px solid var(--accent-color);
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &:hover:not(:disabled) {
+      background-color: var(--accent-color);
+      color: white;
+    }
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  .preset-delete-btn {
+    background-color: transparent;
+    color: var(--danger-color);
+    border: 1px solid transparent;
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s;
+
+    &:hover:not(:disabled) {
+      border-color: var(--danger-color);
+      background-color: rgba(239, 68, 68, 0.08);
+    }
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   }
 </style>

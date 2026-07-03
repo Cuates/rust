@@ -8,10 +8,16 @@ import {
   loadConfig,
   configState,
   appState,
-  getResolvedTheme
+  getResolvedTheme,
+  savedPresets,
+  saveCurrentAsPreset,
+  applyPreset,
+  deletePreset,
+  loadPresets,
+  initPresetsWatcher
 } from './config.svelte';
-import { load } from '@tauri-apps/plugin-store';
-import {} from 'svelte';
+import { load, type Store } from '@tauri-apps/plugin-store';
+import { tick } from 'svelte';
 
 vi.mock('@tauri-apps/plugin-store', () => ({
   load: vi.fn()
@@ -21,6 +27,7 @@ describe('config.svelte', () => {
   beforeEach(() => {
     resetConfigToDefaults();
     configState.isLoaded = false;
+    savedPresets.splice(0, savedPresets.length);
     vi.clearAllMocks();
   });
 
@@ -151,5 +158,114 @@ describe('config.svelte', () => {
     expect(mockStore.set).toHaveBeenCalledWith('input_directories', ['/some/path']);
 
     vi.useRealTimers();
+  });
+
+  describe('Presets', () => {
+    it('loadPresets loads stored presets from disk', async () => {
+      const mockStore = {
+        get: vi.fn().mockResolvedValue([{ name: 'Disk Preset', config: { crf: 40 } }]),
+        set: vi.fn(),
+        save: vi.fn()
+      };
+      vi.mocked(load).mockResolvedValue(mockStore as unknown as Store);
+
+      await loadPresets();
+      expect(savedPresets.length).toBe(1);
+      expect(savedPresets[0].name).toBe('Disk Preset');
+    });
+
+    it('saves current config as a preset without personal settings', () => {
+      // Mock preset store dependencies
+      config.video_codec = 'libx265';
+      config.crf = 25;
+      config.theme = 'dark';
+      config.input_directories = ['/some/path'];
+
+      saveCurrentAsPreset('My Custom Preset');
+
+      expect(savedPresets.length).toBe(1);
+      const saved = savedPresets[0];
+      expect(saved.name).toBe('My Custom Preset');
+      expect(saved.config.video_codec).toBe('libx265');
+      expect(saved.config.crf).toBe(25);
+
+      // Personal settings should be excluded
+      expect((saved.config as unknown as Record<string, unknown>).theme).toBeUndefined();
+      expect(
+        (saved.config as unknown as Record<string, unknown>).input_directories
+      ).toBeUndefined();
+    });
+
+    it('overwrites an existing preset if the name matches', () => {
+      config.crf = 10;
+      saveCurrentAsPreset('Duplicate');
+
+      config.crf = 30;
+      saveCurrentAsPreset('Duplicate'); // Should overwrite
+
+      const filtered = savedPresets.filter((p) => p.name === 'Duplicate');
+      expect(filtered.length).toBe(1);
+      expect(filtered[0].config.crf).toBe(30);
+    });
+
+    it('applies a preset to the current config', () => {
+      // Setup a preset
+      config.crf = 15;
+      saveCurrentAsPreset('ApplyMe');
+
+      // Change current config
+      config.crf = 50;
+
+      // Apply
+      const preset = savedPresets.find((p) => p.name === 'ApplyMe')!;
+      applyPreset(preset);
+
+      expect(config.crf).toBe(15);
+    });
+
+    it('deletes a preset by name', () => {
+      saveCurrentAsPreset('ToDelete');
+      const startCount = savedPresets.length;
+
+      deletePreset('ToDelete');
+      expect(savedPresets.length).toBe(startCount - 1);
+      expect(savedPresets.find((p) => p.name === 'ToDelete')).toBeUndefined();
+    });
+  });
+
+  describe('Presets Persistence', () => {
+    it('loads and saves presets', async () => {
+      const mockStore = {
+        get: vi.fn().mockResolvedValue([{ name: 'Test Preset', config: {} }]),
+        set: vi.fn(),
+        save: vi.fn()
+      };
+      vi.mocked(load).mockResolvedValue(mockStore as unknown as Store);
+
+      await loadPresets();
+
+      // Verify it loaded the preset
+      expect(savedPresets.length).toBe(1);
+      expect(savedPresets[0].name).toBe('Test Preset');
+
+      // Trigger the watcher by changing length inside a component
+      render(TestWrapper, {
+        props: {
+          children: () => {
+            initPresetsWatcher();
+            savedPresets.push({
+              name: 'PersistTest',
+              config: { ...config }
+            });
+          }
+        }
+      });
+
+      // Wait for svelte reactive effects to trigger and promises to resolve
+      await tick();
+      await new Promise((r) => setTimeout(r, 10));
+      expect(mockStore.set).toHaveBeenCalled();
+      expect(mockStore.save).toHaveBeenCalled();
+    });
   });
 });
