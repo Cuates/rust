@@ -79,11 +79,18 @@ describe('AboutModal.svelte', () => {
 
   it('opens external links and handles errors', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    render(AboutModal, { props: { show: true, onClose: vi.fn() } });
+    const { container } = render(AboutModal, { props: { show: true, onClose: vi.fn() } });
 
     const githubLink = screen.getByText('GitHub Repository');
     await fireEvent.click(githubLink);
     expect(openUrl).toHaveBeenCalledWith(expect.stringContaining('Cuates/rust'));
+
+    // Test clicking an inner element like SVG inside the anchor
+    const firstSvg = container.querySelector('.links a svg');
+    if (firstSvg) {
+      await fireEvent.click(firstSvg);
+      expect(openUrl).toHaveBeenCalledWith(expect.stringContaining('Cuates/rust'));
+    }
 
     const changelogLink = screen.getByText('Changelog');
     await fireEvent.click(changelogLink);

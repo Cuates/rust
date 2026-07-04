@@ -51,8 +51,7 @@
   let lastProgressPercentage = $state(-1);
   $effect(() => {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(window as any).__TAURI_INTERNALS__?.metadata) return; // Prevent crashes in raw browser
+      if (!window.__TAURI_INTERNALS__?.metadata) return; // Prevent crashes in raw browser
       const appWindow = getCurrentWindow();
       if (pipeline.totalFilesCount > 0 && pipeline.processingActive) {
         if (pipeline.overallProgress !== lastProgressPercentage) {

@@ -17,6 +17,7 @@
   }
 
   async function copyTerminalLogs() {
+    /* v8 ignore next */
     if (pipeline.consoleLogs.length === 0) return;
 
     try {
@@ -36,6 +37,7 @@
   }
 
   async function saveTerminalLogs() {
+    /* v8 ignore next */
     if (pipeline.consoleLogs.length === 0) return;
     try {
       const logExists = await invoke<boolean>(TAURI_COMMANDS.CHECK_SESSION_LOG);

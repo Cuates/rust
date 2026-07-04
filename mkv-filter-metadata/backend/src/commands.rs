@@ -117,7 +117,7 @@ async fn retry_with_ass_conversion<'a, R: tauri::Runtime>(
     run_sidecar_command(
         app,
         state,
-        "ffmpeg",
+        crate::constants::BINARY_FFMPEG,
         retry_args,
         output_file_path.to_path_buf(),
         file_name,
@@ -167,7 +167,7 @@ async fn run_mkvmerge_fallback<R: tauri::Runtime>(
     let (mkvmerge_success, _) = run_sidecar_command(
         app,
         state,
-        "mkvmerge",
+        crate::constants::BINARY_MKVMERGE,
         mkvmerge_args,
         output_file_path.to_path_buf(),
         file_name,
@@ -531,7 +531,7 @@ async fn process_one_file<R: tauri::Runtime>(
         let (success, stderr_lines) = run_sidecar_command(
             &app,
             &state,
-            "ffmpeg",
+            crate::constants::BINARY_FFMPEG,
             ffmpeg_args,
             output_file_path.clone(),
             &file_name,
@@ -588,7 +588,7 @@ async fn process_one_file<R: tauri::Runtime>(
         let (success, stderr_lines) = run_sidecar_command(
             &app,
             &state,
-            "ffmpeg",
+            crate::constants::BINARY_FFMPEG,
             ffmpeg_copy_args,
             output_file_path.clone(),
             &file_name,
@@ -988,7 +988,7 @@ pub async fn get_sidecar_version<R: tauri::Runtime>(
     binary_name: String,
 ) -> Result<String, AppError> {
     let shell = app.shell();
-    let args = if binary_name == "mkvmerge" {
+    let args = if binary_name == crate::constants::BINARY_MKVMERGE {
         vec!["--version".to_string()]
     } else {
         vec!["-version".to_string()]
@@ -1036,7 +1036,7 @@ pub async fn get_encoder_capabilities<R: tauri::Runtime>(
     };
 
     let shell = app.shell();
-    if let Ok(cmd) = shell.sidecar("ffmpeg")
+    if let Ok(cmd) = shell.sidecar(crate::constants::BINARY_FFMPEG)
         && let Ok(output) = cmd.args(["-encoders"]).output().await
     {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1047,7 +1047,7 @@ pub async fn get_encoder_capabilities<R: tauri::Runtime>(
         let has_videotoolbox = stdout.contains("_videotoolbox");
 
         let test_codec = |app: AppHandle<R>, codec: &'static str| async move {
-            if let Ok(test_cmd) = app.shell().sidecar("ffmpeg")
+            if let Ok(test_cmd) = app.shell().sidecar(crate::constants::BINARY_FFMPEG)
                 && let Ok(test_out) = test_cmd
                     .args([
                         "-f",
@@ -1458,5 +1458,26 @@ mod tests {
 
         // Edge cases
         assert!(!is_system_congested(90.0, 15.0, &thresholds));
+    }
+
+    #[test]
+    fn test_validate_character_list() {
+        // Valid
+        assert!(super::validate_character_list("eng,spa", "Subtitle", false).is_ok());
+        assert!(super::validate_character_list("mp4,mkv", "Ext", false).is_ok());
+
+        // Invalid chars
+        assert!(super::validate_character_list("eng,spa!?", "Subtitle", false).is_err());
+
+        // Let's see how parse_comma_list handles space. parse_comma_list trims.
+        // So "mp4, mkv" becomes ["mp4", "mkv"] which is valid.
+        assert!(super::validate_character_list("mp4, mkv", "Ext", false).is_ok());
+
+        // But internal spaces like "m p 4"
+        assert!(super::validate_character_list("m p 4", "Ext", false).is_err());
+
+        // Hyphen allowed
+        assert!(super::validate_character_list("zh-CN,eng", "Subtitle", true).is_ok());
+        assert!(super::validate_character_list("zh-CN", "Subtitle", false).is_err());
     }
 }

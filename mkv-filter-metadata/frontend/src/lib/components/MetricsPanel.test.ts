@@ -61,6 +61,40 @@ describe('MetricsPanel.svelte', () => {
     expect(screen.getByText(/30%/i)).toBeInTheDocument();
   });
 
+  it('shows intra-file progress bars for active tasks', async () => {
+    pipeline.processingActive = true;
+    pipeline.hasProcessClicked = true;
+    pipeline.activeFiles = {
+      'movie1.mkv': 45.5,
+      'movie2.mkv': 12.0
+    };
+
+    render(MetricsPanel);
+
+    expect(screen.getByText('movie1.mkv')).toBeInTheDocument();
+    expect(screen.getByText('movie2.mkv')).toBeInTheDocument();
+    expect(screen.getByText('45.5%')).toBeInTheDocument();
+    expect(screen.getByText('12.0%')).toBeInTheDocument();
+  });
+
+  it('shows neutral storage delta with default colour', async () => {
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 1,
+      timeFormatted: '1s',
+      storageSavedPercent: 0,
+      originalBytes: 1000,
+      outputBytes: 1000
+    };
+
+    render(MetricsPanel);
+
+    const spans = screen.getAllByText(/0\.00%/);
+    const span = spans.find((el) => el.classList.contains('stat-value'));
+    expect(span).toHaveStyle({ color: 'var(--text-primary)' });
+  });
+
   it('does not show idle placeholder when processing is active', () => {
     pipeline.processingActive = true;
     pipeline.hasProcessClicked = true;

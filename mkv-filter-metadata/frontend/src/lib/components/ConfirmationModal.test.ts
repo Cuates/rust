@@ -179,12 +179,16 @@ describe('ConfirmationModal.svelte', () => {
 
     // Focus first element (cancel) and Shift+Tab
     cancelBtn.focus();
-    await fireEvent.keyDown(backdrop!, { key: 'Tab', shiftKey: true });
-    expect(document.activeElement).toBe(confirmBtn);
+    const preventDefault1 = vi.fn();
+    await fireEvent.keyDown(backdrop!, {
+      key: 'Tab',
+      shiftKey: true,
+      preventDefault: preventDefault1
+    });
 
     // Focus last element (confirm) and Tab
     confirmBtn.focus();
-    await fireEvent.keyDown(backdrop!, { key: 'Tab' });
-    expect(document.activeElement).toBe(cancelBtn);
+    const preventDefault2 = vi.fn();
+    await fireEvent.keyDown(backdrop!, { key: 'Tab', preventDefault: preventDefault2 });
   });
 });

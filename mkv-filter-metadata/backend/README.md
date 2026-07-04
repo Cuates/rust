@@ -32,7 +32,7 @@ Input Directory
 ### Abort & Cleanup Protocol
 
 When the user clicks "Stop Execution" or closes the window mid-pipeline:
-1. The `is_aborted` atomic flag is set.
+1. The `tokio_util::sync::CancellationToken` is signaled to broadcast abort across all asynchronous tasks.
 2. The active FFmpeg child process is forcefully killed.
 3. The partially written output file is deleted from disk.
 4. Empty `processed_files/` directories are removed.

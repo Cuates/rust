@@ -28,3 +28,36 @@ export const TAURI_EVENTS = {
   DRAG_DROP: 'tauri://drag-drop',
   RESOURCE_THROTTLE: 'resource-throttle'
 } as const;
+
+export const STORE_FILENAMES = {
+  CONFIG: 'config.json',
+  PRESETS: 'presets.json',
+  SHORTCUTS: 'shortcuts.json'
+} as const;
+
+export const UI_STRINGS = {
+  DIRECTORY_NOT_FOUND: 'Directory not found',
+  NO_MATCHED_FILES: 'No matched files',
+  RECORDING_SHORTCUT: 'Recording...',
+  PILL_FILES_SUFFIX: ' files'
+} as const;
+
+export const UI_CONSTANTS = {
+  TOOLTIP_HIDE_DELAY_MS: 150,
+  TOOLTIP_OFFSET_PX: 8,
+  TOOLTIP_BOUNDARY_MARGIN: 10,
+  DEFAULT_LOGICAL_CORES: 8
+} as const;
+
+export const KEY_OVERRIDES = {
+  CTRL: 'Ctrl',
+  SHIFT: 'Shift',
+  ALT: 'Alt',
+  META: 'Meta',
+  SPACE: 'Space'
+} as const;
+
+export const INTERNAL_IDENTIFIERS = {
+  START_PIPELINE: 'startPipeline',
+  ABORT_PIPELINE: 'abortPipeline'
+} as const;

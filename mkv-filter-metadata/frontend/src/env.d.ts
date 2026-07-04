@@ -4,3 +4,9 @@ declare const __BUILD_DATE__: string;
 declare const __TAURI_VERSION__: string;
 declare const __SVELTE_VERSION__: string;
 declare const __NODE_VERSION__: string;
+
+interface Window {
+  __TAURI_INTERNALS__?: {
+    metadata?: unknown;
+  };
+}

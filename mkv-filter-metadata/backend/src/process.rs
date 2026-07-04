@@ -328,7 +328,7 @@ pub async fn get_matching_subtitle_maps<R: tauri::Runtime>(
 ) -> Result<Vec<String>, AppError> {
     let shell = app.shell();
     let cmd = shell
-        .sidecar("ffprobe")
+        .sidecar(crate::constants::BINARY_FFPROBE)
         .map_err(|e| {
             AppError::Sidecar(format!(
                 "Failed to initialize ffprobe sidecar configuration: {}",
@@ -485,7 +485,7 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
     file_name: &str,
 ) -> Result<(bool, Vec<String>), AppError> {
     let shell = app.shell();
-    let is_mkvmerge = binary_name == "mkvmerge";
+    let is_mkvmerge = binary_name == crate::constants::BINARY_MKVMERGE;
     static FPS_REGEX: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
     let fps_regex = FPS_REGEX.get_or_init(|| regex::Regex::new(r"(\d+(?:\.\d+)?)\s+fps").unwrap());
 
@@ -742,5 +742,25 @@ mod tests {
         let args = build_ffmpeg_args(&config);
         assert!(args.contains(&"-c:v".to_string()));
         assert!(args.contains(&"copy".to_string()));
+
+        let reencode_config = FfmpegJobConfig {
+            input: Path::new("in.mkv"),
+            output: Path::new("out.mkv"),
+            subtitle_maps: &[],
+            mode: ConversionMode::Reencode,
+            subtitle_codec: SubtitleCodec::Ass,
+            reencode: Some(ReencodeConfig {
+                video_codec: &crate::models::VideoCodec::Libx265,
+                preset: &crate::models::Preset::Fast,
+                crf: "20",
+            }),
+        };
+        let args2 = build_ffmpeg_args(&reencode_config);
+        assert!(args2.contains(&"-c:v".to_string()));
+        assert!(args2.contains(&"libx265".to_string()));
+        assert!(args2.contains(&"-preset".to_string()));
+        assert!(args2.contains(&"fast".to_string()));
+        assert!(args2.contains(&"-crf".to_string()));
+        assert!(args2.contains(&"20".to_string()));
     }
 }

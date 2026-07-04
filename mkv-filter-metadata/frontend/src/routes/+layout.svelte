@@ -16,6 +16,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
   import { addToast } from '$lib/stores/toast.svelte';
+  import { goto } from '$app/navigation';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import { paletteState, registerCommand } from '$lib/stores/commands.svelte';
 
@@ -30,8 +31,7 @@
 
   async function applyThemeWindow(theme: 'light' | 'dark', isSystem: boolean) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      if (!(window as any).__TAURI_INTERNALS__?.metadata) return; // Prevent crash if Tauri is not fully initialized
+      if (!window.__TAURI_INTERNALS__?.metadata) return; // Prevent crash if Tauri is not fully initialized
       const appWindow = getCurrentWindow();
       if (isSystem) {
         await appWindow.setTheme(null);
@@ -100,19 +100,19 @@
       id: 'go-home',
       label: 'Go to Dashboard',
       enabled: () => window.location.pathname !== '/',
-      action: () => window.location.assign('/')
+      action: () => goto('/')
     });
     registerCommand({
       id: 'go-settings',
       label: 'Go to Settings',
       enabled: () => window.location.pathname !== '/settings',
-      action: () => window.location.assign('/settings')
+      action: () => goto('/settings')
     });
     registerCommand({
       id: 'go-guide',
       label: 'Go to Guide',
       enabled: () => window.location.pathname !== '/guide',
-      action: () => window.location.assign('/guide')
+      action: () => goto('/guide')
     });
   });
 </script>

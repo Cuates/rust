@@ -267,5 +267,14 @@ describe('config.svelte', () => {
       expect(mockStore.set).toHaveBeenCalled();
       expect(mockStore.save).toHaveBeenCalled();
     });
+    it('ignores empty name when saving preset', async () => {
+      saveCurrentAsPreset('   ');
+      expect(savedPresets).toHaveLength(0); // the init 'HD Default'
+    });
+
+    it('ignores deleting a non-existent preset', async () => {
+      deletePreset('NonExistent');
+      expect(savedPresets).toHaveLength(0);
+    });
   });
 });

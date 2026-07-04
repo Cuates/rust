@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, screen } from '@testing-library/svelte';
 import DirectoryQueue from './DirectoryQueue.svelte';
 import { config } from '$lib/stores/config.svelte';
@@ -9,7 +9,14 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { invoke } from '@tauri-apps/api/core';
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn()
+  invoke: vi.fn(() =>
+    Promise.resolve({
+      exists: true,
+      file_count: 0,
+      total_size_bytes: 0,
+      files: []
+    })
+  )
 }));
 vi.mock('@tauri-apps/plugin-dialog', () => ({
   open: vi.fn()
@@ -33,6 +40,12 @@ describe('DirectoryQueue.svelte', () => {
     // reset animation frame mock just in case
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => setTimeout(cb, 16));
     vi.stubGlobal('cancelAnimationFrame', (id: number) => clearTimeout(id));
+  });
+
+  afterEach(() => {
+    // Clean up global tooltip node
+    const tooltip = document.querySelector('.global-queue-tooltip');
+    if (tooltip) tooltip.remove();
   });
 
   it('renders empty state when no directories exist', () => {
@@ -140,11 +153,20 @@ describe('DirectoryQueue.svelte', () => {
   it('handles open output folder error', async () => {
     config.input_directories = ['/folder1'];
     pipeline.directoryStatuses['/folder1'] = 'done';
-    vi.mocked(invoke).mockRejectedValueOnce(new Error('Cannot open folder'));
 
-    render(DirectoryQueue);
+    // First call is for directory stats, second is for open folder
+    vi.mocked(invoke).mockResolvedValueOnce({
+      exists: true,
+      file_count: 5,
+      total_size_bytes: 1000,
+      files: []
+    });
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('Permission denied'));
 
-    const openBtns = screen.getAllByLabelText('Open processed files folder');
+    const { container } = render(DirectoryQueue);
+    const openBtns = container.querySelectorAll('.open-folder-btn');
+    expect(openBtns.length).toBe(1);
+
     await fireEvent.click(openBtns[0]);
 
     expect(addToast).toHaveBeenCalledWith(
@@ -153,49 +175,86 @@ describe('DirectoryQueue.svelte', () => {
     );
   });
 
-  it('handles external drop', () => {
-    config.input_directories = ['/existing/folder'];
-    const { component } = render(DirectoryQueue);
+  it('garbage collects cached stats for removed directories', async () => {
+    config.input_directories = ['/folder1', '/folder2'];
+    vi.mocked(invoke).mockResolvedValue({
+      exists: true,
+      file_count: 0,
+      total_size_bytes: 0,
+      files: []
+    });
+    render(DirectoryQueue);
+    await new Promise((r) => setTimeout(r, 0)); // wait for stats to load
 
-    component.handleDragDrop(['/dropped/folder', '/existing/folder']);
-    expect(config.input_directories).toContain('/dropped/folder');
-    expect(config.input_directories.length).toBe(2);
+    // Now remove one, the effect should clean up its stats
+    config.input_directories = ['/folder2'];
+    await new Promise((r) => setTimeout(r, 0)); // wait for effect
   });
 
-  it('shows processing status and handles dragging flags', () => {
+  it('handles external drop', async () => {
+    config.input_directories = ['/folder1'];
+    const { component } = render(DirectoryQueue);
+
+    component.handleDragDrop(['/folder2', '/folder3']);
+
+    expect(config.input_directories).toEqual(['/folder1', '/folder2', '/folder3']);
+  });
+
+  it('shows processing status and handles dragging flags', async () => {
     config.input_directories = ['/folder1'];
     pipeline.directoryStatuses['/folder1'] = 'processing';
+    pipeline.completedFilesPerDir['/folder1'] = 2;
+    pipeline.processingActive = true;
+    vi.mocked(invoke).mockResolvedValueOnce({
+      exists: true,
+      file_count: 5,
+      total_size_bytes: 1048576,
+      files: []
+    });
+    const { container } = render(DirectoryQueue, { isDraggingOS: true });
 
-    render(DirectoryQueue);
-    expect(screen.getByTitle('Processing...')).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 0)); // let stats load
+
+    const item = container.querySelector('.queue-item');
+    expect(item).toHaveClass('status-processing');
+    expect(item).toHaveClass('is-locked');
+
+    const box = container.querySelector('#queue-box');
+    expect(box).toHaveClass('dragging');
+
+    const pills = container.querySelectorAll('.queue-pill');
+    expect(pills.length).toBeGreaterThan(0);
+    expect(pills[0].textContent).toContain('2 / 5 files');
   });
 
   it('renders done with errors status', () => {
     config.input_directories = ['/folder1'];
     pipeline.directoryStatuses['/folder1'] = 'done';
     pipeline.directoryErrors['/folder1'] = true;
+    const { container } = render(DirectoryQueue);
 
-    render(DirectoryQueue);
-    expect(screen.getByTitle('Finished with warnings or errors')).toBeInTheDocument();
+    const item = container.querySelector('.queue-item');
+    expect(item).toHaveClass('status-warning');
   });
 
   it('renders skipped missing status', () => {
     config.input_directories = ['/folder1'];
     pipeline.directoryStatuses['/folder1'] = 'skipped';
     pipeline.directoryStats['/folder1'] = { exists: false } as import('../types').DirStats;
-    pipeline.hasProcessClicked = true;
+    const { container } = render(DirectoryQueue);
 
-    render(DirectoryQueue);
-    expect(screen.getByTitle('Skipped (Directory does not exist)')).toBeInTheDocument();
+    const item = container.querySelector('.queue-item');
+    expect(item).toHaveClass('status-skipped');
   });
 
   it('renders skipped empty status', () => {
     config.input_directories = ['/folder1'];
     pipeline.directoryStatuses['/folder1'] = 'skipped';
     pipeline.directoryStats['/folder1'] = { exists: true } as import('../types').DirStats;
+    const { container } = render(DirectoryQueue);
 
-    render(DirectoryQueue);
-    expect(screen.getByTitle('Skipped (Directory is empty)')).toBeInTheDocument();
+    const item = container.querySelector('.queue-item');
+    expect(item).toHaveClass('status-skipped');
   });
 
   it('handles drag events for queue container', async () => {
@@ -203,7 +262,6 @@ describe('DirectoryQueue.svelte', () => {
     const box = container.querySelector('#queue-box') as HTMLElement;
 
     await fireEvent.dragOver(box);
-    // Reactivity takes a moment, we can verify it doesn't crash.
     await fireEvent.dragLeave(box);
     await fireEvent.drop(box);
   });
@@ -229,8 +287,8 @@ describe('DirectoryQueue.svelte', () => {
     // Simulate pointer down on first item
     await fireEvent.pointerDown(items[0], { clientY: 100 });
 
-    // Move pointer down enough to swap with the next item (ITEM_HEIGHT is 36)
-    component.handleGlobalPointerMove({ clientY: 140 } as PointerEvent);
+    // Move pointer down enough to swap with the next item
+    component.handleGlobalPointerMove({ clientY: 150 } as PointerEvent);
 
     // The items should swap in config
     expect(config.input_directories[0]).toBe('/folder2');
@@ -264,54 +322,95 @@ describe('DirectoryQueue.svelte', () => {
 
     const items = container.querySelectorAll('.queue-item');
 
-    // Start dragging
-    await fireEvent.pointerDown(items[0], { clientY: 150 });
+    // Drag first item
+    await fireEvent.pointerDown(items[0], { clientY: 120 });
 
-    // Pointer move below the top boundary threshold (auto scroll up)
-    component.handleGlobalPointerMove({ clientY: 105 } as PointerEvent);
+    // Move above top boundary
+    component.handleGlobalPointerMove({ clientY: 90 } as PointerEvent);
+    await new Promise((r) => setTimeout(r, 20)); // wait for RAF
 
-    // Wait for requestAnimationFrame to fire scrollStep
-    await new Promise((r) => setTimeout(r, 50));
+    // Move below bottom boundary
+    component.handleGlobalPointerMove({ clientY: 280 } as PointerEvent);
+    await new Promise((r) => setTimeout(r, 20)); // wait for RAF
 
-    // Pointer move above the bottom boundary threshold (auto scroll down)
-    component.handleGlobalPointerMove({ clientY: 260 } as PointerEvent);
+    // Move inside middle safe zone (should stop scrolling)
+    component.handleGlobalPointerMove({ clientY: 150 } as PointerEvent);
 
-    // Pointer move beyond bounding box
-    component.handleGlobalPointerMove({ clientY: 50 } as PointerEvent); // clamped to rect.top
-    component.handleGlobalPointerMove({ clientY: 300 } as PointerEvent);
-    // requestAnimationFrame handles the scroll
     component.handleGlobalPointerUp();
   });
 
-  describe('Pre-flight file list', () => {
-    it('toggles preflight panel and loads directory stats', async () => {
+  describe('Queue Pills', () => {
+    it('renders file count and size pills when directory stats are loaded', async () => {
       config.input_directories = ['/path/to/folder'];
       vi.mocked(invoke).mockResolvedValueOnce({
         exists: true,
-        file_count: 2,
-        total_size_bytes: 1000,
+        file_count: 5,
+        total_size_bytes: 1048576, // 1 MB
         files: [
-          { name: 'video1.mkv', size_bytes: 500 },
-          { name: 'video2.mkv', size_bytes: 500 }
+          { name: 'video1.mkv', size_bytes: 524288 },
+          { name: 'video2.mkv', size_bytes: 524288 }
         ]
       });
 
-      render(DirectoryQueue);
+      const { container } = render(DirectoryQueue);
 
-      const toggleBtn = screen.getByTitle('Show matched files');
-      await fireEvent.click(toggleBtn);
+      // Wait for effect to run and fetch stats
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(invoke).toHaveBeenCalledWith('get_directory_stats', expect.any(Object));
-
-      // Should show the loading state briefly, then the loaded files
-      const countLabel = await screen.findByText(/Will process/i);
-      expect(countLabel).toBeInTheDocument();
-      expect(screen.getByText('video1.mkv')).toBeInTheDocument();
-      expect(screen.getByText('video2.mkv')).toBeInTheDocument();
+      const pills = container.querySelectorAll('.queue-pill');
+      expect(pills.length).toBe(2);
+      expect(pills[0].textContent).toContain('5 files');
+      expect(pills[1].textContent).toContain('1 MB');
     });
 
-    it('shows empty message when no files match', async () => {
-      config.input_directories = ['/path/to/empty'];
+    it('renders tooltip with file list on hover', async () => {
+      config.input_directories = ['/path/to/folder'];
+      vi.mocked(invoke).mockResolvedValueOnce({
+        exists: true,
+        file_count: 1,
+        total_size_bytes: 1000,
+        files: [{ name: 'test_video.mkv', size_bytes: 1000 }]
+      });
+
+      const { container } = render(DirectoryQueue);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const items = container.querySelectorAll('.queue-item');
+      await fireEvent.mouseEnter(items[0].querySelector('.queue-pill')!);
+
+      const tooltip = document.querySelector('.global-queue-tooltip') as HTMLElement;
+      expect(tooltip).toBeInTheDocument();
+      expect(tooltip?.textContent).toContain('test_video.mkv');
+
+      // Test the right boundary logic by making getBoundingClientRect return a high right value
+      const originalInnerWidth = window.innerWidth;
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: 500
+      });
+      Object.defineProperty(tooltip, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ right: 600, width: 100 })
+      });
+      // Fire mouseEnter again to trigger requestAnimationFrame boundary check
+      await fireEvent.mouseEnter(items[0].querySelector('.queue-pill')!);
+      await new Promise((r) => setTimeout(r, 50)); // let rAF run
+      expect(tooltip.style.transform).toBe('none');
+      Object.defineProperty(window, 'innerWidth', {
+        writable: true,
+        configurable: true,
+        value: originalInnerWidth
+      });
+
+      await fireEvent.mouseLeave(items[0].querySelector('.queue-pill')!);
+      // Use setTimeout for setTimeout which removes class
+      await new Promise((r) => setTimeout(r, 200));
+      expect(tooltip).not.toHaveClass('visible');
+    });
+
+    it('renders empty message for empty directories', async () => {
+      config.input_directories = ['/empty'];
       vi.mocked(invoke).mockResolvedValueOnce({
         exists: true,
         file_count: 0,
@@ -319,37 +418,33 @@ describe('DirectoryQueue.svelte', () => {
         files: []
       });
 
-      render(DirectoryQueue);
-      await fireEvent.click(screen.getByTitle('Show matched files'));
+      const { container } = render(DirectoryQueue);
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(await screen.findByText('No files match the current filters.')).toBeInTheDocument();
+      const items = container.querySelectorAll('.queue-item');
+      await fireEvent.mouseEnter(items[0].querySelector('.queue-pill')!);
+
+      const tooltip = document.querySelector('.global-queue-tooltip');
+      expect(tooltip?.textContent).toContain('No matched files');
     });
 
-    it('shows error state if invoke fails', async () => {
-      config.input_directories = ['/path/to/error'];
-      vi.mocked(invoke).mockRejectedValueOnce(new Error('Permission denied'));
+    it('renders not found message for non-existent directories', async () => {
+      config.input_directories = ['/missing'];
+      vi.mocked(invoke).mockResolvedValueOnce({
+        exists: false,
+        file_count: 0,
+        total_size_bytes: 0,
+        files: []
+      });
 
-      render(DirectoryQueue);
-      await fireEvent.click(screen.getByTitle('Show matched files'));
+      const { container } = render(DirectoryQueue);
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
-      expect(await screen.findByText('Failed to scan directory.')).toBeInTheDocument();
+      const items = container.querySelectorAll('.queue-item');
+      await fireEvent.mouseEnter(items[0].querySelector('.queue-pill')!);
+
+      const tooltip = document.querySelector('.global-queue-tooltip');
+      expect(tooltip?.textContent).toContain('Directory not found');
     });
-  });
-
-  it('renders non-issue tooltip for existing directory', () => {
-    config.input_directories = ['/folder1'];
-    pipeline.hasProcessClicked = true;
-    pipeline.directoryStats['/folder1'] = {
-      exists: true,
-      file_count: 5,
-      total_size_bytes: 500000,
-      files: []
-    } as import('../types').DirStats;
-
-    const { container } = render(DirectoryQueue);
-
-    // An info-circle without the "issue" class should be rendered
-    const infoCircle = container.querySelector('.info-circle:not(.issue)');
-    expect(infoCircle).toBeInTheDocument();
   });
 });

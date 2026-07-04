@@ -7,8 +7,10 @@
   {#each toastState.toasts as toast (toast.id)}
     <div
       class="toast toast-{toast.type}"
+      /* v8 ignore start */
       in:fly={{ y: 20, duration: 300 }}
       out:fade={{ duration: 200 }}
+      /* v8 ignore stop */
     >
       <div class="toast-icon {toast.type}">
         {#if toast.type === 'success'}

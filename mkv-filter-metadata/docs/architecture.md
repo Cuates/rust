@@ -64,7 +64,9 @@ mkv-filter-metadata/
 │       ├── 0006-centralized-ci-setup.md
 │       ├── 0007-adaptive-throttling-and-storage-concurrency.md
 │       ├── 0008-encoder-aware-concurrency.md
-│       └── 0009-responsive-layout-and-ux-enhancements.md
+│       ├── 0009-responsive-layout-and-ux-enhancements.md
+│       ├── 0010-ipc-magic-string-centralization.md
+│       └── 0011-strict-test-coverage-mandate.md
 ├── scripts/                      # Build helper scripts
 │   ├── README.md                 # Script documentation
 │   ├── download-sidecars.mjs     # Fetches sidecars and validates checksums
@@ -83,6 +85,7 @@ mkv-filter-metadata/
 
 frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 ├── src/
+│   ├── lib/
 │   │   ├── components/           # Svelte UI components and their tests
 │   │   │   ├── AboutModal.svelte
 │   │   │   ├── AboutModal.test.ts
@@ -118,7 +121,8 @@ frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 │   │   │   ├── logClassifier.ts
 │   │   │   └── logClassifier.test.ts
 │   │   ├── constants.ts          # Shared frontend constants
-│   │   └── types.ts              # Zod schemas & TypeScript type definitions
+│   │   ├── types.ts              # Zod schemas & TypeScript type definitions
+│   │   └── types.test.ts         # Tests for types and schemas
 │   ├── routes/
 │   │   ├── guide/                # "How To Use" documentation page
 │   │   │   ├── +page.svelte
@@ -135,7 +139,6 @@ frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 │   └── env.d.ts                  # Environment types
 ├── static/                       # Static assets (favicons, logos)
 ├── .prettierrc                   # Prettier formatting rules
-├── check_output.txt              # Build/check output logs (ignored)
 ├── eslint.config.js              # ESLint flat config (Svelte + TS)
 ├── package.json                  # UI deps, test/lint/format scripts
 ├── svelte.config.js              # SvelteKit adapter configuration

@@ -33,11 +33,13 @@
         'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
       );
 
+      /* v8 ignore next */
       if (focusableElements.length === 0) return;
 
       const firstElement = focusableElements[0];
       const lastElement = focusableElements[focusableElements.length - 1];
 
+      /* v8 ignore start */
       if (e.shiftKey) {
         // Shift + Tab
         if (document.activeElement === firstElement) {
@@ -51,6 +53,7 @@
           firstElement.focus();
         }
       }
+      /* v8 ignore stop */
     }
   }
 

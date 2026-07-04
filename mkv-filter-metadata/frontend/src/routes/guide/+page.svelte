@@ -27,6 +27,13 @@
           window.
         </li>
         <li>
+          <strong>Queue Details & Tooltips:</strong> Each directory in your queue is displayed as a sleek
+          pill. It shows the base folder name, the total number of files inside, and the combined size
+          of those files. If you need to see the exact location on your computer, simply hover your mouse
+          over the folder icon to reveal a custom tooltip with the full path. You can also drag and drop
+          the rows to re-order the queue priority.
+        </li>
+        <li>
           <strong>Managing the Queue:</strong> You can remove individual directories from the queue
           by clicking the red
           <span

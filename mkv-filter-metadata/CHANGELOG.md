@@ -5,8 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-07-03
+## [2.1.0] - 2026-07-03
 
+### Added
+- Completely redesigned Target Processing Queue UI with pill-based rows, file counts, aggregate sizes, and custom tooltips for full directory paths.
+- Reached 100% test coverage (Lines/Statements) for the SvelteKit frontend via Vitest and `@testing-library/svelte`.
+- Expanded backend Rust test coverage with comprehensive unit tests for configuration mapping, video codec parameters, and string validation routines.
+- Implemented robust `v8 ignore` markers to accurately represent branch coverage on hardware-dependent or OS-specific focus states.
+
+### Changed
+- Promoted application to minor version 2.1.0.
+- Centralized magic strings across the Tauri backend into a shared constants module for safe, typo-resistant IPC command mapping and file path resolution.
+- Hardened Rust sidecar architecture with strict error handling and database history isolation.
+
+## [2.0.0] - 2026-07-03
 ### Added
 - Added a global Command Palette (Ctrl+K) for rapid navigation and action execution.
 - Added persistent window state memory across sessions, ensuring the application re-opens with the same dimensions, coordinates, and maximized state.

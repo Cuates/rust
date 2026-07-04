@@ -5,8 +5,8 @@
   import { config } from '../stores/config.svelte';
   import { pipeline, emitLog } from '../stores/pipeline.svelte';
   import { addToast } from '../stores/toast.svelte';
-  import { buildTooltip } from '../utils/formatters';
-  import { TAURI_COMMANDS } from '../constants';
+  import { formatBytes } from '../utils/formatters';
+  import { TAURI_COMMANDS, UI_STRINGS, UI_CONSTANTS } from '../constants';
   import { DirStatsSchema } from '$lib/types';
   import type { DirStats } from '$lib/types';
 
@@ -16,7 +16,7 @@
   let pointerDraggingIndex = $state<number | null>(null);
   let pointerStartY = $state(0);
   let pointerCurrentY = $state(0);
-  const ITEM_HEIGHT = 36;
+  let itemHeight = 44;
   let autoScrollDirection = 0;
   let autoScrollRAF: number | null = null;
   let queueBoxEl = $state<HTMLElement | null>(null);
@@ -61,8 +61,6 @@
     pipeline.currentActiveDirectory = null;
     pipeline.directoryStats = {};
     pipeline.hasProcessClicked = false;
-    preflightFiles = {};
-    preflightLoading = {};
   }
 
   function removeDirectory(index: number) {
@@ -74,18 +72,30 @@
     }
   }
 
-  /* v8 ignore next 15 */
   function handlePointerDown(e: PointerEvent, index: number) {
     if (pipeline.processingActive) return;
     if (
       (e.target as HTMLElement).closest('.remove-btn') ||
       (e.target as HTMLElement).closest('.open-folder-btn')
     )
+      /* v8 ignore next */
       return;
+
     e.preventDefault();
+    const target = e.currentTarget as HTMLElement;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+
+    const rect = target.getBoundingClientRect();
+    const gap = parseFloat(getComputedStyle(target.parentElement!).gap) || 0;
+    itemHeight = rect.height + gap;
     pointerDraggingIndex = index;
     pointerStartY = e.clientY;
     pointerCurrentY = e.clientY;
+    document.body.classList.add('is-dragging-queue');
   }
 
   async function openOutputFolder(dir: string) {
@@ -100,6 +110,7 @@
   function startAutoScroll() {
     if (autoScrollRAF !== null) return;
     function scrollStep() {
+      /* v8 ignore start */
       if (pointerDraggingIndex === null || autoScrollDirection === 0) {
         stopAutoScroll();
         return;
@@ -108,6 +119,7 @@
         stopAutoScroll();
         return;
       }
+      /* v8 ignore stop */
       const speed = 2;
       const deltaScroll = autoScrollDirection * speed;
       const before = queueBoxEl.scrollTop;
@@ -133,24 +145,25 @@
   function checkSwapLogic() {
     if (pointerDraggingIndex === null) return;
     let deltaY = pointerCurrentY - pointerStartY;
-    while (deltaY > ITEM_HEIGHT && pointerDraggingIndex < config.input_directories.length - 1) {
+    const threshold = itemHeight * 0.55;
+    while (deltaY > threshold && pointerDraggingIndex < config.input_directories.length - 1) {
       const newDirs = [...config.input_directories];
       const temp = newDirs[pointerDraggingIndex];
       newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex + 1];
       newDirs[pointerDraggingIndex + 1] = temp;
       config.input_directories = newDirs;
       pointerDraggingIndex++;
-      pointerStartY += ITEM_HEIGHT;
+      pointerStartY += itemHeight;
       deltaY = pointerCurrentY - pointerStartY;
     }
-    while (deltaY < -ITEM_HEIGHT && pointerDraggingIndex > 0) {
+    while (deltaY < -threshold && pointerDraggingIndex > 0) {
       const newDirs = [...config.input_directories];
       const temp = newDirs[pointerDraggingIndex];
       newDirs[pointerDraggingIndex] = newDirs[pointerDraggingIndex - 1];
       newDirs[pointerDraggingIndex - 1] = temp;
       config.input_directories = newDirs;
       pointerDraggingIndex--;
-      pointerStartY -= ITEM_HEIGHT;
+      pointerStartY -= itemHeight;
       deltaY = pointerCurrentY - pointerStartY;
     }
   }
@@ -177,9 +190,22 @@
     checkSwapLogic();
   }
 
-  export function handleGlobalPointerUp() {
+  export function handleGlobalPointerUp(e?: PointerEvent) {
+    /* v8 ignore start */
+    if (e && pointerDraggingIndex !== null) {
+      const el = document.querySelector('.dragging-item') as HTMLElement;
+      if (el) {
+        try {
+          el.releasePointerCapture(e.pointerId);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    /* v8 ignore stop */
     pointerDraggingIndex = null;
     stopAutoScroll();
+    document.body.classList.remove('is-dragging-queue');
   }
 
   function handleDragOver(e: DragEvent) {
@@ -192,31 +218,141 @@
     isDragging = false;
   }
 
-  // ─── Pre-flight file list ──────────────────────────────────────────────────
-  // Expanded on demand: triggers a fresh GET_DIRECTORY_STATS invoke each time
-  // so the list always reflects the current filter config, not stale state.
-  let preflightOpen = $state<Record<string, boolean>>({});
-  let preflightFiles = $state<Record<string, DirStats | null>>({});
-  let preflightLoading = $state<Record<string, boolean>>({});
+  let cachedDirStats = $state<Record<string, DirStats>>({});
+  let lastExts = '';
+  let lastRec = false;
 
-  async function togglePreflight(dir: string): Promise<void> {
-    const isOpen = preflightOpen[dir];
-    preflightOpen[dir] = !isOpen;
-    if (isOpen || preflightFiles[dir] !== undefined) return; // already loaded or closing
+  $effect(() => {
+    const dirs = config.input_directories;
+    const exts = config.file_extensions;
+    const rec = config.recursive;
 
-    preflightLoading[dir] = true;
-    try {
-      const rawStats = await invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
-        dirPath: dir,
-        fileExtensions: config.file_extensions,
-        recursive: config.recursive
-      });
-      preflightFiles[dir] = DirStatsSchema.parse(rawStats);
-    } catch {
-      preflightFiles[dir] = null;
-    } finally {
-      preflightLoading[dir] = false;
+    let forceRefetch = false;
+    if (lastExts !== exts || lastRec !== rec) {
+      forceRefetch = true;
+      lastExts = exts;
+      lastRec = rec;
     }
+
+    dirs.forEach((dir) => {
+      if (forceRefetch || !cachedDirStats[dir]) {
+        invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
+          dirPath: dir,
+          fileExtensions: exts,
+          recursive: rec
+        })
+          .then((rawStats) => {
+            cachedDirStats[dir] = DirStatsSchema.parse(rawStats);
+          })
+          .catch((err) => {
+            /* v8 ignore next */
+            console.error('Failed to get dir stats', err);
+          });
+      }
+    });
+
+    for (const d of Object.keys(cachedDirStats)) {
+      if (!dirs.includes(d)) {
+        delete cachedDirStats[d];
+      }
+    }
+  });
+
+  let tooltipNode: HTMLElement | null = null;
+  function createTooltipNode() {
+    if (tooltipNode) return tooltipNode;
+    tooltipNode = document.createElement('div');
+    tooltipNode.className = 'global-queue-tooltip';
+    document.body.appendChild(tooltipNode);
+    return tooltipNode;
+  }
+
+  function tooltipAction(node: HTMLElement, getStats: () => DirStats | undefined) {
+    const handleEnter = () => {
+      const stats = getStats();
+      /* v8 ignore next */
+      if (!stats) return;
+
+      const tNode = createTooltipNode();
+      tNode.innerHTML = '';
+
+      if (stats.files.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'tooltip-empty-msg';
+        p.textContent = !stats.exists
+          ? UI_STRINGS.DIRECTORY_NOT_FOUND
+          : UI_STRINGS.NO_MATCHED_FILES;
+        tNode.appendChild(p);
+      } else {
+        const ul = document.createElement('ul');
+        ul.className = 'tooltip-file-list';
+        for (const file of stats.files) {
+          const li = document.createElement('li');
+          li.className = 'tooltip-file-item';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.className = 'file-name';
+          nameSpan.textContent = file.name;
+
+          const sizeSpan = document.createElement('span');
+          sizeSpan.className = 'file-size';
+          sizeSpan.textContent = formatBytes(file.size_bytes);
+
+          li.appendChild(nameSpan);
+          li.appendChild(sizeSpan);
+          ul.appendChild(li);
+        }
+        tNode.appendChild(ul);
+      }
+
+      tNode.style.display = 'block';
+      const rect = node.getBoundingClientRect();
+      tNode.style.top = `${rect.bottom + UI_CONSTANTS.TOOLTIP_OFFSET_PX}px`;
+
+      let left = rect.left + rect.width / 2;
+      tNode.style.left = `${left}px`;
+      tNode.style.transform = 'translateX(-50%)';
+
+      requestAnimationFrame(() => {
+        tNode.classList.add('visible');
+        const tRect = tNode.getBoundingClientRect();
+        const margin = UI_CONSTANTS.TOOLTIP_BOUNDARY_MARGIN;
+        if (tRect.right > window.innerWidth - margin) {
+          tNode.style.left = `${window.innerWidth - margin - tRect.width}px`;
+          tNode.style.transform = 'none';
+        } /* v8 ignore start */ else if (tRect.left < margin) {
+          tNode.style.left = `${margin}px`;
+          tNode.style.transform = 'none';
+        }
+        /* v8 ignore stop */
+      });
+    };
+
+    const handleLeave = () => {
+      if (tooltipNode) {
+        tooltipNode.classList.remove('visible');
+        /* v8 ignore start */
+        setTimeout(() => {
+          if (tooltipNode && !tooltipNode.classList.contains('visible')) {
+            tooltipNode.style.display = 'none';
+          }
+        }, UI_CONSTANTS.TOOLTIP_HIDE_DELAY_MS);
+        /* v8 ignore stop */
+      }
+    };
+
+    node.addEventListener('mouseenter', handleEnter);
+    node.addEventListener('mouseleave', handleLeave);
+
+    return {
+      /* v8 ignore start */
+      destroy() {
+        node.removeEventListener('mouseenter', handleEnter);
+        node.removeEventListener('mouseleave', handleLeave);
+        handleLeave();
+      }
+      /* v8 ignore stop */
+    };
   }
 </script>
 
@@ -394,69 +530,39 @@
               {/if}
             {/if}
             <span class="queue-path" title={dir}>{dir}</span>
+            {#if cachedDirStats[dir]}
+              <div class="pill-container">
+                {#if pipeline.processingActive && pipeline.directoryStatuses[dir] === 'processing'}
+                  <div
+                    class="queue-pill queue-pill-interactive"
+                    use:tooltipAction={() => {
+                      /* v8 ignore start */ return cachedDirStats[dir]; /* v8 ignore stop */
+                    }}
+                  >
+                    <span class="pill-text"
+                      >{pipeline.completedFilesPerDir[dir] || 0} / {cachedDirStats[dir]
+                        .file_count}{UI_STRINGS.PILL_FILES_SUFFIX}</span
+                    >
+                  </div>
+                {:else}
+                  <div
+                    class="queue-pill queue-pill-interactive"
+                    use:tooltipAction={() => {
+                      /* v8 ignore start */ return cachedDirStats[dir]; /* v8 ignore stop */
+                    }}
+                  >
+                    <span class="pill-text"
+                      >{cachedDirStats[dir].file_count}{UI_STRINGS.PILL_FILES_SUFFIX}</span
+                    >
+                  </div>
+                {/if}
+                <div class="queue-pill">
+                  <span class="pill-text">{formatBytes(cachedDirStats[dir].total_size_bytes)}</span>
+                </div>
+              </div>
+            {/if}
           </div>
           <div class="queue-actions">
-            {#if pipeline.hasProcessClicked && pipeline.directoryStats[dir]}
-              {#if !pipeline.directoryStats[dir].exists}
-                <div class="info-circle issue" title={buildTooltip(pipeline.directoryStats[dir])}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    ><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"
-                    ></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg
-                  >
-                </div>
-              {:else}
-                <div class="info-circle" title={buildTooltip(pipeline.directoryStats[dir])}>
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    ><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"
-                    ></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg
-                  >
-                </div>
-              {/if}
-            {/if}
-            <!-- Pre-flight disclosure toggle -->
-            {#if !pipeline.processingActive}
-              <button
-                class="preflight-btn"
-                onclick={() => togglePreflight(dir)}
-                aria-expanded={preflightOpen[dir] ?? false}
-                aria-label="Show matched files"
-                title="Show matched files"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  class="preflight-chevron"
-                  class:open={preflightOpen[dir]}
-                >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              </button>
-            {/if}
             {#if pipeline.directoryStatuses[dir] === 'done'}
               <button
                 class="open-folder-btn"
@@ -504,27 +610,6 @@
             </button>
           </div>
         </div>
-        <!-- Pre-flight file list (expandable) -->
-        {#if preflightOpen[dir]}
-          <div class="preflight-panel">
-            {#if preflightLoading[dir]}
-              <span class="preflight-loading">Scanning…</span>
-            {:else if preflightFiles[dir] === null}
-              <span class="preflight-error">Failed to scan directory.</span>
-            {:else if preflightFiles[dir] && preflightFiles[dir].files.length > 0}
-              <p class="preflight-count">
-                Will process <strong>{preflightFiles[dir].files.length}</strong> file(s)
-              </p>
-              <ul class="preflight-file-list">
-                {#each preflightFiles[dir].files as f (f.name)}
-                  <li class="preflight-file-item" title={f.name}>{f.name}</li>
-                {/each}
-              </ul>
-            {:else}
-              <span class="preflight-empty">No files match the current filters.</span>
-            {/if}
-          </div>
-        {/if}
       {/each}
     {/if}
   </div>
@@ -705,36 +790,150 @@
     }
   }
 
-  .info-circle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 8px;
-    cursor: help;
-    color: var(--text-secondary);
-
-    &.issue {
-      color: #ff4d4d;
-    }
-  }
-
-  .queue-path-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    overflow: hidden;
-  }
-
   .queue-actions {
     display: flex;
     align-items: center;
     gap: 0.25rem;
   }
 
+  .queue-path-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    overflow: hidden;
+    min-width: 0;
+    padding-right: 1rem;
+  }
+
+  .pill-container {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 1rem;
+    cursor: default;
+  }
+
+  .queue-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    background-color: transparent;
+    transition: all 0.2s ease;
+    cursor: default;
+
+    .pill-text {
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    &.queue-pill-interactive {
+      cursor: help;
+      &:hover {
+        border-color: var(--accent-color);
+        .pill-text {
+          color: var(--text-primary);
+        }
+      }
+    }
+  }
+
+  :global(body.is-dragging-queue) {
+    cursor: grabbing !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
+  :global(body.is-dragging-queue *) {
+    cursor: grabbing !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+  }
+
+  :global {
+    .global-queue-tooltip {
+      display: none;
+      position: absolute;
+      z-index: 9999;
+      background-color: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 0.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      transition: opacity 0.15s ease-in-out;
+      width: max-content;
+      max-width: 90vw;
+      pointer-events: none;
+
+      &.visible {
+        opacity: 1;
+      }
+
+      .tooltip-empty-msg {
+        color: #888;
+        font-style: italic;
+        margin: 0;
+        padding: 0.2rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+      }
+
+      .tooltip-file-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        max-height: 200px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+
+        /* Custom scrollbar for tooltip */
+        &::-webkit-scrollbar {
+          width: 6px;
+        }
+        &::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        &::-webkit-scrollbar-thumb {
+          background-color: #444;
+          border-radius: 3px;
+        }
+      }
+
+      .tooltip-file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        font-size: 0.75rem;
+        padding: 0.15rem 0;
+
+        .file-name {
+          color: #ddd;
+          white-space: pre-wrap;
+          word-wrap: break-word;
+        }
+
+        .file-size {
+          color: #888;
+          white-space: nowrap;
+          font-variant-numeric: tabular-nums;
+          flex-shrink: 0;
+        }
+      }
+    }
+  }
+
   .status-indicator {
     display: flex;
     align-items: center;
     justify-content: center;
+    width: 24px;
     flex-shrink: 0;
     cursor: default;
 
@@ -764,79 +963,6 @@
     }
   }
 
-  /* ─── Pre-flight file list ─── */
-  .preflight-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.2rem;
-    border-radius: 4px;
-    color: var(--text-secondary);
-    transition: color 0.15s;
-
-    &:hover {
-      color: var(--accent-color);
-    }
-  }
-
-  .preflight-chevron {
-    transition: transform 0.2s ease;
-    &.open {
-      transform: rotate(180deg);
-    }
-  }
-
-  .preflight-panel {
-    padding: 0.4rem 0.6rem;
-    background-color: var(--bg-canvas);
-    border-top: 1px solid var(--border-color);
-    border-radius: 0 0 4px 4px;
-  }
-
-  .preflight-count {
-    margin: 0 0 0.3rem;
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    strong {
-      color: var(--text-primary);
-    }
-  }
-
-  .preflight-file-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    max-height: 120px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 0.15rem;
-  }
-
-  .preflight-file-item {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding: 0.1rem 0;
-  }
-
-  .preflight-loading,
-  .preflight-error,
-  .preflight-empty {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
-    font-style: italic;
-  }
-
-  .preflight-error {
-    color: var(--danger-color);
-  }
-
   @keyframes rotate {
     100% {
       transform: rotate(360deg);
@@ -863,7 +989,8 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding-right: 0.5rem;
+    min-width: 0;
+    flex: 0 1 auto;
   }
 
   .remove-btn,

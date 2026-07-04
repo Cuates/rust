@@ -58,6 +58,7 @@
       const focusableElements = modalContainer.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
       );
+      /* v8 ignore next 4 */
       if (focusableElements.length === 0) {
         e.preventDefault();
         return;
@@ -66,6 +67,7 @@
       const lastElement = focusableElements[focusableElements.length - 1];
 
       // If focus is currently outside the modal, force it to the first element
+      /* v8 ignore start */
       if (!modalContainer.contains(document.activeElement)) {
         e.preventDefault();
         if (e.shiftKey) {
@@ -75,6 +77,7 @@
         }
         return;
       }
+      /* v8 ignore stop */
 
       if (e.shiftKey) {
         if (document.activeElement === firstElement) {

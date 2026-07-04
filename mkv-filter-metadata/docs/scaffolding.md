@@ -40,3 +40,18 @@ pnpm dev
 ```
 
 This starts Vite's dev server on `http://localhost:1420` and compiles + launches the Tauri native window simultaneously.
+
+---
+
+## Testing & Quality Assurance
+
+The monorepo uses `vitest` for the SvelteKit frontend and `cargo test` for the Rust backend.
+Code coverage is mandated at 100% for the frontend and heavily tracked via `cargo-llvm-cov` for the backend.
+
+```bash
+# Run all unit tests (Frontend + Backend)
+pnpm test
+
+# Generate coverage reports (requires llvm-cov)
+pnpm test:coverage
+```

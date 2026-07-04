@@ -1,4 +1,5 @@
 import { load, type Store } from '@tauri-apps/plugin-store';
+import { STORE_FILENAMES } from '../constants';
 
 export interface ShortcutConfig {
   startPipeline: string;
@@ -24,7 +25,7 @@ export function isShortcutsDefault() {
 }
 
 export async function loadShortcuts() {
-  shortcutsStore = await load('shortcuts.json', { autoSave: false, defaults: {} });
+  shortcutsStore = await load(STORE_FILENAMES.SHORTCUTS, { autoSave: false, defaults: {} });
 
   for (const key of Object.keys(DEFAULT_SHORTCUTS)) {
     const val = await shortcutsStore!.get<unknown>(key);

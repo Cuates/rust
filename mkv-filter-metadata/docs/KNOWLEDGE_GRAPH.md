@@ -1,7 +1,7 @@
 ---
 title: "Architecture & Data Flow"
 tags: [tauri, svelte, rust, architecture, ffmpeg]
-last_updated: 2026-07-03
+last_updated: 2026-07-04
 ---
 
 # 🧠 Knowledge Graph

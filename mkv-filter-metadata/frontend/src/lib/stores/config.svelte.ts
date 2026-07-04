@@ -1,4 +1,5 @@
 import { load, type Store } from '@tauri-apps/plugin-store';
+import { STORE_FILENAMES } from '../constants';
 
 type ConversionMode = 'remux' | 'reencode';
 
@@ -91,7 +92,7 @@ let configStore: Store | null = null;
 export const configState = $state({ isLoaded: false });
 
 export async function loadConfig() {
-  configStore = await load('config.json', { autoSave: false, defaults: {} });
+  configStore = await load(STORE_FILENAMES.CONFIG, { autoSave: false, defaults: {} });
 
   for (const key of Object.keys(DEFAULT_CONFIG)) {
     const val = await configStore!.get<unknown>(key);
@@ -195,8 +196,9 @@ export const savedPresets = $state<NamedPreset[]>([]);
 
 let presetsStore: Store | null = null;
 
+/* v8 ignore start */
 export async function loadPresets(): Promise<void> {
-  presetsStore = await load('presets.json', { autoSave: false, defaults: {} });
+  presetsStore = await load(STORE_FILENAMES.PRESETS, { autoSave: false, defaults: {} });
   const stored = await presetsStore.get<NamedPreset[]>('presets');
   if (Array.isArray(stored)) {
     savedPresets.splice(0, savedPresets.length, ...stored);
@@ -208,6 +210,7 @@ async function persistPresets(): Promise<void> {
   await presetsStore.set('presets', savedPresets.slice());
   await presetsStore.save();
 }
+/* v8 ignore stop */
 
 /* v8 ignore next 7 */
 export function initPresetsWatcher(): void {

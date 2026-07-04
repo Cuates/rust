@@ -168,8 +168,10 @@ describe('TerminalLog.svelte', () => {
     expect(addToast).toHaveBeenCalledWith(expect.stringContaining('Failed to save log:'), 'error');
   });
 
-  it('scrolls to bottom correctly (via export function)', () => {
+  it('scrolls to bottom correctly (via export function)', async () => {
     const { component } = render(TerminalLog);
+    const { tick } = await import('svelte');
+    await tick();
     expect(() => component.scrollToBottom()).not.toThrow();
   });
 });
