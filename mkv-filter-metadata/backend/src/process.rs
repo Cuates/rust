@@ -25,8 +25,12 @@ pub fn append_log<R: tauri::Runtime>(app: &AppHandle<R>, message: impl AsRef<str
     } else {
         tracing::trace!("{}", msg);
     }
-    let _ = app.emit(crate::constants::EVENT_PROCESS_LOG, msg);
     let state = app.state::<AppState>();
+    if let Ok(guard) = state.log_tx.lock()
+        && let Some(tx) = guard.as_ref()
+    {
+        let _ = tx.send(msg.to_string());
+    }
     if let Ok(mut guard) = state.log_writer.lock() {
         let mut rotate = false;
         if let Some(log) = guard.as_mut() {
@@ -85,10 +89,12 @@ pub fn flush_log_writer<R: tauri::Runtime>(app: &AppHandle<R>) {
 }
 
 impl VideoCodec {
+    /// Executes the `is_software` operation.
     pub fn is_software(&self) -> bool {
         matches!(self, VideoCodec::Libx264 | VideoCodec::Libx265)
     }
 
+    /// Executes the `get_hwaccel_api` operation.
     pub fn get_hwaccel_api(&self) -> &'static str {
         match self {
             VideoCodec::HevcNvenc | VideoCodec::H264Nvenc | VideoCodec::Av1Nvenc => "cuda",
@@ -100,6 +106,7 @@ impl VideoCodec {
         }
     }
 
+    /// Executes the `get_hardware_args` operation.
     pub fn get_hardware_args(&self, preset: &crate::models::Preset, crf: &str) -> Vec<String> {
         let mapped_preset = preset.to_string();
         let mut args = vec!["-c:v".to_string(), self.to_string()];
@@ -161,6 +168,7 @@ pub fn parse_comma_list(raw: &str) -> Vec<String> {
         .collect()
 }
 
+/// Executes the `normalize_lang` operation.
 pub fn normalize_lang(tag: &str) -> &str {
     if tag.len() == 2 && tag.is_ascii() {
         let b0 = tag.as_bytes()[0].to_ascii_lowercase();
@@ -260,6 +268,14 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
         ]);
     }
 
+    // Prevent FFmpeg from buffering massive amounts of RAM on corrupted inputs (e.g. Invalid NAL unit size)
+    args.extend([
+        crate::constants::FFMPEG_ARG_ANALYZEDURATION.to_string(),
+        crate::constants::FFMPEG_ARG_100M.to_string(),
+        crate::constants::FFMPEG_ARG_PROBESIZE.to_string(),
+        crate::constants::FFMPEG_ARG_100M.to_string(),
+    ]);
+
     args.extend([
         "-i".to_string(),
         config.input.to_string_lossy().into_owned(),
@@ -315,6 +331,12 @@ pub fn build_ffmpeg_args(config: &FfmpegJobConfig) -> Vec<String> {
 
     // Clear the title metadata from the output file, matching the Python script's
     args.extend(["-metadata".to_string(), "title=".to_string()]);
+
+    // Prevent FFmpeg from buffering infinitely (eating 64GB+ RAM) on interleaved files
+    args.extend([
+        crate::constants::FFMPEG_ARG_MAX_MUXING_QUEUE_SIZE.to_string(),
+        crate::constants::FFMPEG_ARG_4096.to_string(),
+    ]);
 
     args.push(config.output.to_string_lossy().into_owned());
     args
@@ -475,13 +497,22 @@ fn lower_process_priority(pid: u32) {
     }
 }
 
+struct ChildGuard(Option<tauri_plugin_shell::process::CommandChild>);
+impl Drop for ChildGuard {
+    fn drop(&mut self) {
+        if let Some(child) = self.0.take() {
+            let _ = child.kill();
+        }
+    }
+}
+
 /// Helper function to execute a sidecar command and handle its events.
 pub async fn run_sidecar_command<R: tauri::Runtime>(
     app: &AppHandle<R>,
     state: &tauri::State<'_, AppState>,
     binary_name: &str,
     args: Vec<String>,
-    task_id: std::path::PathBuf,
+    _task_id: std::sync::Arc<std::path::PathBuf>,
     file_name: &str,
 ) -> Result<(bool, Vec<String>), AppError> {
     let shell = app.shell();
@@ -500,11 +531,11 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
         ))
     })?;
 
-    lower_process_priority(child.pid());
+    let mut child_guard = ChildGuard(Some(child));
+    lower_process_priority(child_guard.0.as_ref().unwrap().pid());
 
     let cancel_token = {
-        let mut session = state.process.lock().await;
-        session.children.insert(task_id, child);
+        let session = state.process.lock().await;
         session.cancel.clone()
     };
 
@@ -513,6 +544,27 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
     let mut collected_stderr: Vec<String> = Vec::new();
     let mut total_duration_secs: Option<f64> = None;
     let mut video_fps: Option<f64> = None;
+    let mut last_progress_emit = std::time::Instant::now();
+    let mut last_error_log_emit = std::time::Instant::now();
+    let app_handle_cloned = app.clone();
+    let file_name_str = file_name.to_string();
+
+    macro_rules! emit_progress_throttled {
+        ($percent:expr) => {
+            if last_progress_emit.elapsed().as_millis() >= 200 || $percent >= 100.0 {
+                if let Err(e) = app_handle_cloned.emit(
+                    crate::constants::EVENT_PROCESS_PROGRESS,
+                    serde_json::json!({
+                        "intra_progress": $percent,
+                        "current_filename": &file_name_str
+                    }),
+                ) {
+                    tracing::warn!("Failed to emit EVENT_PROCESS_PROGRESS: {}", e);
+                }
+                last_progress_emit = std::time::Instant::now();
+            }
+        };
+    }
 
     loop {
         tokio::select! {
@@ -546,13 +598,7 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
                                             if percent > 100.0 {
                                                 percent = 100.0;
                                             }
-                                            let _ = app.emit(
-                                                crate::constants::EVENT_PROCESS_PROGRESS,
-                                                serde_json::json!({
-                                                    "intra_progress": percent,
-                                                    "current_filename": file_name
-                                                }),
-                                            );
+                                            emit_progress_throttled!(percent);
                                         }
                                 continue;
                             } else if t.contains('=') && !t.contains(' ') {
@@ -563,13 +609,7 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
                             if t.starts_with("#GUI#progress ") {
                                 if let Some(percent_str) = t.strip_prefix("#GUI#progress ").and_then(|s| s.strip_suffix('%'))
                                     && let Ok(percent) = percent_str.parse::<f64>() {
-                                        let _ = app.emit(
-                                            crate::constants::EVENT_PROCESS_PROGRESS,
-                                            serde_json::json!({
-                                                "intra_progress": percent,
-                                                "current_filename": file_name
-                                            }),
-                                        );
+                                        emit_progress_throttled!(percent);
                                     }
                                 continue;
                             } else if t.starts_with("#GUI#") {
@@ -578,8 +618,9 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
                             }
                         }
 
-                        if is_error_line(t) {
+                        if is_error_line(t) && last_error_log_emit.elapsed().as_millis() >= 250 {
                             append_log(app, format!("  | [ERROR] {}", t));
+                            last_error_log_emit = std::time::Instant::now();
                         }
                     }
                 }
@@ -591,7 +632,9 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
                 for line in sanitized.lines() {
                     let t = line.trim();
                     if !t.is_empty() {
-                        collected_stderr.push(t.to_string());
+                        if collected_stderr.len() < 2000 {
+                            collected_stderr.push(t.to_string());
+                        }
 
                         if total_duration_secs.is_none()
                             && t.starts_with("Duration:")
@@ -643,18 +686,13 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
                                 if percent > 100.0 {
                                     percent = 100.0;
                                 }
-                                let _ = app.emit(
-                                    crate::constants::EVENT_PROCESS_PROGRESS,
-                                    serde_json::json!({
-                                        "intra_progress": percent,
-                                        "current_filename": file_name
-                                    }),
-                                );
+                                emit_progress_throttled!(percent);
                             }
                         }
 
-                        if is_error_line(t) {
+                        if is_error_line(t) && last_error_log_emit.elapsed().as_millis() >= 250 {
                             append_log(app, format!("  | [ERROR] {}", t));
+                            last_error_log_emit = std::time::Instant::now();
                         }
                     }
                 }
@@ -675,6 +713,9 @@ pub async fn run_sidecar_command<R: tauri::Runtime>(
     }
 
     if aborted_mid_stream || cancel_token.is_cancelled() {
+        if let Some(child) = child_guard.0.take() {
+            let _ = child.kill();
+        }
         return Err(AppError::Aborted);
     }
 

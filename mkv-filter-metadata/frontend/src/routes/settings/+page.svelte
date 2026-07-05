@@ -327,21 +327,21 @@
         <div style="width: 200px; display: flex; flex-direction: column;">
           <span>Remux Concurrency:</span>
           <span style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px;"
-            >(Recommended: 2-4 HDD, 4-8 SSD)</span
+            >(Recommended: 1-2 HDD/SSD)</span
           >
         </div>
         <div style="display: flex; align-items: center; gap: 1rem; flex: 1;">
           <input
             type="range"
             min="1"
-            max={config.storage_type === 'hdd' ? 1 : 8}
+            max={config.storage_type === 'hdd' ? 1 : 2}
             bind:value={config.remux_concurrency}
             style="flex: 1;"
           />
           <span
             style="width: 120px; display: inline-block; text-align: right; font-variant-numeric: tabular-nums;"
           >
-            {config.remux_concurrency} (Max: {config.storage_type === 'hdd' ? 1 : 8})
+            {config.remux_concurrency} (Max: {config.storage_type === 'hdd' ? 1 : 2})
           </span>
         </div>
       </div>

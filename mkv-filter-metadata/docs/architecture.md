@@ -1,6 +1,6 @@
 ---
 title: "Architecture & Tree Structure"
-last_updated: 2026-07-03
+last_updated: 2026-07-05
 ---
 
 # Architecture
@@ -32,6 +32,8 @@ last_updated: 2026-07-03
 ```
 
 The frontend communicates with the backend exclusively through Tauri's `invoke` (request/response) and `emit`/`listen` (event streaming) IPC bridges. There are no HTTP APIs or WebSocket servers.
+
+The backend employs a **System Guard** using the `sysinfo` crate to monitor system congestion (CPU/Memory load) and dynamically adaptive concurrency limits for hardware/software encoders, ensuring the host OS remains stable.
 
 ---
 
@@ -152,6 +154,8 @@ backend/                          # Rust + Tauri v2 Native System Layer
 ├── icons/                        # Application icons across platforms
 ├── sidecars/                     # Target-suffixed binaries (FFmpeg/FFprobe/MKVMerge)
 ├── src/
+│   ├── bin/                    # Standalone Rust binaries
+│   │   └── export_zod.rs       # Script for generating Zod types via specta-zod
 │   ├── commands.rs               # All #[tauri::command] IPC handlers
 │   ├── constants.rs              # Shared IPC and event strings
 │   ├── error.rs                  # Custom error types with thiserror

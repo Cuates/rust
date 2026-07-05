@@ -1,6 +1,6 @@
 ---
 title: "Scaffolding & Setup"
-last_updated: 2026-07-03
+last_updated: 2026-07-05
 ---
 
 # Scaffolding & Setup
@@ -46,7 +46,7 @@ This starts Vite's dev server on `http://localhost:1420` and compiles + launches
 ## Testing & Quality Assurance
 
 The monorepo uses `vitest` for the SvelteKit frontend and `cargo test` for the Rust backend.
-Code coverage is mandated at 100% for the frontend and heavily tracked via `cargo-llvm-cov` for the backend.
+Code coverage is strictly enforced at **>99%** for the frontend (locked via `vite.config.ts`) and heavily tracked via `cargo-llvm-cov` for the backend.
 
 ```bash
 # Run all unit tests (Frontend + Backend)

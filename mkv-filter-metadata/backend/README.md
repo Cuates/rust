@@ -1,6 +1,6 @@
 ---
 title: "Backend Layer (Rust)"
-last_updated: 2026-07-03
+last_updated: 2026-07-05
 ---
 
 # Backend Layer (Rust)
@@ -16,7 +16,7 @@ Input Directory
   → Walk directory tree (recursive)
   → Filter by file extension
   → For each file:
-      → Monitor OS Resources (CPU > 90% or RAM < 15%) via `sysinfo` → Pause/Resume loop
+      → Wait 1.5s grace period on first launch, then monitor OS Resources (CPU > 90% or RAM < 15%) via `sysinfo` → Pause/Resume loop
       → FFprobe: inspect streams, identify subtitle tracks by language
       → Build command (FFmpeg or MKVMerge)
       → Validate Storage Concurrency (Clamp `ConversionMode::Remux` to 1 on `StorageType::Hdd`)

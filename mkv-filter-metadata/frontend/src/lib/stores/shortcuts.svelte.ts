@@ -27,10 +27,10 @@ export function isShortcutsDefault() {
 export async function loadShortcuts() {
   shortcutsStore = await load(STORE_FILENAMES.SHORTCUTS, { autoSave: false, defaults: {} });
 
-  for (const key of Object.keys(DEFAULT_SHORTCUTS)) {
-    const val = await shortcutsStore!.get<unknown>(key);
+  for (const key of Object.keys(DEFAULT_SHORTCUTS) as Array<keyof ShortcutConfig>) {
+    const val = await shortcutsStore!.get<ShortcutConfig[typeof key]>(key);
     if (val !== null && val !== undefined) {
-      (shortcuts as unknown as Record<string, unknown>)[key] = val;
+      shortcuts[key] = val;
     }
   }
   shortcutsState.isLoaded = true;

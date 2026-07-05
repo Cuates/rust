@@ -61,7 +61,7 @@ describe('config.svelte', () => {
     const mockStore = {
       get: vi.fn((key: string) => {
         if (key === 'crf') return Promise.resolve(22);
-        if (key === 'remux_concurrency') return Promise.resolve(10); // Should be capped at 8
+        if (key === 'remux_concurrency') return Promise.resolve(10); // Should be capped at 2
         return Promise.resolve(null);
       }),
       set: vi.fn(),
@@ -77,7 +77,7 @@ describe('config.svelte', () => {
     expect(mockStore.get).toHaveBeenCalledWith('crf');
     expect(config.crf).toBe(22);
     // test bounds clamping
-    expect(config.remux_concurrency).toBe(8);
+    expect(config.remux_concurrency).toBe(2);
     // test save_queue_list clearing
     expect(config.input_directories).toEqual([]);
     expect(configState.isLoaded).toBe(true);
@@ -87,7 +87,7 @@ describe('config.svelte', () => {
     const mockStore = {
       get: vi.fn((key: string) => {
         if (key === 'storage_type') return Promise.resolve('hdd');
-        if (key === 'remux_concurrency') return Promise.resolve(4);
+        if (key === 'remux_concurrency') return Promise.resolve(2);
         return Promise.resolve(null);
       }),
       set: vi.fn(),

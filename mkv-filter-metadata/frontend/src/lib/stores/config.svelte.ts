@@ -71,7 +71,7 @@ const DEFAULT_CONFIG: AppConfig = {
   preset: 'faster',
   crf: 18,
   reencode_concurrency: 2,
-  remux_concurrency: 4,
+  remux_concurrency: 2,
   storage_type: 'ssd',
   notifications: true
 };
@@ -94,10 +94,11 @@ export const configState = $state({ isLoaded: false });
 export async function loadConfig() {
   configStore = await load(STORE_FILENAMES.CONFIG, { autoSave: false, defaults: {} });
 
-  for (const key of Object.keys(DEFAULT_CONFIG)) {
-    const val = await configStore!.get<unknown>(key);
+  for (const key of Object.keys(DEFAULT_CONFIG) as Array<keyof AppConfig>) {
+    const val = await configStore!.get<AppConfig[typeof key]>(key);
     if (val !== null && val !== undefined) {
-      (config as unknown as Record<string, unknown>)[key] = val;
+      // @ts-expect-error Typescript cannot infer that val matches the specific key type here
+      config[key] = val;
     }
   }
 
@@ -105,8 +106,8 @@ export async function loadConfig() {
     config.input_directories = [];
   }
 
-  if (config.remux_concurrency > 8) {
-    config.remux_concurrency = 8;
+  if (config.remux_concurrency > 2) {
+    config.remux_concurrency = 2;
   }
 
   if (config.storage_type === 'hdd') {

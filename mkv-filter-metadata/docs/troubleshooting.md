@@ -1,6 +1,6 @@
 ---
 title: "Troubleshooting & Common Pitfalls"
-last_updated: 2026-07-03
+last_updated: 2026-07-05
 ---
 
 # Troubleshooting & Common Pitfalls
@@ -14,7 +14,7 @@ last_updated: 2026-07-03
 | **FFmpeg subtitle errors** | The self-healing fallback handles most cases automatically. If a container truly doesn't support any subtitle format, the file will be processed without subtitles. |
 | **Package script name conflicts** | Root scripts avoid names that collide with pnpm internals (e.g., `app-info` instead of `info`). |
 | **Silent crashes in production** | The release binary includes a panic hook. If the app spontaneously exits, check the bottom of `session.log` in your app data directory for a `[FATAL] PANIC:` message. |
-| **Pipeline automatically pausing (Yellow Toast)** | This is a safety feature known as **Adaptive System Throttling**. If your CPU usage spikes above 90% or available RAM falls below 15%, the app stops spawning new tasks to prevent your OS from freezing. Processing will automatically resume (Green Toast) when resources recover. |
+| **Pipeline automatically pausing (Yellow Toast)** | This is a safety feature known as **Adaptive System Throttling**. At startup, the pipeline includes a 1.5-second grace period to allow the backend to spin up and prevent false-positive congestion toasts. During operation, if your CPU usage spikes above 90% or available RAM falls below 15%, the app stops spawning new tasks to prevent your OS from freezing. Processing will automatically resume (Green Toast) when resources recover. |
 | **Remux slider stuck at 1** | If you selected **HDD** (Mechanical Hard Drive) as your target drive type in Settings, the app strictly clamps Remux concurrency to 1 to prevent severe physical read/write head thrashing. Re-encoding concurrency is not affected by this lock. |
 | **Re-encode slider stuck at 2** | If you selected a software encoder (`libx264` or `libx265`) in Settings, the app clamps Re-encode concurrency to 2. These encoders natively consume all CPU cores just to process a single file; launching more than 2 parallel tasks would lock up your computer. Switch to a hardware encoder (e.g., NVENC, AMF, QSV) to unlock full multi-core concurrency. |
 | **"Open Folder" button fails to launch Explorer/Finder** | Ensure the target directory actually exists and hasn't been manually deleted while the app was running. The application relies on the OS-native `tauri-plugin-opener` which requires the absolute path to remain valid. |

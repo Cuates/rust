@@ -1,9 +1,10 @@
-import type { DirStats } from '../types';
+import type { DirectoryStats } from '../types';
 import { formatDuration } from '../utils/formatters';
 
 export const pipeline = $state({
   consoleLogs: [] as { id: number; text: string }[],
   processingActive: false,
+  isAborting: false,
   resourceThrottled: false,
   lastRunSummary: null as {
     filesProcessed: number;
@@ -12,6 +13,7 @@ export const pipeline = $state({
     originalBytes: number;
     outputBytes: number;
   } | null,
+  historyClearTimestamp: 0,
 
   // Layout Metric Sync Parameters
   totalFilesCount: 0,
@@ -66,7 +68,7 @@ export const pipeline = $state({
   directoryStatuses: {} as Record<string, 'pending' | 'processing' | 'done' | 'error' | 'skipped'>,
   directoryErrors: {} as Record<string, boolean>,
   currentActiveDirectory: null as string | null,
-  directoryStats: {} as Record<string, DirStats>,
+  directoryStats: {} as Record<string, DirectoryStats>,
   hasProcessClicked: false
 });
 

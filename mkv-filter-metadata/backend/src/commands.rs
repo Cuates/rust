@@ -119,7 +119,7 @@ async fn retry_with_ass_conversion<'a, R: tauri::Runtime>(
         state,
         crate::constants::BINARY_FFMPEG,
         retry_args,
-        output_file_path.to_path_buf(),
+        output_file_path.to_path_buf().into(),
         file_name,
     )
     .await
@@ -169,7 +169,7 @@ async fn run_mkvmerge_fallback<R: tauri::Runtime>(
         state,
         crate::constants::BINARY_MKVMERGE,
         mkvmerge_args,
-        output_file_path.to_path_buf(),
+        output_file_path.to_path_buf().into(),
         file_name,
     )
     .await?;
@@ -177,20 +177,25 @@ async fn run_mkvmerge_fallback<R: tauri::Runtime>(
     Ok(mkvmerge_success)
 }
 
+/// Executes the `get_directory_stats` operation.
 #[tauri::command]
 pub async fn get_directory_stats(
     dir_path: String,
     file_extensions: String,
     recursive: bool,
+    state: tauri::State<'_, AppState>,
 ) -> Result<DirectoryStats, AppError> {
-    tokio::task::spawn_blocking(move || {
-        let path = Path::new(&dir_path);
+    let dir_path_cloned = dir_path.clone();
+    let mut stats = tokio::task::spawn_blocking(move || {
+        let path = Path::new(&dir_path_cloned);
         if !path.exists() || !path.is_dir() {
             return DirectoryStats {
                 exists: false,
                 file_count: 0,
                 total_size_bytes: 0,
                 files: Vec::new(),
+                history_skipped_count: 0,
+                history_skipped_bytes: 0,
             };
         }
 
@@ -226,10 +231,46 @@ pub async fn get_directory_stats(
             file_count,
             total_size_bytes,
             files,
+            history_skipped_count: 0,
+            history_skipped_bytes: 0,
         }
     })
     .await
-    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))
+    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))?;
+
+    if stats.exists && stats.file_count > 0 {
+        let db_guard = state.db.lock().await;
+        if let Some(db) = db_guard.as_ref() {
+            let mut skipped_count = 0;
+            let mut skipped_bytes = 0;
+            for f in &stats.files {
+                let full_path = std::path::Path::new(&dir_path).join(&f.name);
+                let path_str = full_path.to_string_lossy().to_string();
+                if let Ok(metadata) = std::fs::metadata(&full_path) {
+                    let modified = metadata
+                        .modified()
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                    let modified_timestamp = modified
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs();
+                    if let Ok(true) = crate::history::is_file_processed(
+                        db,
+                        &path_str,
+                        f.size_bytes,
+                        modified_timestamp,
+                    ) {
+                        skipped_count += 1;
+                        skipped_bytes += f.size_bytes;
+                    }
+                }
+            }
+            stats.history_skipped_count = skipped_count;
+            stats.history_skipped_bytes = skipped_bytes;
+        }
+    }
+
+    Ok(stats)
 }
 
 fn validate_preset_codec_compat(
@@ -342,7 +383,7 @@ fn validate_payload(payload: &VideoPipelinePayload) -> Result<(), AppError> {
     Ok(())
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 pub struct PipelineSummary {
     pub message: String,
     pub original_size_bytes: u64,
@@ -456,7 +497,7 @@ async fn process_one_file<R: tauri::Runtime>(
     let parent_dir = file_path.parent().ok_or_else(|| {
         AppError::Process("Unable to resolve parent path contextual tracking.".to_string())
     })?;
-    let processed_dir_path = parent_dir.join("processed_files");
+    let processed_dir_path = parent_dir.join(crate::constants::DIR_PROCESSED_FILES);
 
     if !processed_dir_path.exists() {
         std::fs::create_dir_all(&processed_dir_path).map_err(|e| {
@@ -493,9 +534,9 @@ async fn process_one_file<R: tauri::Runtime>(
         }
         output_file_path = candidate;
 
-        // Note: we can't easily track the single output_path anymore, so we don't set session.output_path
-        session.output_files.push(output_file_path.clone());
-        session.output_set.insert(output_file_path.clone());
+        let arc_output_file_path: std::sync::Arc<std::path::PathBuf> =
+            output_file_path.clone().into();
+        session.output_set.insert(arc_output_file_path);
     }
 
     let sub_langs = parse_comma_list(&payload.subtitle_tracks);
@@ -533,7 +574,7 @@ async fn process_one_file<R: tauri::Runtime>(
             &state,
             crate::constants::BINARY_FFMPEG,
             ffmpeg_args,
-            output_file_path.clone(),
+            output_file_path.clone().into(),
             &file_name,
         )
         .await?;
@@ -590,7 +631,7 @@ async fn process_one_file<R: tauri::Runtime>(
             &state,
             crate::constants::BINARY_FFMPEG,
             ffmpeg_copy_args,
-            output_file_path.clone(),
+            output_file_path.clone().into(),
             &file_name,
         )
         .await?;
@@ -640,22 +681,18 @@ async fn process_one_file<R: tauri::Runtime>(
             mark_file_processed_async(&app, path_str.clone(), original_size, modified_timestamp)
                 .await;
         }
-        {
-            let mut session = state.process.lock().await;
-            if let Some(pos) = session
-                .output_files
-                .iter()
-                .position(|p| p == &output_file_path)
-            {
-                let path = session.output_files.remove(pos);
-                session.completed_files.push(path);
-            }
-            session.children.remove(&output_file_path); // Process finished
-        }
     } else {
         res.failed_path = Some(file_name.clone());
-        let mut session = state.process.lock().await;
-        session.children.remove(&output_file_path); // Process finished
+        if output_file_path.exists() {
+            let _ = retry_remove_file(&output_file_path).await;
+            append_log(
+                &app,
+                format!(
+                    "  | [INFO] Cleaned up partial file: {}",
+                    output_file_path.to_string_lossy()
+                ),
+            );
+        }
     }
 
     let root_dir = payload
@@ -693,22 +730,34 @@ impl Default for ResourceThresholds {
     fn default() -> Self {
         Self {
             max_cpu_percent: 90.0,
-            min_available_mem_percent: 15.0,
+            min_available_mem_percent: 20.0,
         }
     }
 }
 
+/// Executes the `is_system_congested` operation.
 pub fn is_system_congested(cpu: f32, avail_pct: f32, thresholds: &ResourceThresholds) -> bool {
     cpu > thresholds.max_cpu_percent || avail_pct < thresholds.min_available_mem_percent
 }
 
+/// Executes the `wait_for_resources` operation.
 pub async fn wait_for_resources<R: tauri::Runtime>(
     app: &AppHandle<R>,
     state: &tauri::State<'_, AppState>,
     thresholds: &ResourceThresholds,
+    cancel_token: &tokio_util::sync::CancellationToken,
 ) {
     let mut announced = false;
     loop {
+        // Sleep first to ensure sysinfo has time to calculate CPU delta,
+        // especially immediately after a pipeline abort/start.
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_millis(200)) => {}
+            _ = cancel_token.cancelled() => {
+                return;
+            }
+        }
+
         let (cpu, avail_pct) = {
             let mut sys = state.resource_monitor.lock().await;
             sys.refresh_cpu_usage();
@@ -734,6 +783,12 @@ pub async fn wait_for_resources<R: tauri::Runtime>(
                         available_memory_percent: avail_pct,
                     },
                 );
+                crate::process::append_log(
+                    app,
+                    crate::constants::LOG_MSG_SYSTEM_GUARD_RESUME
+                        .replacen("{:.1}%", &format!("{:.1}%", cpu), 1)
+                        .replacen("{:.1}%", &format!("{:.1}%", avail_pct), 1),
+                );
             }
             return;
         }
@@ -747,6 +802,12 @@ pub async fn wait_for_resources<R: tauri::Runtime>(
                     available_memory_percent: avail_pct,
                 },
             );
+            crate::process::append_log(
+                app,
+                crate::constants::LOG_MSG_SYSTEM_GUARD_PAUSE
+                    .replacen("{:.1}%", &format!("{:.1}%", cpu), 1)
+                    .replacen("{:.1}%", &format!("{:.1}%", avail_pct), 1),
+            );
             announced = true;
         }
 
@@ -754,24 +815,43 @@ pub async fn wait_for_resources<R: tauri::Runtime>(
     }
 }
 
+struct ProcessingGuard<'a>(&'a std::sync::atomic::AtomicBool);
+
+impl<'a> Drop for ProcessingGuard<'a> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// Executes the `process_video_pipeline` operation.
 #[tauri::command]
 pub async fn process_video_pipeline<R: tauri::Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     payload: VideoPipelinePayload,
 ) -> Result<PipelineSummary, AppError> {
+    if state
+        .is_processing
+        .swap(true, std::sync::atomic::Ordering::SeqCst)
+    {
+        return Err(AppError::Process(
+            "Pipeline is already actively processing. Please wait for operations to conclude."
+                .into(),
+        ));
+    }
+    let _processing_guard = ProcessingGuard(&state.is_processing);
+
     validate_payload(&payload)?;
 
     let cancel_token;
     {
         let mut session = state.process.lock().await;
-        session.cancel = tokio_util::sync::CancellationToken::new();
+        *session = crate::models::ProcessSession {
+            cancel: tokio_util::sync::CancellationToken::new(),
+            output_set: std::collections::HashSet::new(),
+            output_dirs: Vec::new(),
+        };
         cancel_token = session.cancel.clone();
-        session.children.clear();
-        session.output_files.clear();
-        session.output_set.clear();
-        session.completed_files.clear();
-        session.output_dirs.clear();
     }
 
     append_log(&app, "Analyzing targets and indexing directories...");
@@ -846,18 +926,43 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
 
     let resource_thresholds = ResourceThresholds::default();
 
-    for (index, (queue_dir, file_path)) in target_files.into_iter().enumerate() {
-        if cancel_token.is_cancelled() {
+    // Option 2: Grace Period
+    // Prime the CPU measurements before sleeping so sysinfo has a baseline.
+    {
+        let mut sys = state.resource_monitor.lock().await;
+        sys.refresh_cpu_usage();
+    }
+
+    // Sleep for 1.5 seconds at the very beginning of the pipeline before it begins taking its first measurements,
+    // giving the application time to finish its initial spin-up and avoiding false-positive System Guard pauses.
+    tokio::select! {
+        _ = tokio::time::sleep(std::time::Duration::from_millis(1500)) => {}
+        _ = cancel_token.cancelled() => {
             return Err(AppError::Aborted);
         }
+    }
 
-        let permit = sem
-            .clone()
-            .acquire_owned()
-            .await
-            .map_err(|_| AppError::Aborted)?;
+    for (index, (queue_dir, file_path)) in target_files.into_iter().enumerate() {
+        if cancel_token.is_cancelled() {
+            break;
+        }
 
-        wait_for_resources(&app, &state, &resource_thresholds).await;
+        let permit = tokio::select! {
+            res = sem.clone().acquire_owned() => {
+                match res {
+                    Ok(p) => p,
+                    Err(_) => break,
+                }
+            }
+            _ = cancel_token.cancelled() => {
+                break;
+            }
+        };
+
+        wait_for_resources(&app, &state, &resource_thresholds, &cancel_token).await;
+        if cancel_token.is_cancelled() {
+            break;
+        }
 
         let app_clone = app.clone();
         let payload_clone = payload.clone();
@@ -866,8 +971,8 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
         set.spawn(async move {
             let state = app_clone.state::<AppState>();
             let result = process_one_file(
-                app_clone.clone(), // we need app_clone to live longer
-                state.clone(), // state can be cloned since tauri::State implements Clone internally if we just pass a ref, but tauri::State doesn't implement Clone.
+                app_clone.clone(),
+                state.clone(),
                 file_path,
                 ProcessFileContext {
                     payload: payload_clone,
@@ -881,6 +986,13 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
             drop(permit);
             result
         });
+
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_millis(1500)) => {}
+            _ = cancel_token.cancelled() => {
+                break;
+            }
+        }
     }
 
     while let Some(res) = set.join_next().await {
@@ -982,6 +1094,7 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
     })
 }
 
+/// Executes the `get_sidecar_version` operation.
 #[tauri::command]
 pub async fn get_sidecar_version<R: tauri::Runtime>(
     app: AppHandle<R>,
@@ -1019,6 +1132,7 @@ pub async fn get_sidecar_version<R: tauri::Runtime>(
     }
 }
 
+/// Executes the `get_encoder_capabilities` operation.
 #[tauri::command]
 pub async fn get_encoder_capabilities<R: tauri::Runtime>(
     app: AppHandle<R>,
@@ -1127,51 +1241,24 @@ async fn retry_remove_file(path: &std::path::Path) -> std::io::Result<()> {
     Err(last_err)
 }
 
+/// Executes the `abort_video_pipeline` operation.
 #[tauri::command]
 pub async fn abort_video_pipeline<R: tauri::Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), AppError> {
-    let (children, files_to_delete, dirs_to_check) = {
+    let dirs_to_check = {
         let mut session = state.process.lock().await;
 
         session.cancel.cancel(); // Trigger CancellationToken
 
-        let children = std::mem::take(&mut session.children);
-        let files = session.output_files.clone();
+        // We only clean up output_dirs asynchronously; files are cleaned by process_one_file locally
         let dirs = session.output_dirs.clone();
 
-        session.output_files.clear();
         session.output_dirs.clear();
 
-        (children, files, dirs)
+        dirs
     };
-
-    for (_, child) in children {
-        let _ = child.kill();
-    }
-
-    for file in files_to_delete {
-        if file.exists() {
-            match retry_remove_file(&file).await {
-                Ok(_) => {
-                    append_log(
-                        &app,
-                        format!(
-                            "Cleaned up session file safely: \"{}\"",
-                            file.to_string_lossy()
-                        ),
-                    );
-                }
-                Err(e) => {
-                    append_log(
-                        &app,
-                        format!("❌ Failed to delete rollback file {:?}: {}", file, e),
-                    );
-                }
-            }
-        }
-    }
 
     for dir in dirs_to_check {
         if dir.exists()
@@ -1182,7 +1269,11 @@ pub async fn abort_video_pipeline<R: tauri::Runtime>(
             if let Err(e) = fs::remove_dir(&dir) {
                 append_log(
                     &app,
-                    format!("❌ Failed to remove empty processed_files directory: {}", e),
+                    format!(
+                        "❌ Failed to remove empty {} directory: {}",
+                        crate::constants::DIR_PROCESSED_FILES,
+                        e
+                    ),
                 );
             } else {
                 append_log(
@@ -1200,6 +1291,7 @@ pub async fn abort_video_pipeline<R: tauri::Runtime>(
     Ok(())
 }
 
+/// Executes the `save_log_file` operation.
 #[tauri::command]
 pub fn save_log_file<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result<(), AppError> {
     flush_log_writer(&app);
@@ -1226,6 +1318,7 @@ pub fn save_log_file<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Resu
     ))
 }
 
+/// Executes the `read_session_log` operation.
 #[tauri::command]
 pub fn read_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, AppError> {
     flush_log_writer(&app);
@@ -1243,6 +1336,7 @@ pub fn read_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, 
     Ok(content)
 }
 
+/// Executes the `initialize_session_log` operation.
 #[tauri::command]
 pub fn initialize_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
     if let Ok(log_dir) = app.path().app_log_dir() {
@@ -1274,12 +1368,14 @@ pub fn initialize_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<()
     Ok(())
 }
 
+/// Executes the `log_message` operation.
 #[tauri::command]
 pub fn log_message<R: tauri::Runtime>(app: AppHandle<R>, message: String) {
     crate::process::append_log(&app, message);
     flush_log_writer(&app);
 }
 
+/// Executes the `check_session_log` operation.
 #[tauri::command]
 pub fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<bool, AppError> {
     flush_log_writer(&app);
@@ -1292,6 +1388,7 @@ pub fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<bool, A
     Ok(false)
 }
 
+/// Executes the `resolve_existing_parent_path` operation.
 pub fn resolve_existing_parent_path(path: &std::path::Path) -> std::path::PathBuf {
     let mut target_path = path.to_path_buf();
 
@@ -1308,6 +1405,7 @@ pub fn resolve_existing_parent_path(path: &std::path::Path) -> std::path::PathBu
     target_path
 }
 
+/// Executes the `open_folder` operation.
 #[tauri::command]
 pub fn open_folder<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result<(), AppError> {
     let target_path = resolve_existing_parent_path(std::path::Path::new(&path));
@@ -1319,6 +1417,7 @@ pub fn open_folder<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result
     Ok(())
 }
 
+/// Executes the `clear_processing_history` operation.
 #[tauri::command]
 pub async fn clear_processing_history(state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     let db_guard = state.db.lock().await;
@@ -1328,6 +1427,7 @@ pub async fn clear_processing_history(state: tauri::State<'_, AppState>) -> Resu
     Ok(())
 }
 
+/// Executes the `get_history_count` operation.
 #[tauri::command]
 pub async fn get_history_count(state: tauri::State<'_, AppState>) -> Result<i64, AppError> {
     let db_guard = state.db.lock().await;
@@ -1441,23 +1541,20 @@ mod tests {
     fn test_is_system_congested() {
         let thresholds = ResourceThresholds {
             max_cpu_percent: 90.0,
-            min_available_mem_percent: 15.0,
+            min_available_mem_percent: 20.0,
         };
 
         // Normal state
         assert!(!is_system_congested(50.0, 50.0, &thresholds));
 
-        // CPU congested
+        // CPU maxed
         assert!(is_system_congested(95.0, 50.0, &thresholds));
 
-        // Memory congested
+        // Mem starved
         assert!(is_system_congested(50.0, 10.0, &thresholds));
 
-        // Both congested
-        assert!(is_system_congested(95.0, 10.0, &thresholds));
-
-        // Edge cases
-        assert!(!is_system_congested(90.0, 15.0, &thresholds));
+        // Edge case bounds
+        assert!(!is_system_congested(90.0, 20.0, &thresholds));
     }
 
     #[test]

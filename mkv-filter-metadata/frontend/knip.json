@@ -1,0 +1,6 @@
+{
+  "svelte": {
+    "entry": ["src/routes/**/+*.{svelte,ts}"]
+  },
+  "ignore": ["src/lib/types.ts"]
+}

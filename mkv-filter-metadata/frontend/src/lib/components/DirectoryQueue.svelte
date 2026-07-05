@@ -7,8 +7,8 @@
   import { addToast } from '../stores/toast.svelte';
   import { formatBytes } from '../utils/formatters';
   import { TAURI_COMMANDS, UI_STRINGS, UI_CONSTANTS } from '../constants';
-  import { DirStatsSchema } from '$lib/types';
-  import type { DirStats } from '$lib/types';
+  import { DirectoryStatsSchema } from '$lib/types';
+  import type { DirectoryStats } from '$lib/types';
 
   let { isDraggingOS = false } = $props();
 
@@ -218,31 +218,34 @@
     isDragging = false;
   }
 
-  let cachedDirStats = $state<Record<string, DirStats>>({});
+  let cachedDirectoryStats = $state<Record<string, DirectoryStats>>({});
   let lastExts = '';
   let lastRec = false;
+  let lastHistoryClear = 0;
 
   $effect(() => {
     const dirs = config.input_directories;
     const exts = config.file_extensions;
     const rec = config.recursive;
+    const historyClear = pipeline.historyClearTimestamp;
 
     let forceRefetch = false;
-    if (lastExts !== exts || lastRec !== rec) {
+    if (lastExts !== exts || lastRec !== rec || lastHistoryClear !== historyClear) {
       forceRefetch = true;
       lastExts = exts;
       lastRec = rec;
+      lastHistoryClear = historyClear;
     }
 
     dirs.forEach((dir) => {
-      if (forceRefetch || !cachedDirStats[dir]) {
+      if (forceRefetch || !cachedDirectoryStats[dir]) {
         invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
           dirPath: dir,
           fileExtensions: exts,
           recursive: rec
         })
           .then((rawStats) => {
-            cachedDirStats[dir] = DirStatsSchema.parse(rawStats);
+            cachedDirectoryStats[dir] = DirectoryStatsSchema.parse(rawStats);
           })
           .catch((err) => {
             /* v8 ignore next */
@@ -251,9 +254,9 @@
       }
     });
 
-    for (const d of Object.keys(cachedDirStats)) {
+    for (const d of Object.keys(cachedDirectoryStats)) {
       if (!dirs.includes(d)) {
-        delete cachedDirStats[d];
+        delete cachedDirectoryStats[d];
       }
     }
   });
@@ -267,7 +270,7 @@
     return tooltipNode;
   }
 
-  function tooltipAction(node: HTMLElement, getStats: () => DirStats | undefined) {
+  function tooltipAction(node: HTMLElement, getStats: () => DirectoryStats | undefined) {
     const handleEnter = () => {
       const stats = getStats();
       /* v8 ignore next */
@@ -438,137 +441,131 @@
           onpointerdown={(e) => handlePointerDown(e, i)}
           role="listitem"
         >
-          <div class="queue-path-wrapper">
-            {#if pipeline.directoryStatuses[dir] === 'processing'}
-              <div class="status-indicator processing" title="Processing...">
-                <svg class="spinner" viewBox="0 0 50 50"
-                  ><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"
-                  ></circle></svg
-                >
-              </div>
-            {:else if pipeline.directoryStatuses[dir] === 'done'}
-              {#if pipeline.directoryErrors[dir]}
-                <div class="status-indicator warning" title="Finished with warnings or errors">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    ><path
-                      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-                    ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
-                      x1="12"
-                      y1="17"
-                      x2="12.01"
-                      y2="17"
-                    ></line></svg
+          <div class="queue-item-line-1">
+            <div class="queue-path-wrapper">
+              {#if pipeline.directoryStatuses[dir] === 'processing'}
+                <div class="status-indicator processing" title="Processing...">
+                  <svg class="spinner" viewBox="0 0 50 50"
+                    ><circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"
+                    ></circle></svg
                   >
                 </div>
-              {:else}
-                <div class="status-indicator done" title="Finished successfully">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="3"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg
-                  >
-                </div>
-              {/if}
-            {:else if pipeline.directoryStatuses[dir] === 'skipped'}
-              {#if pipeline.directoryStats[dir] && !pipeline.directoryStats[dir].exists}
-                <div class="status-indicator skipped" title="Skipped (Directory does not exist)">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    ><path
-                      d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
-                    ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
-                      x1="12"
-                      y1="17"
-                      x2="12.01"
-                      y2="17"
-                    ></line></svg
-                  >
-                </div>
-              {:else}
-                <div class="status-indicator skipped" title="Skipped (Directory is empty)">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    ><polygon points="5 4 15 12 5 20 5 4"></polygon><line
-                      x1="19"
-                      y1="5"
-                      x2="19"
-                      y2="19"
-                    ></line></svg
-                  >
-                </div>
-              {/if}
-            {/if}
-            <span class="queue-path" title={dir}>{dir}</span>
-            {#if cachedDirStats[dir]}
-              <div class="pill-container">
-                {#if pipeline.processingActive && pipeline.directoryStatuses[dir] === 'processing'}
-                  <div
-                    class="queue-pill queue-pill-interactive"
-                    use:tooltipAction={() => {
-                      /* v8 ignore start */ return cachedDirStats[dir]; /* v8 ignore stop */
-                    }}
-                  >
-                    <span class="pill-text"
-                      >{pipeline.completedFilesPerDir[dir] || 0} / {cachedDirStats[dir]
-                        .file_count}{UI_STRINGS.PILL_FILES_SUFFIX}</span
+              {:else if pipeline.directoryStatuses[dir] === 'done'}
+                {#if pipeline.directoryErrors[dir]}
+                  <div class="status-indicator warning" title="Finished with warnings or errors">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path
+                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                      ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
+                        x1="12"
+                        y1="17"
+                        x2="12.01"
+                        y2="17"
+                      ></line></svg
                     >
                   </div>
                 {:else}
-                  <div
-                    class="queue-pill queue-pill-interactive"
-                    use:tooltipAction={() => {
-                      /* v8 ignore start */ return cachedDirStats[dir]; /* v8 ignore stop */
-                    }}
-                  >
-                    <span class="pill-text"
-                      >{cachedDirStats[dir].file_count}{UI_STRINGS.PILL_FILES_SUFFIX}</span
+                  <div class="status-indicator done" title="Finished successfully">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg
                     >
                   </div>
                 {/if}
-                <div class="queue-pill">
-                  <span class="pill-text">{formatBytes(cachedDirStats[dir].total_size_bytes)}</span>
-                </div>
-              </div>
-            {/if}
-          </div>
-          <div class="queue-actions">
-            {#if pipeline.directoryStatuses[dir] === 'done'}
+              {:else if pipeline.directoryStatuses[dir] === 'skipped'}
+                {#if pipeline.directoryStats[dir] && !pipeline.directoryStats[dir].exists}
+                  <div class="status-indicator skipped" title="Skipped (Directory does not exist)">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path
+                        d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                      ></path><line x1="12" y1="9" x2="12" y2="13"></line><line
+                        x1="12"
+                        y1="17"
+                        x2="12.01"
+                        y2="17"
+                      ></line></svg
+                    >
+                  </div>
+                {:else}
+                  <div class="status-indicator skipped" title="Skipped (Directory is empty)">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><polygon points="5 4 15 12 5 20 5 4"></polygon><line
+                        x1="19"
+                        y1="5"
+                        x2="19"
+                        y2="19"
+                      ></line></svg
+                    >
+                  </div>
+                {/if}
+              {/if}
+              <span class="queue-path" title={dir}>{dir}</span>
+            </div>
+            <div class="queue-actions">
+              {#if pipeline.directoryStatuses[dir] === 'done'}
+                <button
+                  class="open-folder-btn"
+                  onclick={() => openOutputFolder(dir)}
+                  aria-label="Open processed files folder"
+                  title="Open processed files folder"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"
+                    ></path>
+                  </svg>
+                </button>
+              {/if}
               <button
-                class="open-folder-btn"
-                onclick={() => openOutputFolder(dir)}
-                aria-label="Open processed files folder"
-                title="Open processed files folder"
+                class="remove-btn"
+                onclick={() => removeDirectory(i)}
+                disabled={pipeline.processingActive}
+                aria-label="Remove item from path processing queue"
+                title="Remove directory from processing queue"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -577,37 +574,58 @@
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  stroke-width="2"
+                  stroke-width="2.5"
                   stroke-linecap="round"
                   stroke-linejoin="round"
+                  ><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"
+                  ></line></svg
                 >
-                  <path
-                    d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"
-                  ></path>
-                </svg>
               </button>
+            </div>
+          </div>
+          <div class="queue-item-line-2">
+            {#if cachedDirectoryStats[dir]}
+              <div class="pill-container">
+                {#if pipeline.processingActive && pipeline.directoryStatuses[dir] === 'processing'}
+                  <div
+                    class="queue-pill queue-pill-interactive"
+                    use:tooltipAction={() => {
+                      /* v8 ignore start */ return cachedDirectoryStats[dir]; /* v8 ignore stop */
+                    }}
+                  >
+                    <span class="pill-text"
+                      >{pipeline.completedFilesPerDir[dir] || 0} / {cachedDirectoryStats[dir]
+                        .file_count}{UI_STRINGS.PILL_FILES_SUFFIX}</span
+                    >
+                  </div>
+                {:else}
+                  <div
+                    class="queue-pill queue-pill-interactive"
+                    use:tooltipAction={() => {
+                      /* v8 ignore start */ return cachedDirectoryStats[dir]; /* v8 ignore stop */
+                    }}
+                  >
+                    <span class="pill-text"
+                      >{cachedDirectoryStats[dir].file_count}{UI_STRINGS.PILL_FILES_SUFFIX}</span
+                    >
+                  </div>
+                {/if}
+                <div class="queue-pill">
+                  <span class="pill-text"
+                    >{formatBytes(cachedDirectoryStats[dir].total_size_bytes)}</span
+                  >
+                </div>
+                {#if cachedDirectoryStats[dir].history_skipped_count > 0 && !['processing', 'done', 'error', 'warning'].includes(pipeline.directoryStatuses[dir] || 'pending')}
+                  <div class="queue-pill queue-pill-skipped">
+                    <span class="pill-text" style="color: var(--accent-color);">
+                      {cachedDirectoryStats[dir].history_skipped_count} skipped ({formatBytes(
+                        cachedDirectoryStats[dir].history_skipped_bytes
+                      )})
+                    </span>
+                  </div>
+                {/if}
+              </div>
             {/if}
-            <button
-              class="remove-btn"
-              onclick={() => removeDirectory(i)}
-              disabled={pipeline.processingActive}
-              aria-label="Remove item from path processing queue"
-              title="Remove directory from processing queue"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                ><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"
-                ></line></svg
-              >
-            </button>
           </div>
         </div>
       {/each}
@@ -747,9 +765,9 @@
   }
 
   .queue-item {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
     background-color: var(--bg-surface);
     padding: 0.35rem 0.6rem;
     border-radius: 4px;
@@ -790,6 +808,19 @@
     }
   }
 
+  .queue-item-line-1 {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 0.5rem;
+  }
+
+  .queue-item-line-2 {
+    display: flex;
+    width: 100%;
+  }
+
   .queue-actions {
     display: flex;
     align-items: center;
@@ -802,14 +833,14 @@
     gap: 0.75rem;
     overflow: hidden;
     min-width: 0;
-    padding-right: 1rem;
+    flex-grow: 1;
   }
 
   .pill-container {
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    margin-left: 1rem;
+    margin-left: 2.2rem; /* Aligns roughly with the path text */
     cursor: default;
   }
 

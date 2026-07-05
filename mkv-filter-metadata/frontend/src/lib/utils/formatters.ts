@@ -1,4 +1,4 @@
-import type { DirStats } from '../types';
+import type { DirectoryStats } from '../types';
 
 export function formatBytes(bytes: number) {
   if (bytes === 0) return '0 B';
@@ -8,7 +8,7 @@ export function formatBytes(bytes: number) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-export function buildTooltip(stats: DirStats) {
+export function buildTooltip(stats: DirectoryStats) {
   if (!stats.exists) return 'Issue: Directory was deleted or renamed before processing';
   if (stats.files.length === 0) return '0 media files, 0 B';
 

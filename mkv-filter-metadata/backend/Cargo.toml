@@ -1,9 +1,10 @@
 [package]
 name = "mkv-filter-metadata-rust"
-version = "2.1.0"
+version = "2.2.0"
 description = "A powerful batch-processing desktop app for filtering MKV metadata and tracks"
 authors = ["Cuates"]
 edition = "2024"
+default-run = "mkv-filter-metadata-rust"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -37,6 +38,9 @@ regex = "1"
 rusqlite = { version = "0.31", features = ["bundled"] } # rusqlite = bundled: compiles SQLite from source for cross-platform consistency. Expected impact: +30-60s clean compile, +500KB binary. This is intentional.
 sysinfo = { version = "0.30", default-features = false }
 tauri-plugin-window-state = "2.0.0"
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-zod = "0.0.3"
+specta-serde = "0.0.12"
 
 [dev-dependencies]
 mockall = "0.13.1"

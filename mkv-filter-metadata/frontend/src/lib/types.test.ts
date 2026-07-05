@@ -1,32 +1,36 @@
 import { describe, it, expect } from 'vitest';
-import { DirStatsSchema, EncoderCapabilitiesSchema, PipelineSummarySchema } from './types';
+import { DirectoryStatsSchema, EncoderCapabilitiesSchema, PipelineSummarySchema } from './types';
 
 describe('Zod Schemas', () => {
-  describe('DirStatsSchema', () => {
-    it('validates a correct DirStats object', () => {
+  describe('DirectoryStatsSchema', () => {
+    it('validates a correct DirectoryStats object', () => {
       const validData = {
         exists: true,
         file_count: 2,
-        total_size_bytes: 1024,
+        total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
         files: [
           { name: 'file1.mkv', size_bytes: 512 },
           { name: 'file2.mkv', size_bytes: 512 }
         ]
       };
 
-      const result = DirStatsSchema.safeParse(validData);
+      const result = DirectoryStatsSchema.safeParse(validData);
       expect(result.success).toBe(true);
     });
 
-    it('rejects an invalid DirStats object', () => {
+    it('rejects an invalid DirectoryStats object', () => {
       const invalidData = {
         exists: 'yes', // should be boolean
         file_count: 2,
-        total_size_bytes: 1024,
+        total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
         files: []
       };
 
-      const result = DirStatsSchema.safeParse(invalidData);
+      const result = DirectoryStatsSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
     });
 
@@ -34,13 +38,15 @@ describe('Zod Schemas', () => {
       const invalidData = {
         exists: true,
         file_count: 1,
-        total_size_bytes: 1024,
+        total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
         files: [
           { name: 'file1.mkv', size: 512 } // missing size_bytes
         ]
       };
 
-      const result = DirStatsSchema.safeParse(invalidData);
+      const result = DirectoryStatsSchema.safeParse(invalidData);
       expect(result.success).toBe(false);
     });
   });

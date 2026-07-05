@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display, specta::Type)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum VideoCodec {
@@ -20,14 +20,14 @@ pub enum VideoCodec {
     H264Videotoolbox,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum ConversionMode {
     Remux,
     Reencode,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display, specta::Type)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum Preset {
@@ -53,7 +53,7 @@ pub enum Preset {
     Default,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, strum::Display, specta::Type)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum StorageType {
@@ -61,7 +61,7 @@ pub enum StorageType {
     Hdd,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, specta::Type)]
 pub struct VideoPipelinePayload {
     pub input_directories: Vec<String>,
     pub file_extensions: String,
@@ -77,7 +77,7 @@ pub struct VideoPipelinePayload {
     pub storage_type: StorageType,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, specta::Type)]
 pub struct EncoderCapabilities {
     pub nvenc: bool,
     pub amf: bool,
@@ -85,21 +85,25 @@ pub struct EncoderCapabilities {
     pub qsv: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 pub struct FileStat {
     pub name: String,
     pub size_bytes: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 pub struct DirectoryStats {
     pub exists: bool,
     pub file_count: usize,
     pub total_size_bytes: u64,
     pub files: Vec<FileStat>,
+    pub history_skipped_count: usize,
+    pub history_skipped_bytes: u64,
 }
 
+#[derive(serde::Serialize, specta::Type)]
 pub struct SessionLog {
+    #[serde(skip)]
     pub writer: std::io::BufWriter<std::fs::File>,
     pub bytes_written: usize,
 }
@@ -110,32 +114,36 @@ pub struct AppState {
     pub encoder_caps: tokio::sync::OnceCell<EncoderCapabilities>,
     pub db: tokio::sync::Mutex<Option<rusqlite::Connection>>,
     pub resource_monitor: tokio::sync::Mutex<sysinfo::System>,
+    pub log_tx: std::sync::Mutex<Option<tokio::sync::mpsc::UnboundedSender<String>>>,
+    pub is_processing: std::sync::atomic::AtomicBool,
 }
 
 pub struct ProcessSession {
     pub cancel: tokio_util::sync::CancellationToken,
-    pub children: std::collections::HashMap<PathBuf, tauri_plugin_shell::process::CommandChild>,
-    pub output_files: Vec<PathBuf>, // In-progress files
-    pub output_set: std::collections::HashSet<PathBuf>, // For fast dedup
-    pub completed_files: Vec<PathBuf>, // Completed files, safe from abort
+    pub output_set: std::collections::HashSet<std::sync::Arc<PathBuf>>, // For fast dedup
     pub output_dirs: Vec<PathBuf>,
+}
+
+impl Default for ProcessSession {
+    fn default() -> Self {
+        Self {
+            cancel: tokio_util::sync::CancellationToken::new(),
+            output_set: std::collections::HashSet::new(),
+            output_dirs: Vec::new(),
+        }
+    }
 }
 
 impl Default for AppState {
     fn default() -> Self {
         Self {
-            process: tokio::sync::Mutex::new(ProcessSession {
-                cancel: tokio_util::sync::CancellationToken::new(),
-                children: std::collections::HashMap::new(),
-                output_files: Vec::new(),
-                output_set: std::collections::HashSet::new(),
-                completed_files: Vec::new(),
-                output_dirs: Vec::new(),
-            }),
+            process: tokio::sync::Mutex::new(ProcessSession::default()),
             log_writer: std::sync::Mutex::new(None),
             encoder_caps: tokio::sync::OnceCell::new(),
             db: tokio::sync::Mutex::new(None),
             resource_monitor: tokio::sync::Mutex::new(sysinfo::System::new()),
+            log_tx: std::sync::Mutex::new(None),
+            is_processing: std::sync::atomic::AtomicBool::new(false),
         }
     }
 }

@@ -1,8 +1,9 @@
 {
   "name": "mkv-filter-metadata",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "type": "module",
   "scripts": {
+    "generate:types": "cargo run --manifest-path backend/Cargo.toml --bin export_zod",
     "prebuild": "node scripts/download-sidecars.mjs",
     "build": "tauri build",
     "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",

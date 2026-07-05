@@ -39,7 +39,10 @@ export const UI_STRINGS = {
   DIRECTORY_NOT_FOUND: 'Directory not found',
   NO_MATCHED_FILES: 'No matched files',
   RECORDING_SHORTCUT: 'Recording...',
-  PILL_FILES_SUFFIX: ' files'
+  PILL_FILES_SUFFIX: ' files',
+  RESOURCES_RELEASED: 'Resources released. System ready.',
+  CLEAR_HISTORY_CONFIRMATION:
+    'Are you sure you want to clear the processing history database?\n\nThis will cause any previously completed files to be re-processed if they are queued again.'
 } as const;
 
 export const UI_CONSTANTS = {

@@ -28,10 +28,11 @@
         </li>
         <li>
           <strong>Queue Details & Tooltips:</strong> Each directory in your queue is displayed as a sleek
-          pill. It shows the base folder name, the total number of files inside, and the combined size
-          of those files. If you need to see the exact location on your computer, simply hover your mouse
-          over the folder icon to reveal a custom tooltip with the full path. You can also drag and drop
-          the rows to re-order the queue priority.
+          two-line row. The first line features icons alongside the base folder name, while the second
+          line houses data pills showing the total number of files inside and their combined size. It
+          also includes interactive state pills that react during processing. If you need to see the exact
+          location on your computer, simply hover your mouse over the folder icon to reveal a custom tooltip
+          with the full path. You can also drag and drop the rows to re-order the queue priority.
         </li>
         <li>
           <strong>Managing the Queue:</strong> You can remove individual directories from the queue
@@ -74,7 +75,12 @@
                 y2="17"
               ></line></svg
             ></span
-          > <span class="highlight">"Clear Entire Queue"</span> icon at the top of the queue list.
+          > <span class="highlight">"Clear Entire Queue"</span> icon at the top of the queue list. When
+          files are skipped due to existing history, the interactive state pills will visually update
+          to reflect this. Triggering a "Clear History" resets these interactive pills, making them active
+          for re-processing. Additionally, if you intentionally abort or stop the processing queue mid-way
+          through, any un-processed interactive pills will immediately halt and visually reflect their
+          stopped state.
         </li>
         <li>
           <strong>Queue Persistence:</strong> By default, your queue is cleared when you close the
@@ -187,8 +193,10 @@
       <h3 style="margin-top: 1rem;">Parallel Processing</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
         The application is designed to process multiple video files in <strong>parallel</strong> simultaneously,
-        drastically reducing the total time required for large batches. The number of files processed
-        at once depends on your hardware and settings.
+        drastically reducing the total time required for large batches. The system implements a smooth
+        staggered start (eliminating "thunder herding"), ensuring that even with high concurrency settings,
+        your hardware is ramped up gently rather than being hit with all tasks at the exact same millisecond.
+        The total number of files processed at once depends on your hardware and settings.
       </p>
 
       <h3 style="margin-top: 1.5rem;">Target Drive Type (SSD vs HDD)</h3>
@@ -197,10 +205,11 @@
           >SSD / NVMe ⚡</strong
         >
         or <strong>HDD 💽</strong> toggle in the
-        <a href="/settings" class="guide-link">Settings (⚙️)</a>. When <strong>HDD</strong> is
-        selected, the application will automatically snap and clamp <strong>Remux</strong>
-        concurrency to a maximum of 1. This prevents physical head thrashing that occurs when attempting
-        to write multiple massive video streams simultaneously to a spinning disk.
+        <a href="/settings" class="guide-link">Settings (⚙️)</a>. To prevent physical hardware
+        thrashing and IO bottlenecks, the application will automatically snap and clamp
+        <strong>Remux</strong>
+        concurrency to a maximum of <strong>2</strong> for SSDs, and a maximum of <strong>1</strong>
+        for HDDs.
         <strong>Re-encoding</strong> concurrency is fully decoupled from this setting and will still utilize
         the maximum limits of your hardware, as it is bottlenecked by the encoder rather than disk write
         speeds.
@@ -226,12 +235,20 @@
           style="display:inline; margin:0; font-weight:600; color:var(--warning-color);"
           >Yellow Toast</span
         >
-        indicating the pause, followed by a
+        indicating that the system is congested. During this state, the visual queue and terminal will
+        appear paused, holding new items in a waiting state until it is safe to proceed. Once system resources
+        have recovered to acceptable levels, you will receive a
         <span
           class="log-success"
           style="display:inline; margin:0; font-weight:600; color:var(--success-color);"
           >Green Toast</span
-        > once system resources have recovered and processing resumes.
+        >
+        confirming that the pipeline has resumed.
+        <em
+          >Note: When a batch begins, the System Guard employs a brief 1.5-second grace period to
+          allow the application's underlying async workers to initialize. This eliminates
+          false-positive congestion warnings caused by normal application spin-up spikes.</em
+        >
       </p>
     </div>
 
@@ -301,7 +318,26 @@
           crash. The application will log the error and attempt to seamlessly continue processing the
           rest of the queue.
         </li>
+        <li>
+          <span
+            class="log-info"
+            style="color: var(--accent-color); font-weight: 600; display: block; margin-bottom: 0.25rem;"
+            >🛡️ [SYSTEM GUARD]:</span
+          >
+          These entries appear when the application detects system resource congestion (high CPU/low Memory).
+          It will log when it pauses the pipeline to protect your OS, and when it successfully resumes
+          operations.
+        </li>
       </ul>
+
+      <h3 style="margin-top: 1.5rem;">Graceful Application Exit</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
+        You can safely close the application at any time, even right in the middle of processing a
+        large batch of files. When you click the 'X' to close the window, the application intercepts
+        the request and runs a clean-up routine behind the scenes. It safely terminates any running
+        FFmpeg and MKVmerge processes, preventing orphan background processes from consuming your
+        CPU or memory after the application exits.
+      </p>
 
       <h3 style="margin-top: 1.5rem;">System Notifications</h3>
       <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
@@ -376,6 +412,23 @@
           overlay will be displayed over the application's dock icon.
         </li>
       </ul>
+    </div>
+
+    <div class="form-workspace-card">
+      <h2>Troubleshooting</h2>
+      <p class="description">Common questions and solutions when operating the application.</p>
+
+      <h3 style="margin-top: 1rem;">High Memory Usage During Development (IDE)</h3>
+      <p style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5;">
+        If you are a developer compiling and running the application in a local development
+        environment alongside an IDE (such as VS Code or Antigravity), you might notice massive RAM
+        consumption during processing batches.
+        <strong>This is not a memory leak in the desktop application itself.</strong>
+        The memory spike is caused by the IDE's background language servers actively analyzing the rapid
+        source tree changes (such as the target directories generating output files) and intercepting
+        the massive real-time terminal output stream. When the application is compiled and run natively
+        as a standalone production binary, these memory spikes do not occur.
+      </p>
     </div>
   </div>
 </main>
@@ -572,5 +625,8 @@
   }
   .log-legend li:nth-child(3) {
     border-left-color: var(--error-color);
+  }
+  .log-legend li:nth-child(4) {
+    border-left-color: var(--accent-color);
   }
 </style>

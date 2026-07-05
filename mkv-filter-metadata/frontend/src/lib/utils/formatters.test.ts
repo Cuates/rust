@@ -33,22 +33,38 @@ describe('formatters', () => {
 
   describe('buildTooltip', () => {
     it('handles non-existent directory', () => {
-      expect(buildTooltip({ exists: false, files: [], file_count: 0, total_size_bytes: 0 })).toBe(
-        'Issue: Directory was deleted or renamed before processing'
-      );
+      expect(
+        buildTooltip({
+          exists: false,
+          files: [],
+          file_count: 0,
+          total_size_bytes: 3072,
+          history_skipped_count: 0,
+          history_skipped_bytes: 0
+        })
+      ).toBe('Issue: Directory was deleted or renamed before processing');
     });
 
     it('handles empty directory', () => {
-      expect(buildTooltip({ exists: true, files: [], file_count: 0, total_size_bytes: 0 })).toBe(
-        '0 media files, 0 B'
-      );
+      expect(
+        buildTooltip({
+          exists: true,
+          files: [],
+          file_count: 0,
+          total_size_bytes: 3072,
+          history_skipped_count: 0,
+          history_skipped_bytes: 0
+        })
+      ).toBe('0 media files, 0 B');
     });
 
     it('builds tooltip with files', () => {
       const stats = {
         exists: true,
         file_count: 2,
-        total_size_bytes: 3072, // 3 KB
+        total_size_bytes: 3072,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0, // 3 KB
         files: [
           { name: 'video1.mkv', size_bytes: 1024 },
           { name: 'video2.mkv', size_bytes: 2048 }

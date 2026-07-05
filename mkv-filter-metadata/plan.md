@@ -1,6 +1,6 @@
 ---
 title: "Project Plan & Sandbox"
-last_updated: 2026-07-04
+last_updated: 2026-07-05
 status: "active"
 ---
 
@@ -27,6 +27,9 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 - [x] Eliminate hardcoded magic strings across the Tauri backend and centralize into a constants module.
 - [x] Expand backend Rust test coverage via `cargo-llvm-cov` and reach 100% test coverage for the SvelteKit frontend via `vitest`.
 - [x] Bump application to version 2.1.0 and sync all monorepo documentation.
+- [x] Implement 1.5s System Guard grace period to prevent false-positive resource congestion toasts at startup.
+- [x] Lock in strict SvelteKit test thresholds (>99%) and resolve edge-case coverage gaps to reach `99.36%` branch coverage on core components.
+- [x] Bump application to version 2.2.0 and sync all monorepo documentation.
 
 ## 💡 Sandbox Notes
 *(Use this space to draft ideas, outline upcoming Epics, or sketch workflows before converting them into GitHub issues or ADRs)*

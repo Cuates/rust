@@ -13,7 +13,9 @@ vi.mock('@tauri-apps/api/core', () => ({
     Promise.resolve({
       exists: true,
       file_count: 0,
-      total_size_bytes: 0,
+      total_size_bytes: 1000,
+      history_skipped_count: 0,
+      history_skipped_bytes: 0,
       files: []
     })
   )
@@ -159,6 +161,8 @@ describe('DirectoryQueue.svelte', () => {
       exists: true,
       file_count: 5,
       total_size_bytes: 1000,
+      history_skipped_count: 0,
+      history_skipped_bytes: 0,
       files: []
     });
     vi.mocked(invoke).mockRejectedValueOnce(new Error('Permission denied'));
@@ -180,7 +184,9 @@ describe('DirectoryQueue.svelte', () => {
     vi.mocked(invoke).mockResolvedValue({
       exists: true,
       file_count: 0,
-      total_size_bytes: 0,
+      total_size_bytes: 1000,
+      history_skipped_count: 0,
+      history_skipped_bytes: 0,
       files: []
     });
     render(DirectoryQueue);
@@ -208,7 +214,9 @@ describe('DirectoryQueue.svelte', () => {
     vi.mocked(invoke).mockResolvedValueOnce({
       exists: true,
       file_count: 5,
-      total_size_bytes: 1048576,
+      total_size_bytes: 1000,
+      history_skipped_count: 0,
+      history_skipped_bytes: 0,
       files: []
     });
     const { container } = render(DirectoryQueue, { isDraggingOS: true });
@@ -240,7 +248,7 @@ describe('DirectoryQueue.svelte', () => {
   it('renders skipped missing status', () => {
     config.input_directories = ['/folder1'];
     pipeline.directoryStatuses['/folder1'] = 'skipped';
-    pipeline.directoryStats['/folder1'] = { exists: false } as import('../types').DirStats;
+    pipeline.directoryStats['/folder1'] = { exists: false } as import('../types').DirectoryStats;
     const { container } = render(DirectoryQueue);
 
     const item = container.querySelector('.queue-item');
@@ -250,7 +258,7 @@ describe('DirectoryQueue.svelte', () => {
   it('renders skipped empty status', () => {
     config.input_directories = ['/folder1'];
     pipeline.directoryStatuses['/folder1'] = 'skipped';
-    pipeline.directoryStats['/folder1'] = { exists: true } as import('../types').DirStats;
+    pipeline.directoryStats['/folder1'] = { exists: true } as import('../types').DirectoryStats;
     const { container } = render(DirectoryQueue);
 
     const item = container.querySelector('.queue-item');
@@ -345,7 +353,9 @@ describe('DirectoryQueue.svelte', () => {
       vi.mocked(invoke).mockResolvedValueOnce({
         exists: true,
         file_count: 5,
-        total_size_bytes: 1048576, // 1 MB
+        total_size_bytes: 1048576,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0, // 1 MB
         files: [
           { name: 'video1.mkv', size_bytes: 524288 },
           { name: 'video2.mkv', size_bytes: 524288 }
@@ -363,12 +373,57 @@ describe('DirectoryQueue.svelte', () => {
       expect(pills[1].textContent).toContain('1 MB');
     });
 
+    it('renders history skipped pills when history_skipped_count > 0', async () => {
+      config.input_directories = ['/path/to/folder'];
+      vi.mocked(invoke).mockResolvedValueOnce({
+        exists: true,
+        file_count: 5,
+        total_size_bytes: 1048576,
+        history_skipped_count: 2,
+        history_skipped_bytes: 524288,
+        files: []
+      });
+
+      const { container } = render(DirectoryQueue);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const pills = container.querySelectorAll('.queue-pill');
+      expect(pills.length).toBe(3);
+      expect(pills[2].className).toContain('queue-pill-skipped');
+      expect(pills[2].textContent).toContain('2 skipped');
+    });
+
+    it('reflects stopped state for unprocessed interactive pills when aborted', async () => {
+      config.input_directories = ['/path/to/folder'];
+      pipeline.processingActive = false; // Simulated abort/stop
+
+      vi.mocked(invoke).mockResolvedValueOnce({
+        exists: true,
+        file_count: 5,
+        total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
+        files: []
+      });
+
+      const { container } = render(DirectoryQueue);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const interactivePill = container.querySelector('.queue-pill-interactive');
+      expect(interactivePill).toBeInTheDocument();
+      // Should show the total files and NOT the "X / Y files" progress text
+      expect(interactivePill?.textContent).toContain('5 files');
+      expect(interactivePill?.textContent).not.toContain(' / 5 files');
+    });
+
     it('renders tooltip with file list on hover', async () => {
       config.input_directories = ['/path/to/folder'];
       vi.mocked(invoke).mockResolvedValueOnce({
         exists: true,
         file_count: 1,
         total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
         files: [{ name: 'test_video.mkv', size_bytes: 1000 }]
       });
 
@@ -414,7 +469,9 @@ describe('DirectoryQueue.svelte', () => {
       vi.mocked(invoke).mockResolvedValueOnce({
         exists: true,
         file_count: 0,
-        total_size_bytes: 0,
+        total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
         files: []
       });
 
@@ -433,7 +490,9 @@ describe('DirectoryQueue.svelte', () => {
       vi.mocked(invoke).mockResolvedValueOnce({
         exists: false,
         file_count: 0,
-        total_size_bytes: 0,
+        total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
         files: []
       });
 

@@ -1,7 +1,7 @@
 ---
 name: sync_docs
 description: Synchronizes documentation metadata and checks for stale ADRs or missing frontmatter in markdown files.
-last_updated: 2026-07-04
+last_updated: 2026-07-05
 ---
 
 # Sync Docs Skill

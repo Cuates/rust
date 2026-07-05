@@ -157,6 +157,7 @@ describe('Settings Page - Keyboard Shortcuts', () => {
     });
 
     it('shows error toast when clearing history fails', async () => {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       vi.mocked(invoke).mockImplementation(async (cmd) => {
         if (cmd === TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY) throw 'DB Error';
         if (cmd === TAURI_COMMANDS.GET_HISTORY_COUNT) return 0;
@@ -172,6 +173,7 @@ describe('Settings Page - Keyboard Shortcuts', () => {
 
       expect(toastState.toasts.length).toBeGreaterThan(0);
       expect(toastState.toasts[toastState.toasts.length - 1].message).toContain('DB Error');
+      consoleError.mockRestore();
     });
 
     it('changes storage_type to hdd and caps remux concurrency', async () => {

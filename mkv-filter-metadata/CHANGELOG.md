@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-07-05
+
+### Added
+- Added per-row "Open Output Folder" button to directly open the processed files folder.
+- **System Guard:** Implemented a 1.5s grace period in the processing pipeline to prevent false-positive resource congestion toasts at startup.
+- **Testing:** Enforced strict 99%+ test coverage thresholds across the SvelteKit frontend, achieving near-perfect branch coverage on `+page.svelte`.
+
+### Changed
+- Bumped application version to `2.2.0` across all Tauri and SvelteKit configuration files.
+- Refined test suite to aggressively capture and silence intentional error outputs (`stderr`) during Vitest fallback execution paths.
+
 ## [2.1.0] - 2026-07-03
 
 ### Added

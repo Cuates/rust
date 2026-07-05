@@ -16,11 +16,15 @@
   } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
   import { registerCommand, unregisterCommand, paletteState } from '../lib/stores/commands.svelte';
-  import type { DirStats } from '$lib/types';
-  import { DirStatsSchema, EncoderCapabilitiesSchema, PipelineSummarySchema } from '$lib/types';
+  import type { DirectoryStats } from '$lib/types';
+  import {
+    DirectoryStatsSchema,
+    EncoderCapabilitiesSchema,
+    PipelineSummarySchema
+  } from '$lib/types';
   import { z } from 'zod';
   import { formatDuration } from '../lib/utils/formatters';
-  import { TAURI_COMMANDS, TAURI_EVENTS } from '../lib/constants';
+  import { TAURI_COMMANDS, TAURI_EVENTS, UI_STRINGS } from '../lib/constants';
 
   import DirectoryQueue from '../lib/components/DirectoryQueue.svelte';
   import ConfigPanel from '../lib/components/ConfigPanel.svelte';
@@ -89,7 +93,7 @@
               fileExtensions: config.file_extensions,
               recursive: config.recursive
             });
-            const stats = DirStatsSchema.parse(rawStats);
+            const stats = DirectoryStatsSchema.parse(rawStats);
             if (stats.exists) {
               validDirs.push(dir);
             } else {
@@ -187,14 +191,16 @@
         }
       });
 
-      const unlistenLogFn = await listen<string>(TAURI_EVENTS.PROCESS_LOG, async (event) => {
-        addLogs(event.payload);
-        if (event.payload.includes('Scanned file total:')) {
-          const match = event.payload.match(/Scanned file total:\s*(\d+)/);
-          if (match) {
-            pipeline.totalFilesCount = parseInt(match[1], 10);
-            pipeline.completedFilesCount = 0;
-            pipeline.activeFiles = {};
+      const unlistenLogFn = await listen<string[]>(TAURI_EVENTS.PROCESS_LOG, async (event) => {
+        addLogs(...event.payload);
+        for (const line of event.payload) {
+          if (line.includes('Scanned file total:')) {
+            const match = line.match(/Scanned file total:\s*(\d+)/);
+            if (match) {
+              pipeline.totalFilesCount = parseInt(match[1], 10);
+              pipeline.completedFilesCount = 0;
+              pipeline.activeFiles = {};
+            }
           }
         }
 
@@ -386,7 +392,7 @@
     startPipelineTimer();
     await displaySidecarVersions();
     try {
-      const tempDirStats: Record<string, DirStats> = {};
+      const tempDirectoryStats: Record<string, DirectoryStats> = {};
       for (const dir of config.input_directories) {
         try {
           const rawStats = await invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
@@ -394,16 +400,23 @@
             fileExtensions: config.file_extensions,
             recursive: config.recursive
           });
-          const stats = DirStatsSchema.parse(rawStats);
-          tempDirStats[dir] = stats;
+          const stats = DirectoryStatsSchema.parse(rawStats);
+          tempDirectoryStats[dir] = stats;
         } catch {
-          tempDirStats[dir] = { exists: false, file_count: 0, total_size_bytes: 0, files: [] };
+          tempDirectoryStats[dir] = {
+            exists: false,
+            file_count: 0,
+            total_size_bytes: 0,
+            files: [],
+            history_skipped_count: 0,
+            history_skipped_bytes: 0
+          };
         }
       }
-      pipeline.directoryStats = tempDirStats;
+      pipeline.directoryStats = tempDirectoryStats;
 
       for (const dir of config.input_directories) {
-        if (tempDirStats[dir].file_count === 0) {
+        if (tempDirectoryStats[dir].file_count === 0) {
           pipeline.directoryStatuses[dir] = 'skipped';
         }
       }
@@ -443,10 +456,15 @@
       } catch (e) {
         console.warn('Failed to send desktop notification', e);
       }
-    } catch (err: unknown) {
-      addToast(`Pipeline execution failed: ${err}`, 'error');
-      emitLog(`❌ Pipeline execution failure: ${err}`);
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      addToast(`Pipeline execution failed: ${errMsg}`, 'error');
+      emitLog(`❌ Pipeline execution failure: ${errMsg}`);
     } finally {
+      if (pipeline.isAborting) {
+        addToast(UI_STRINGS.RESOURCES_RELEASED, 'success');
+        pipeline.isAborting = false;
+      }
       pipeline.processingActive = false;
       stopPipelineTimer();
 
@@ -499,19 +517,19 @@
   }
 
   async function abortPipeline() {
+    if (pipeline.isAborting) return;
+    pipeline.isAborting = true;
     try {
-      addToast('Halt instruction issued. Rolling back...', 'warning');
-      emitLog('⚠️ Halt instruction issued. Terminating processes and rolling back...');
+      addToast('Halt instruction issued. Awaiting resource release.', 'warning');
+      emitLog('⚠️ Halt instruction issued. Terminating processes and waiting for release...');
       await scrollToTerminalBottom();
 
       await invoke(TAURI_COMMANDS.ABORT_VIDEO_PIPELINE);
-      emitLog('🛑 Processing execution stopped and partial files cleaned up.');
+      emitLog('🛑 Processing execution stopped.');
     } catch (err) {
       emitLog(`Error safely terminating workers: ${err}`);
+      pipeline.isAborting = false;
     } finally {
-      pipeline.processingActive = false;
-      stopPipelineTimer();
-
       await scrollToTerminalBottom(40);
     }
   }
@@ -524,6 +542,7 @@
     showClearHistoryModal = false;
     try {
       await invoke(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
+      pipeline.historyClearTimestamp = Date.now();
       addToast('✅ Processing history cleared successfully.', 'success');
     } catch (e) {
       addToast(`❌ Failed to clear history: ${e}`, 'error');
@@ -671,14 +690,31 @@
 
           <div class="action-row">
             {#if pipeline.processingActive}
-              <button class="action-abort-btn" onclick={abortPipeline}>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  class="stop-icon"><rect x="4" y="4" width="16" height="16" rx="2"></rect></svg
-                > Stop Execution
+              <button
+                class="action-abort-btn"
+                onclick={abortPipeline}
+                disabled={pipeline.isAborting}
+              >
+                {#if pipeline.isAborting}
+                  <span>Aborting...</span>
+                {:else}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                  </svg>
+                  <span>Stop Execution ({shortcuts.abortPipeline})</span>
+                {/if}
               </button>
             {:else}
               <button
@@ -714,8 +750,8 @@
 
   <ConfirmationModal
     show={showClearHistoryModal}
-    title="Clear Processing History"
-    message="Are you sure you want to clear the processing history database?&#10;&#10;This will cause any previously completed files to be re-processed if they are queued again."
+    title="Clear History"
+    message={UI_STRINGS.CLEAR_HISTORY_CONFIRMATION}
     confirmText="Clear History"
     cancelText="Cancel"
     onConfirm={executeClearHistory}
@@ -827,10 +863,5 @@
     &:hover {
       background-color: var(--danger-hover);
     }
-  }
-
-  .stop-icon {
-    margin-right: 6px;
-    fill: currentColor;
   }
 </style>
