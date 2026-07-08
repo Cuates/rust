@@ -134,7 +134,8 @@ frontend/                         # Svelte 5 + SvelteKit + Vite UI Layer
 │   │   │   └── page.test.ts
 │   │   ├── +layout.svelte        # Global layout wrapper and font imports
 │   │   ├── +layout.ts
-│   │   └── +page.svelte          # Main application view & event orchestration
+│   │   ├── +page.svelte          # Main application view & event orchestration
+│   │   └── page.test.ts          # Root page integration tests
 │   ├── styles/
 │   │   └── app.scss              # Global styles, theming, CSS variables
 │   ├── app.html                  # HTML template

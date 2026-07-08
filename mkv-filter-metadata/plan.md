@@ -1,6 +1,6 @@
 ---
 title: "Project Plan & Sandbox"
-last_updated: 2026-07-05
+last_updated: 2026-07-07
 status: "active"
 ---
 
@@ -24,12 +24,14 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 - [x] Implement clean, real-time pipeline output logging.
 - [x] Bump application to major version 2.0.0 and sync all monorepo documentation.
 - [x] Redesign Target Processing Queue UI with pill-based rows, file counts, aggregate sizes, and custom tooltips.
-- [x] Eliminate hardcoded magic strings across the Tauri backend and centralize into a constants module.
 - [x] Expand backend Rust test coverage via `cargo-llvm-cov` and reach 100% test coverage for the SvelteKit frontend via `vitest`.
 - [x] Bump application to version 2.1.0 and sync all monorepo documentation.
 - [x] Implement 1.5s System Guard grace period to prevent false-positive resource congestion toasts at startup.
 - [x] Lock in strict SvelteKit test thresholds (>99%) and resolve edge-case coverage gaps to reach `99.36%` branch coverage on core components.
 - [x] Bump application to version 2.2.0 and sync all monorepo documentation.
+- [x] Completely eliminate magic strings by migrating all DOM events, Tauri commands, and UI strings into a centralized `constants.ts` file.
+- [x] Resolve all strict `any` and `unknown` TypeScript errors across frontend payloads.
+- [x] Bump application to version 2.3.0 and sync all monorepo documentation.
 
 ## 💡 Sandbox Notes
 *(Use this space to draft ideas, outline upcoming Epics, or sketch workflows before converting them into GitHub issues or ADRs)*

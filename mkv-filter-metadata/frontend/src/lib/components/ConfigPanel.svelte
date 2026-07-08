@@ -427,7 +427,6 @@
   }
   .reencode-advanced-panel {
     min-height: 0;
-    border-top: 1px solid var(--border-color);
     padding-top: 0.5rem;
   }
 

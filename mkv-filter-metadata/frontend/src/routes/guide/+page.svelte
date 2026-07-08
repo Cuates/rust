@@ -27,12 +27,14 @@
           window.
         </li>
         <li>
-          <strong>Queue Details & Tooltips:</strong> Each directory in your queue is displayed as a sleek
-          two-line row. The first line features icons alongside the base folder name, while the second
-          line houses data pills showing the total number of files inside and their combined size. It
-          also includes interactive state pills that react during processing. If you need to see the exact
-          location on your computer, simply hover your mouse over the folder icon to reveal a custom tooltip
-          with the full path. You can also drag and drop the rows to re-order the queue priority.
+          <strong>Queue Details & Tooltips:</strong> Each directory in your target processing queue
+          is displayed using a modern <strong>pill shape</strong> layout. The first line features
+          icons alongside the base folder name, while the second line houses data pills showing the
+          total number of files inside and their combined size. It also includes interactive state
+          pills that react during processing. To keep the interface clean, long paths and text are
+          truncated; simply hover your mouse over these items (or the folder icon) to reveal a
+          <strong>custom tooltip</strong> containing the full details. You can also drag and drop the
+          rows to re-order the queue priority.
         </li>
         <li>
           <strong>Managing the Queue:</strong> You can remove individual directories from the queue
@@ -293,14 +295,33 @@
         perfectly back to the exact layout tier and location you left it in on your next launch.
       </p>
 
+      <h3>Live Processing Metrics</h3>
+      <p
+        style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1.5rem;"
+      >
+        During a batch run, the global metrics panel tracks your overall progress. It displays the
+        active files being processed, the number of files completed, and explicitly shows the <strong
+          >total size</strong
+        >
+        directly under the <strong>total scanned</strong> files count. Once the batch finishes, the
+        final <strong>storage delta</strong> is presented with dynamic <strong>color-coding</strong> (e.g.,
+        green for space saved, red for space lost) so you can instantly evaluate your storage efficiency
+        at a glance.
+      </p>
+
       <h3>Clean Real-Time Pipeline Output</h3>
       <p
         style="font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 1rem;"
       >
-        Instead of throwing an unreadable wall of raw technical text at you, the terminal now
-        cleanly parses the real-time processing data behind the scenes. You will only see clear,
-        concise status updates for each file, including its exact progress percentage, speed, and
-        any relevant warnings.
+        Instead of throwing an unreadable wall of raw technical text at you, the terminal cleanly
+        parses the real-time processing data behind the scenes. You will see clear, concise status
+        updates for each file, including its exact progress percentage, speed, and any relevant
+        warnings. It also tracks the <strong>total size</strong> processed directly in the log. At
+        the end of a run, the final summary metrics are printed on <strong>separate lines</strong>
+        for much easier reading and review. To help you navigate large batches, use the
+        <strong>Scroll to Top</strong>
+        and <strong>Scroll to Bottom</strong> buttons located inside the log panel to quickly jump through
+        the terminal history.
       </p>
       <ul class="guide-list log-legend">
         <li>

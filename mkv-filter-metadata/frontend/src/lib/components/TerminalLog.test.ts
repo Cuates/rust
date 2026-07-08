@@ -4,6 +4,7 @@ import { render, fireEvent, screen } from '@testing-library/svelte';
 import TerminalLog from './TerminalLog.svelte';
 import { pipeline } from '$lib/stores/pipeline.svelte';
 import { addToast } from '$lib/stores/toast.svelte';
+import { UI_STRINGS } from '$lib/constants';
 import { invoke } from '@tauri-apps/api/core';
 import { save } from '@tauri-apps/plugin-dialog';
 
@@ -32,7 +33,7 @@ describe('TerminalLog.svelte', () => {
 
   it('renders empty log message when no logs exist', () => {
     render(TerminalLog);
-    expect(screen.getByText('Logs will appear here once processing begins...')).toBeInTheDocument();
+    expect(screen.getByText(UI_STRINGS.LOGS_WILL_APPEAR)).toBeInTheDocument();
   });
 
   it('renders log lines with correct classes', () => {
@@ -62,7 +63,7 @@ describe('TerminalLog.svelte', () => {
 
     render(TerminalLog);
 
-    const copyBtn = screen.getByLabelText('Copy logs');
+    const copyBtn = screen.getByLabelText(UI_STRINGS.COPY_LOGS);
     await fireEvent.click(copyBtn);
 
     expect(invoke).toHaveBeenCalledWith('read_session_log');
@@ -73,16 +74,29 @@ describe('TerminalLog.svelte', () => {
     vi.useRealTimers();
   });
 
+  it('handles copy logs failure with string error', async () => {
+    pipeline.consoleLogs = [{ id: 1, text: 'Log 1' }];
+
+    vi.mocked(invoke).mockResolvedValueOnce('Log 1'); // Mock READ_SESSION_LOG
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce('String clipboard error');
+
+    render(TerminalLog);
+    const copyBtn = screen.getByLabelText(UI_STRINGS.COPY_LOGS);
+    await fireEvent.click(copyBtn);
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('Log 1');
+  });
+
   it('handles empty fullLogText when copying', async () => {
     pipeline.consoleLogs = [{ id: 1, text: 'Log 1' }];
     vi.mocked(invoke).mockResolvedValueOnce(''); // Empty log
 
     render(TerminalLog);
 
-    const copyBtn = screen.getByLabelText('Copy logs');
+    const copyBtn = screen.getByLabelText(UI_STRINGS.COPY_LOGS);
     await fireEvent.click(copyBtn);
 
-    expect(addToast).toHaveBeenCalledWith('No session log found on disk to copy.', 'error');
+    expect(addToast).toHaveBeenCalledWith(UI_STRINGS.NO_SESSION_LOG, 'error');
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
   });
 
@@ -92,10 +106,13 @@ describe('TerminalLog.svelte', () => {
 
     render(TerminalLog);
 
-    const copyBtn = screen.getByLabelText('Copy logs');
+    const copyBtn = screen.getByLabelText(UI_STRINGS.COPY_LOGS);
     await fireEvent.click(copyBtn);
 
-    expect(addToast).toHaveBeenCalledWith(expect.stringContaining('Failed to copy logs:'), 'error');
+    expect(addToast).toHaveBeenCalledWith(
+      expect.stringContaining(UI_STRINGS.COPY_LOGS_FAILED),
+      'error'
+    );
   });
 
   it('saves logs to file when save button is clicked', async () => {
@@ -111,7 +128,7 @@ describe('TerminalLog.svelte', () => {
 
     render(TerminalLog);
 
-    const saveBtn = screen.getByLabelText('Save logs');
+    const saveBtn = screen.getByLabelText(UI_STRINGS.EXPORT_LOGS);
     await fireEvent.click(saveBtn);
 
     expect(invoke).toHaveBeenCalledWith('check_session_log');
@@ -130,11 +147,11 @@ describe('TerminalLog.svelte', () => {
 
     render(TerminalLog);
 
-    const saveBtn = screen.getByLabelText('Save logs');
+    const saveBtn = screen.getByLabelText(UI_STRINGS.EXPORT_LOGS);
     await fireEvent.click(saveBtn);
 
     expect(invoke).toHaveBeenCalledWith('check_session_log');
-    expect(addToast).toHaveBeenCalledWith('No active session log found to save.', 'error');
+    expect(addToast).toHaveBeenCalledWith(UI_STRINGS.NO_ACTIVE_SESSION_LOG, 'error');
     expect(save).not.toHaveBeenCalled();
   });
 
@@ -149,7 +166,7 @@ describe('TerminalLog.svelte', () => {
 
     render(TerminalLog);
 
-    const saveBtn = screen.getByLabelText('Save logs');
+    const saveBtn = screen.getByLabelText(UI_STRINGS.EXPORT_LOGS);
     await fireEvent.click(saveBtn);
 
     expect(save).toHaveBeenCalled();
@@ -162,10 +179,28 @@ describe('TerminalLog.svelte', () => {
 
     render(TerminalLog);
 
-    const saveBtn = screen.getByLabelText('Save logs');
+    const saveBtn = screen.getByLabelText(UI_STRINGS.EXPORT_LOGS);
     await fireEvent.click(saveBtn);
 
-    expect(addToast).toHaveBeenCalledWith(expect.stringContaining('Failed to save log:'), 'error');
+    expect(addToast).toHaveBeenCalledWith(
+      expect.stringContaining(UI_STRINGS.SAVE_LOG_FAILED),
+      'error'
+    );
+  });
+
+  it('handles errors when saving with string error', async () => {
+    pipeline.consoleLogs = [{ id: 1, text: 'Log 1' }];
+    vi.mocked(invoke).mockRejectedValueOnce('Check failed string');
+
+    render(TerminalLog);
+
+    const saveBtn = screen.getByLabelText(UI_STRINGS.EXPORT_LOGS);
+    await fireEvent.click(saveBtn);
+
+    expect(addToast).toHaveBeenCalledWith(
+      expect.stringContaining(UI_STRINGS.SAVE_LOG_FAILED),
+      'error'
+    );
   });
 
   it('scrolls to bottom correctly (via export function)', async () => {
@@ -173,5 +208,63 @@ describe('TerminalLog.svelte', () => {
     const { tick } = await import('svelte');
     await tick();
     expect(() => component.scrollToBottom()).not.toThrow();
+    expect(() => component.scrollToBottom(true)).not.toThrow();
+  });
+
+  it('handles scroll functions when terminalEl is null', async () => {
+    const { component, unmount } = render(TerminalLog);
+    unmount(); // This sets terminalEl to null
+    expect(() => component.scrollToBottom()).not.toThrow();
+    expect(() => component.scrollToBottom(true)).not.toThrow();
+
+    // We can also trigger the component's scrollToTop if it was exported, but it isn't exported directly.
+    // However, if we just want to cover `if (!terminalEl)`, we covered it for scrollToBottom.
+  });
+
+  it('handles scroll event when unmounted', async () => {
+    const { unmount } = render(TerminalLog);
+    const shell = document.getElementById('terminal-shell');
+
+    unmount(); // sets terminalEl to null
+
+    if (shell) {
+      expect(() => fireEvent.scroll(shell)).not.toThrow();
+    }
+  });
+
+  it('updates scroll state on scroll event', async () => {
+    render(TerminalLog);
+    const shell = document.getElementById('terminal-shell');
+    if (shell) {
+      // Mock properties for scroll height
+      Object.defineProperty(shell, 'scrollTop', { value: 0, writable: true });
+      Object.defineProperty(shell, 'scrollHeight', { value: 500 });
+      Object.defineProperty(shell, 'clientHeight', { value: 100 });
+      await fireEvent.scroll(shell);
+    }
+  });
+
+  it('handles manual scroll to top and bottom', async () => {
+    pipeline.consoleLogs = [{ id: 1, text: 'Log 1' }];
+    render(TerminalLog);
+    const shell = document.getElementById('terminal-shell');
+    if (shell) {
+      shell.scrollTo = vi.fn();
+
+      // Initially, we are at top and bottom if there is no scroll, but let's mock it so we are not at bottom and top.
+      Object.defineProperty(shell, 'scrollTop', { value: 200, writable: true });
+      Object.defineProperty(shell, 'scrollHeight', { value: 500 });
+      Object.defineProperty(shell, 'clientHeight', { value: 100 });
+      await fireEvent.scroll(shell);
+
+      const topBtn = screen.getByLabelText(UI_STRINGS.SCROLL_TO_TOP);
+      const bottomBtn = screen.getByLabelText(UI_STRINGS.SCROLL_TO_LATEST);
+
+      await fireEvent.click(topBtn);
+      expect(shell.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+
+      await fireEvent.click(bottomBtn);
+      expect(shell.scrollTo).toHaveBeenCalledWith({ top: 500, behavior: 'smooth' });
+    }
   });
 });

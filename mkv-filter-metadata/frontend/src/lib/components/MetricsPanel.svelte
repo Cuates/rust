@@ -1,6 +1,7 @@
 <script lang="ts">
   import { pipeline } from '$lib/stores/pipeline.svelte';
   import { formatBytes } from '../utils/formatters';
+  import { UI_STRINGS } from '../constants';
 
   /** True once the user has ever started a run in this session. */
   let hasEverRun = $derived(pipeline.hasProcessClicked);
@@ -29,11 +30,17 @@
         </div>
         <div class="progress-labels-sub-row">
           <span class="sub-metric-label"
-            >Total Scanned: <strong>{pipeline.currentFileIndex}</strong> / {pipeline.totalFilesCount}
+            >{UI_STRINGS.TOTAL_SCANNED} <strong>{pipeline.currentFileIndex}</strong> / {pipeline.totalFilesCount}
             file(s)</span
           >
           <span class="sub-metric-label text-right"
-            >Overall Progress: <strong>{pipeline.overallProgress}%</strong></span
+            >{UI_STRINGS.OVERALL_PROGRESS} <strong>{pipeline.overallProgress}%</strong></span
+          >
+        </div>
+        <div class="progress-labels-sub-row" style="margin-top: 0.15rem; margin-bottom: 0.2rem;">
+          <span class="sub-metric-label"
+            >{UI_STRINGS.TOTAL_SIZE}
+            <strong>{formatBytes(pipeline.totalScannedBytes)}</strong></span
           >
         </div>
         {#each pipeline.activeTaskList as activeFile (activeFile.filename)}
@@ -42,7 +49,7 @@
           </div>
           <div class="progress-labels-sub-row intra-row">
             <span class="sub-metric-label intra-label" title={activeFile.filename}>
-              Processing: <strong>{activeFile.filename}</strong>
+              {UI_STRINGS.PROCESSING} <strong>{activeFile.filename}</strong>
             </span>
             <span class="sub-metric-label text-right intra-value">
               <strong>{activeFile.progress.toFixed(1)}%</strong>
@@ -51,37 +58,37 @@
         {/each}
       </div>
       <div class="time-container-block">
-        <span class="total-time-title">Total Conversion Time:</span>
+        <span class="total-time-title">{UI_STRINGS.TOTAL_CONVERSION_TIME}</span>
         <span class="total-time-value">{pipeline.runningTimeFormatted}</span>
-        <span class="total-time-title" style="margin-left: 1rem;">ETA:</span>
+        <span class="total-time-title" style="margin-left: 1rem;">{UI_STRINGS.ETA}</span>
         <span class="total-time-value">{pipeline.etaFormatted}</span>
       </div>
     </div>
   {:else if hasEverRun && pipeline.lastRunSummary}
     <!-- ── Last Run summary card ── -->
     <div class="last-run-content">
-      <p class="last-run-title">Last Run</p>
+      <p class="last-run-title">{UI_STRINGS.LAST_RUN}</p>
       <div class="last-run-grid">
         <div class="last-run-stat">
-          <span class="stat-label">Files processed</span>
+          <span class="stat-label">{UI_STRINGS.FILES_PROCESSED}</span>
           <span class="stat-value">{pipeline.lastRunSummary.filesProcessed}</span>
         </div>
         <div class="last-run-stat">
-          <span class="stat-label">Duration</span>
+          <span class="stat-label">{UI_STRINGS.DURATION}</span>
           <span class="stat-value">{pipeline.lastRunSummary.timeFormatted}</span>
         </div>
         {#if pipeline.lastRunSummary.originalBytes > 0}
           <div class="last-run-stat">
-            <span class="stat-label">Storage delta</span>
+            <span class="stat-label">{UI_STRINGS.STORAGE_DELTA}</span>
             <span
               class="stat-value"
-              style="color: {pipeline.lastRunSummary.storageSavedPercent > 0.01
+              style="color: {pipeline.lastRunSummary.storageSavedPercent >= 0.01
                 ? '#22c55e'
-                : pipeline.lastRunSummary.storageSavedPercent < -0.01
+                : pipeline.lastRunSummary.storageSavedPercent <= -0.01
                   ? 'var(--danger-color)'
                   : 'var(--text-primary)'};"
             >
-              {pipeline.lastRunSummary.storageSavedPercent > 0.01
+              {pipeline.lastRunSummary.storageSavedPercent >= 0.01
                 ? '+'
                 : ''}{pipeline.lastRunSummary.storageSavedPercent.toFixed(2)}% ({formatBytes(
                 pipeline.lastRunSummary.originalBytes
@@ -95,7 +102,7 @@
   {:else}
     <!-- ── Idle placeholder (never run this session) ── -->
     <div class="idle-content">
-      <span class="idle-text">Ready — run history will appear here.</span>
+      <span class="idle-text">{UI_STRINGS.IDLE_READY}</span>
     </div>
   {/if}
 </div>

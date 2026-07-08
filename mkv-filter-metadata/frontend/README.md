@@ -1,6 +1,6 @@
 ---
 title: 'Frontend Layer (SvelteKit)'
-last_updated: 2026-07-05
+last_updated: 2026-07-07
 ---
 
 # Frontend Layer (SvelteKit)
@@ -12,11 +12,11 @@ This directory contains the reactive Svelte 5 / SvelteKit web-view frontend layo
 | Component                   | Responsibility                                                                                                                                     |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`+page.svelte`**          | Root orchestrator: mounts components, manages 3-tier responsive grid layout, theme toggling, and processing lifecycle                              |
-| **`DirectoryQueue.svelte`** | Multi-directory queue with drag-and-drop reorder, pill-based rows, file counts, aggregate sizes, custom path tooltips, and open-folder actions     |
+| **`DirectoryQueue.svelte`** | Multi-directory queue with drag-and-drop reorder, pill-based rows, file counts, aggregate sizes, custom path hover tooltips (`mouseenter`), and open-folder actions     |
 | **`ConfigPanel.svelte`**    | Conversion mode (toggle cards), file/subtitle filters, storage target drive toggle, and hardware-aware encoder selection (with CRF slider syncing) |
-| **`MetricsPanel.svelte`**   | Persistently mounted 3-state component (Idle / Active / Last Run). Displays progress bars, ETA, running timer, and storage delta analytics         |
+| **`MetricsPanel.svelte`**   | Persistently mounted 3-state component (Idle / Active / Last Run). Displays progress bars, ETA, live total size tracking, and color-coded storage delta analytics         |
 | **`CommandPalette.svelte`** | Universal overlay (`Ctrl+K`) for quickly accessing settings, changing themes, clearing history, and jumping to documentation                       |
-| **`TerminalLog.svelte`**    | Streaming FFmpeg log output with auto-scroll, copy-to-clipboard, and save-to-file                                                                  |
+| **`TerminalLog.svelte`**    | Streaming FFmpeg log output with scroll-to-top/bottom controls, inline total sizes, separated final summary metrics, copy-to-clipboard, and save-to-file                                                                  |
 | **`ToastContainer.svelte`** | Stacked toast notifications with auto-dismiss, severity-based styling, and XSS-safe rendering. Also handles `sysinfo` throttling alerts            |
 
 ### State Management (Svelte 5 Runes)
@@ -27,6 +27,7 @@ This directory contains the reactive Svelte 5 / SvelteKit web-view frontend layo
 | `pipeline.svelte.ts` | Processing telemetry: progress, file index, timer, ETA, log buffer, directory statuses, and `lastRunSummary` object for post-processing reports          |
 | `toast.svelte.ts`    | Toast notification queue with add/dismiss helpers                                                                                                        |
 | `commands.svelte.ts` | Central registry for `CommandPalette` actions, decoupling application behaviors from deep UI layers                                                      |
+| `constants.ts`       | Centralized repository for all "magic strings", including DOM events, Tauri IPC commands, UI labels, and error messages, ensuring strict type safety.    |
 
 ## Features (UI Layer)
 

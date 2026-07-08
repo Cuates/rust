@@ -119,12 +119,6 @@ html.light-mode {
   gap: 0.5rem;
 }
 
-.column-divider {
-  display: none;
-  background-color: var(--border-color);
-  width: 1px;
-}
-
 .form-workspace-card {
   background-color: var(--bg-surface);
   border: 1px solid var(--border-color);
@@ -142,43 +136,30 @@ html.light-mode {
 @media (min-width: 800px) {
   .content-scroll-area {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     overflow: hidden;
-    gap: 0;
+    gap: 1rem;
   }
   .left-column-wrapper {
     overflow-y: auto;
-    padding-right: 0.5rem;
-  }
-  .column-divider.main-divider {
-    display: block;
-    margin: 0;
   }
   .output-workspace-pane {
     overflow-y: auto;
-    padding-left: 0.5rem;
   }
 }
 
 /* TIER 3: >= 1400px (3 Columns: Form | Config | Output) */
 @media (min-width: 1400px) {
   .content-scroll-area {
-    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr) 1px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   }
   .left-column-wrapper {
     display: contents;
   }
   .form-workspace-pane {
     overflow-y: auto;
-    padding-right: 0.5rem;
-  }
-  .column-divider.second-divider {
-    display: block;
-    margin: 0;
   }
   .config-workspace-pane {
     overflow-y: auto;
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
   }
 }

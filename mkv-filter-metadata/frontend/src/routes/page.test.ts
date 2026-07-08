@@ -12,11 +12,19 @@ import { filterCommands } from '../lib/stores/commands.svelte';
 import { sendNotification } from '@tauri-apps/plugin-notification';
 import { UI_STRINGS } from '$lib/constants';
 
+type MockEventPayload =
+  | string
+  | number
+  | boolean
+  | string[]
+  | Record<string, string | number | boolean | string[]>;
+type MockEventHandler = (eventData?: { payload?: MockEventPayload }) => void;
+
 const { eventHandlers, windowHandlers } = vi.hoisted(() => {
   return {
-    eventHandlers: {} as Record<string, (...args: unknown[]) => void>,
+    eventHandlers: {} as Record<string, MockEventHandler>,
     windowHandlers: {
-      onCloseRequested: null as ((...args: unknown[]) => void) | null,
+      onCloseRequested: null as ((event: { preventDefault: () => void }) => void) | null,
       setProgressBar: vi.fn().mockResolvedValue(undefined)
     }
   };
@@ -63,11 +71,11 @@ describe('Main Page (+page.svelte)', () => {
         return { nvenc: true, amf: false, qsv: false, videotoolbox: false };
       }
       if (cmd === TAURI_COMMANDS.GET_SIDECAR_VERSION) {
-        if ((args as Record<string, unknown>).binaryName === 'ffmpeg') return '1.0.0';
+        if ((args as Record<string, string>).binaryName === 'ffmpeg') return '1.0.0';
         throw new Error('Not found'); // test catch block
       }
       if (cmd === TAURI_COMMANDS.GET_DIRECTORY_STATS) {
-        const dir = (args as Record<string, unknown>).dirPath;
+        const dir = (args as Record<string, string>).dirPath;
         if (dir === '/mock/error') {
           throw new Error('Stats error');
         }
@@ -101,9 +109,7 @@ describe('Main Page (+page.svelte)', () => {
         };
       }
       if (cmd === TAURI_COMMANDS.PROCESS_VIDEO_PIPELINE) {
-        const payload = (args as Record<string, unknown>).payload as {
-          input_directories: string[];
-        };
+        const payload = (args as { payload: { input_directories: string[] } }).payload;
         if (payload && payload.input_directories.includes('/mock/error-strict')) {
           throw new Error('Strict Type Error Message');
         }
@@ -555,9 +561,21 @@ describe('Main Page (+page.svelte)', () => {
 
   it('handles GET_DIRECTORY_STATS throwing during executePipeline', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    config.input_directories = ['/mock/error'];
+    // Start with a valid directory so the initial check sets initialDirCheckDone to true
+    config.input_directories = ['/mock/dir'];
     const { getByText } = render(Page);
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Now change it to the error directory, which will bypass the check
+    config.input_directories = ['/mock/error'];
+    await new Promise((r) => setTimeout(r, 50));
+
     await fireEvent.click(getByText('Start Processing'));
+    await waitFor(() => {
+      // Check if it was caught and fallback was used
+      expect(pipeline.directoryStats['/mock/error']).toBeDefined();
+      expect(pipeline.directoryStats['/mock/error'].exists).toBe(false);
+    });
     await waitFor(() => expect(pipeline.processingActive).toBe(false));
     consoleError.mockRestore();
   });
@@ -589,12 +607,32 @@ describe('Main Page (+page.svelte)', () => {
   it('handles directory cleanup to done in finally block', async () => {
     config.input_directories = ['/mock/dir'];
     const { getByText } = render(Page);
-
-    // Trick the finally block into thinking we have remaining processing statuses
-    pipeline.totalFilesCount = 10;
-    pipeline.completedFilesCount = 10;
+    await new Promise((r) => setTimeout(r, 50));
 
     await fireEvent.click(getByText('Start Processing'));
+
+    // Simulate process events that set totalFilesCount during execution
+    const processLog = eventHandlers['process-log'];
+    if (processLog) processLog({ payload: ['Scanned file total: 10'] });
+
+    // It succeeds, completedFilesCount becomes totalFilesCount, and it sets 'done'
+    await waitFor(() => expect(pipeline.directoryStatuses['/mock/dir']).toBe('done'));
+    await waitFor(() => expect(pipeline.processingActive).toBe(false));
+  });
+
+  it('handles directory cleanup deletion in finally block when aborted', async () => {
+    config.input_directories = ['/mock/error-strict']; // This throws in mockIPC
+    const { getByText } = render(Page);
+    await new Promise((r) => setTimeout(r, 50));
+
+    await fireEvent.click(getByText('Start Processing'));
+
+    // Simulate process events that set totalFilesCount to 10. Since it throws, completedFilesCount stays 0.
+    const processLog = eventHandlers['process-log'];
+    if (processLog) processLog({ payload: ['Scanned file total: 10'] });
+
+    // Since it threw an error, completedFilesCount (0) < totalFilesCount (10), so it deletes the status
+    await waitFor(() => expect(pipeline.directoryStatuses['/mock/error-strict']).toBeUndefined());
     await waitFor(() => expect(pipeline.processingActive).toBe(false));
   });
 

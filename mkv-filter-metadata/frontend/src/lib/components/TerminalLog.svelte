@@ -4,15 +4,37 @@
   import { pipeline } from '$lib/stores/pipeline.svelte';
   import { addToast } from '../stores/toast.svelte';
   import { getLogClass } from '../utils/logClassifier';
-  import { TAURI_COMMANDS } from '../constants';
+  import { TAURI_COMMANDS, UI_STRINGS } from '../constants';
 
   let copiedStatus = $state(false);
   let savedStatus = $state(false);
   let terminalEl = $state<HTMLElement | null>(null);
+  let isAtTop = $state(true);
+  let isAtBottom = $state(true);
 
-  export function scrollToBottom() {
-    if (terminalEl) {
+  function handleScroll() {
+    if (!terminalEl) return;
+    const { scrollTop, scrollHeight, clientHeight } = terminalEl;
+    isAtBottom = scrollHeight - scrollTop - clientHeight < 40;
+    isAtTop = scrollTop < 10;
+  }
+
+  export function scrollToBottom(force = false) {
+    if (terminalEl && (isAtBottom || force)) {
       terminalEl.scrollTop = terminalEl.scrollHeight;
+    }
+  }
+
+  function handleScrollToBottom() {
+    isAtBottom = true;
+    if (terminalEl) {
+      terminalEl.scrollTo({ top: terminalEl.scrollHeight, behavior: 'smooth' });
+    }
+  }
+
+  function handleScrollToTop() {
+    if (terminalEl) {
+      terminalEl.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
 
@@ -23,7 +45,7 @@
     try {
       const fullLogText = await invoke<string>(TAURI_COMMANDS.READ_SESSION_LOG);
       if (!fullLogText) {
-        addToast('No session log found on disk to copy.', 'error');
+        addToast(UI_STRINGS.NO_SESSION_LOG, 'error');
         return;
       }
       await navigator.clipboard.writeText(fullLogText);
@@ -32,7 +54,8 @@
         copiedStatus = false;
       }, 2000);
     } catch (err) {
-      addToast(`Failed to copy logs: ${err}`, 'error');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      addToast(`${UI_STRINGS.COPY_LOGS_FAILED} ${errMsg}`, 'error');
     }
   }
 
@@ -42,7 +65,7 @@
     try {
       const logExists = await invoke<boolean>(TAURI_COMMANDS.CHECK_SESSION_LOG);
       if (!logExists) {
-        addToast('No active session log found to save.', 'error');
+        addToast(UI_STRINGS.NO_ACTIVE_SESSION_LOG, 'error');
         return;
       }
 
@@ -57,7 +80,7 @@
         String(now.getMinutes()).padStart(2, '0') +
         String(now.getSeconds()).padStart(2, '0');
 
-      const defaultFilename = `mkv_filter_metadata_${dateStr}.log`;
+      const defaultFilename = `${UI_STRINGS.LOG_FILE_PREFIX}${dateStr}.log`;
 
       const filePath = await save({
         defaultPath: defaultFilename,
@@ -78,21 +101,22 @@
         }, 2000);
       }
     } catch (err) {
-      addToast(`Failed to save log: ${err}`, 'error');
+      const errMsg = err instanceof Error ? err.message : String(err);
+      addToast(`${UI_STRINGS.SAVE_LOG_FAILED} ${errMsg}`, 'error');
     }
   }
 </script>
 
 <div class="terminal-container">
   <div class="terminal-header-row">
-    <h3>Real-time Output Pipeline Log</h3>
+    <h3>{UI_STRINGS.REALTIME_OUTPUT_LOG_TITLE}</h3>
     {#if pipeline.consoleLogs.length > 0}
       <div class="terminal-actions">
         <button
           class="copy-logs-btn {savedStatus ? 'copied' : ''}"
           onclick={saveTerminalLogs}
-          aria-label="Save logs"
-          data-tooltip={savedStatus ? 'Saved!' : 'Save logs'}
+          aria-label={UI_STRINGS.EXPORT_LOGS}
+          data-tooltip={savedStatus ? UI_STRINGS.SAVED : UI_STRINGS.EXPORT_LOGS}
         >
           {#if savedStatus}
             <svg
@@ -123,8 +147,8 @@
         <button
           class="copy-logs-btn {copiedStatus ? 'copied' : ''}"
           onclick={copyTerminalLogs}
-          aria-label="Copy logs"
-          data-tooltip={copiedStatus ? 'Copied!' : 'Copy logs'}
+          aria-label={UI_STRINGS.COPY_LOGS}
+          data-tooltip={copiedStatus ? UI_STRINGS.COPIED : UI_STRINGS.COPY_LOGS}
         >
           {#if copiedStatus}
             <svg
@@ -158,14 +182,38 @@
     bind:this={terminalEl}
     id="terminal-shell"
     class="terminal-shell"
+    onscroll={handleScroll}
     aria-live="polite"
     aria-atomic="false"
   >
     {#each pipeline.consoleLogs as log (log.id)}
       <div class="log-line {getLogClass(log.text)}">{log.text}</div>
     {:else}
-      <div class="empty-log-msg">Logs will appear here once processing begins...</div>
+      <div class="empty-log-msg">{UI_STRINGS.LOGS_WILL_APPEAR}</div>
     {/each}
+  </div>
+
+  <div class="scroll-buttons">
+    {#if !isAtTop && pipeline.consoleLogs.length > 0}
+      <button
+        class="scroll-btn"
+        onclick={handleScrollToTop}
+        title={UI_STRINGS.SCROLL_TO_TOP}
+        aria-label={UI_STRINGS.SCROLL_TO_TOP}
+      >
+        ↑
+      </button>
+    {/if}
+    {#if !isAtBottom && pipeline.consoleLogs.length > 0}
+      <button
+        class="scroll-btn"
+        onclick={handleScrollToBottom}
+        title={UI_STRINGS.SCROLL_TO_LATEST}
+        aria-label={UI_STRINGS.SCROLL_TO_LATEST}
+      >
+        ↓
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -176,6 +224,7 @@
     gap: 0.3rem;
     height: 350px;
     flex-shrink: 0;
+    position: relative;
   }
 
   .terminal-header-row {
@@ -305,5 +354,36 @@
     opacity: 0.5;
     text-align: center;
     padding-top: 4rem;
+  }
+
+  .scroll-buttons {
+    position: absolute;
+    bottom: 12px;
+    right: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 50;
+  }
+
+  .scroll-btn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+
+    &:hover {
+      background: var(--accent-color);
+      color: #fff;
+      border-color: var(--accent-color);
+    }
   }
 </style>

@@ -6,7 +6,7 @@
   import { pipeline, emitLog } from '../stores/pipeline.svelte';
   import { addToast } from '../stores/toast.svelte';
   import { formatBytes } from '../utils/formatters';
-  import { TAURI_COMMANDS, UI_STRINGS, UI_CONSTANTS } from '../constants';
+  import { TAURI_COMMANDS, UI_STRINGS, UI_CONSTANTS, DOM_EVENTS } from '../constants';
   import { DirectoryStatsSchema } from '$lib/types';
   import type { DirectoryStats } from '$lib/types';
 
@@ -266,6 +266,24 @@
     if (tooltipNode) return tooltipNode;
     tooltipNode = document.createElement('div');
     tooltipNode.className = 'global-queue-tooltip';
+
+    // Allow hovering over the tooltip itself
+    tooltipNode.addEventListener(DOM_EVENTS.MOUSE_ENTER, () => {
+      if (tooltipNode) tooltipNode.classList.add('visible');
+    });
+    tooltipNode.addEventListener(DOM_EVENTS.MOUSE_LEAVE, () => {
+      if (tooltipNode) {
+        tooltipNode.classList.remove('visible');
+        /* v8 ignore start */
+        setTimeout(() => {
+          if (tooltipNode && !tooltipNode.classList.contains('visible')) {
+            tooltipNode.style.display = 'none';
+          }
+        }, UI_CONSTANTS.TOOLTIP_HIDE_DELAY_MS);
+        /* v8 ignore stop */
+      }
+    });
+
     document.body.appendChild(tooltipNode);
     return tooltipNode;
   }
@@ -344,15 +362,15 @@
       }
     };
 
-    node.addEventListener('mouseenter', handleEnter);
-    node.addEventListener('mouseleave', handleLeave);
+    node.addEventListener(DOM_EVENTS.MOUSE_ENTER, handleEnter);
+    node.addEventListener(DOM_EVENTS.MOUSE_LEAVE, handleLeave);
 
     return {
       /* v8 ignore start */
       destroy() {
-        node.removeEventListener('mouseenter', handleEnter);
-        node.removeEventListener('mouseleave', handleLeave);
-        handleLeave();
+        node.removeEventListener(DOM_EVENTS.MOUSE_ENTER, handleEnter);
+        node.removeEventListener(DOM_EVENTS.MOUSE_LEAVE, handleLeave);
+        if (tooltipNode) handleLeave();
       }
       /* v8 ignore stop */
     };
@@ -362,7 +380,9 @@
 <div class="row queue-header-row">
   <div class="queue-header">
     <label for="queue-box" title="Target Processing Queue ({config.input_directories.length})"
-      >Target Processing Queue ({config.input_directories.length})</label
+      >Target Processing Queue <span class="queue-count-pill"
+        >{config.input_directories.length}</span
+      ></label
     >
     <div class="queue-header-actions">
       {#if config.input_directories.length > 0}
@@ -656,7 +676,21 @@
       flex-grow: 1;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
     }
+  }
+
+  .queue-count-pill {
+    display: inline-block;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-left: 0.5rem;
+    color: var(--text-primary);
+    background-color: var(--bg-surface);
   }
 
   .queue-header-actions {
@@ -898,7 +932,7 @@
       transition: opacity 0.15s ease-in-out;
       width: max-content;
       max-width: 90vw;
-      pointer-events: none;
+      pointer-events: auto;
 
       &.visible {
         opacity: 1;

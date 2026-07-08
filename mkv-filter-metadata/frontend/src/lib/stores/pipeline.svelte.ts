@@ -41,6 +41,14 @@ export const pipeline = $state({
     );
   },
 
+  get totalScannedBytes() {
+    let sum = 0;
+    for (const dir in this.directoryStats) {
+      sum += this.directoryStats[dir].total_size_bytes || 0;
+    }
+    return sum;
+  },
+
   get activeTaskList() {
     return Object.entries(this.activeFiles).map(([filename, progress]) => ({
       filename,
@@ -105,7 +113,7 @@ export function startPipelineTimer() {
         pipeline.etaFormatted = '--';
       }
     } catch (err) {
-      console.error('Timer tick error:', err);
+      console.error(LOG_MESSAGES.TIMER_TICK_ERROR, err);
     }
   }, 100);
 }
@@ -115,7 +123,7 @@ export function stopPipelineTimer() {
 }
 
 import { invoke } from '@tauri-apps/api/core';
-import { TAURI_COMMANDS } from '../constants';
+import { TAURI_COMMANDS, LOG_MESSAGES } from '../constants';
 
 export async function emitLog(...logs: string[]) {
   for (const log of logs) {
@@ -139,7 +147,7 @@ export function addLogs(...logs: string[]) {
         pipeline.consoleLogs.splice(0, overflow);
         pipeline.consoleLogs.unshift({
           id: logIdCounter++,
-          text: `— [${overflow} entries trimmed – see saved session.log] —`
+          text: LOG_MESSAGES.TRIMMED_ENTRIES(overflow)
         });
       }
       logBuffer = [];

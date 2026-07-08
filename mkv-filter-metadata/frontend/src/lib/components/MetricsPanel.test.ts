@@ -213,4 +213,34 @@ describe('MetricsPanel.svelte', () => {
     expect(screen.getByText('video2.mkv')).toBeInTheDocument();
     expect(screen.getByText('80.2%')).toBeInTheDocument();
   });
+
+  it('shows positive storage delta', async () => {
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 1,
+      timeFormatted: '1s',
+      storageSavedPercent: 15.5,
+      originalBytes: 1000,
+      outputBytes: 845
+    };
+
+    render(MetricsPanel);
+    expect(screen.getByText('+15.50% (1000 B \u2192 845 B)')).toBeInTheDocument();
+  });
+
+  it('shows negative storage delta', async () => {
+    pipeline.processingActive = false;
+    pipeline.hasProcessClicked = true;
+    pipeline.lastRunSummary = {
+      filesProcessed: 1,
+      timeFormatted: '1s',
+      storageSavedPercent: -5.2,
+      originalBytes: 1000,
+      outputBytes: 1052
+    };
+
+    render(MetricsPanel);
+    expect(screen.getByText('-5.20% (1000 B \u2192 1.03 KB)')).toBeInTheDocument();
+  });
 });

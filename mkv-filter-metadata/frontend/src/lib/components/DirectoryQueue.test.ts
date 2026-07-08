@@ -505,5 +505,35 @@ describe('DirectoryQueue.svelte', () => {
       const tooltip = document.querySelector('.global-queue-tooltip');
       expect(tooltip?.textContent).toContain('Directory not found');
     });
+
+    it('handles tooltip mouseenter and mouseleave events', async () => {
+      config.input_directories = ['/path/to/folder'];
+      vi.mocked(invoke).mockResolvedValueOnce({
+        exists: true,
+        file_count: 1,
+        total_size_bytes: 1000,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
+        files: [{ name: 'test_video.mkv', size_bytes: 1000 }]
+      });
+
+      const { container } = render(DirectoryQueue);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const items = container.querySelectorAll('.queue-item');
+
+      // Trigger tooltip creation
+      await fireEvent.mouseEnter(items[0].querySelector('.queue-pill')!);
+      const tooltip = document.querySelector('.global-queue-tooltip') as HTMLElement;
+      expect(tooltip).toBeInTheDocument();
+
+      // Mouse enter on tooltip
+      await fireEvent.mouseEnter(tooltip);
+      expect(tooltip.classList.contains('visible')).toBe(true);
+
+      // Mouse leave on tooltip
+      await fireEvent.mouseLeave(tooltip);
+      expect(tooltip.classList.contains('visible')).toBe(false);
+    });
   });
 });

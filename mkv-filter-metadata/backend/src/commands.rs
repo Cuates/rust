@@ -444,6 +444,14 @@ async fn process_one_file<R: tauri::Runtime>(
         .unwrap_or("Unknown")
         .to_string();
 
+    let _ = app.emit(
+        crate::constants::EVENT_PROCESS_PROGRESS,
+        serde_json::json!({
+            "intra_progress": 0.0,
+            "current_filename": &file_name
+        }),
+    );
+
     let path_str = file_path.to_string_lossy().to_string();
     let (original_size, modified_timestamp) = match std::fs::metadata(&file_path) {
         Ok(m) => {
@@ -890,7 +898,15 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
     .map_err(|e| AppError::Process(format!("Task join error: {}", e)))??;
 
     let total_files = target_files.len();
+    let total_bytes: u64 = target_files
+        .iter()
+        .map(|(_, p)| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0))
+        .sum();
     append_log(&app, format!("Scanned file total: {}", total_files));
+    append_log(
+        &app,
+        format!("Scanned file total size: {}", format_bytes(total_bytes)),
+    );
 
     if total_files > 300 {
         let _ = app.emit(crate::constants::EVENT_LARGE_BATCH_WARNING, total_files);
@@ -1065,7 +1081,7 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
     }
 
     let summary_message = format!(
-        "✅ Success! {} Succeeded, {} Failed, {} Skipped. Ffmpeg Fallback Subtitle Failures: {} - Re-encode Retry Successes: {}",
+        "✅ Success!\n{} Succeeded\n{} Failed\n{} Skipped\nFfmpeg Fallback Subtitle Failures: {}\nRe-encode Retry Successes: {}",
         successful_files,
         failed_files,
         skipped_files,
@@ -1435,6 +1451,25 @@ pub async fn get_history_count(state: tauri::State<'_, AppState>) -> Result<i64,
         crate::history::get_history_count(db)
     } else {
         Ok(0)
+    }
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    const GB: u64 = MB * 1024;
+    const TB: u64 = GB * 1024;
+
+    if bytes >= TB {
+        format!("{:.2} TB", bytes as f64 / TB as f64)
+    } else if bytes >= GB {
+        format!("{:.2} GB", bytes as f64 / GB as f64)
+    } else if bytes >= MB {
+        format!("{:.2} MB", bytes as f64 / MB as f64)
+    } else if bytes >= KB {
+        format!("{:.2} KB", bytes as f64 / KB as f64)
+    } else {
+        format!("{} Bytes", bytes)
     }
 }
 

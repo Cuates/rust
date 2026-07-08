@@ -24,7 +24,7 @@
   } from '$lib/types';
   import { z } from 'zod';
   import { formatDuration } from '../lib/utils/formatters';
-  import { TAURI_COMMANDS, TAURI_EVENTS, UI_STRINGS } from '../lib/constants';
+  import { TAURI_COMMANDS, TAURI_EVENTS, UI_STRINGS, LOG_MESSAGES } from '../lib/constants';
 
   import DirectoryQueue from '../lib/components/DirectoryQueue.svelte';
   import ConfigPanel from '../lib/components/ConfigPanel.svelte';
@@ -40,14 +40,14 @@
   let showAboutModal = $state(false);
   let initialDirCheckDone = false;
 
-  async function scrollToTerminalBottom(delay = 0) {
+  async function scrollToTerminalBottom(delay = 0, force = false) {
     await tick();
     if (delay > 0) {
       setTimeout(() => {
-        if (terminalComponent) terminalComponent.scrollToBottom();
+        if (terminalComponent) terminalComponent.scrollToBottom(force);
       }, delay);
     } else {
-      if (terminalComponent) terminalComponent.scrollToBottom();
+      if (terminalComponent) terminalComponent.scrollToBottom(force);
     }
   }
 
@@ -306,8 +306,8 @@
           if (isClosing) return;
           isClosing = true;
           (async () => {
-            addToast('Aborting execution and cleaning up...', 'warning');
-            emitLog('⚠️ Window close requested mid-execution. Cleaning up...');
+            addToast(UI_STRINGS.ABORTING_EXECUTION, 'warning');
+            emitLog(LOG_MESSAGES.WINDOW_CLOSE_MID_EXECUTION);
             await abortPipeline();
             await appWindow.destroy();
           })();
@@ -335,30 +335,28 @@
   });
 
   async function displaySidecarVersions() {
-    emitLog('--- Querying Embedded Sidecar Binary Configurations ---');
+    emitLog(LOG_MESSAGES.QUERYING_SIDECAR);
     const tools = ['ffmpeg', 'ffprobe', 'mkvmerge'];
     for (const tool of tools) {
       try {
         const rawVer = await invoke(TAURI_COMMANDS.GET_SIDECAR_VERSION, { binaryName: tool });
         const ver = z.string().parse(rawVer);
-        emitLog(`[Sidecar Asset] ${tool.toUpperCase()}: ${ver.trim()}`);
+        emitLog(`${LOG_MESSAGES.SIDECAR_ASSET} ${tool.toUpperCase()}: ${ver.trim()}`);
       } catch {
         emitLog(
-          `[Sidecar Asset] ${tool.toUpperCase()}: Verified embedded production binary instance asset active.`
+          `${LOG_MESSAGES.SIDECAR_ASSET} ${tool.toUpperCase()}: Verified embedded production binary instance asset active.`
         );
       }
     }
-    emitLog('--------------------------------------------------------');
-    await scrollToTerminalBottom();
+    emitLog(LOG_MESSAGES.DASH_SEPARATOR);
+    await scrollToTerminalBottom(0, true);
   }
 
   async function executePipeline() {
     if (config.input_directories.length === 0) {
-      addToast('Please add at least one target directory.', 'warning');
-      emitLog(
-        '❌ Error: Please add at least one target directory to the queue before running processing tasks.'
-      );
-      await scrollToTerminalBottom();
+      addToast(UI_STRINGS.ADD_TARGET_DIR, 'warning');
+      emitLog(LOG_MESSAGES.ERR_NO_TARGET_DIR);
+      await scrollToTerminalBottom(0, true);
       return;
     }
 
@@ -374,8 +372,8 @@
     pipeline.consoleLogs = []; // Clear for new run
     await invoke(TAURI_COMMANDS.INITIALIZE_SESSION_LOG);
     emitLog(
-      'Pipeline initialization request authenticated...',
-      `Session started at: ${startDate.toLocaleString()}`
+      UI_STRINGS.PIPELINE_INITIALIZATION_AUTH,
+      `${UI_STRINGS.SESSION_STARTED_AT} ${startDate.toLocaleString()}`
     );
 
     const initialStatuses: Record<string, 'pending'> = {};
@@ -449,7 +447,7 @@
           if (permissionGranted) {
             sendNotification({
               title: 'MKV Filter Metadata',
-              body: `Pipeline completed processing files.`
+              body: UI_STRINGS.PIPELINE_COMPLETED
             });
           }
         }
@@ -458,8 +456,8 @@
       }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      addToast(`Pipeline execution failed: ${errMsg}`, 'error');
-      emitLog(`❌ Pipeline execution failure: ${errMsg}`);
+      addToast(`${UI_STRINGS.PIPELINE_EXECUTION_FAILED} ${errMsg}`, 'error');
+      emitLog(`${LOG_MESSAGES.PIPELINE_FAILURE} ${errMsg}`);
     } finally {
       if (pipeline.isAborting) {
         addToast(UI_STRINGS.RESOURCES_RELEASED, 'success');
@@ -506,13 +504,13 @@
         outputBytes: pipeline.storageOutputBytes
       };
 
-      addToast(`Pipeline execution complete! (${finalTimeStr})`, 'success');
+      addToast(`${UI_STRINGS.PIPELINE_EXECUTION_COMPLETE} (${finalTimeStr})`, 'success');
       emitLog(
-        `Session finished at: ${endDate.toLocaleString()}`,
-        `Total Conversion Time: ${finalTimeStr}`
+        `${UI_STRINGS.SESSION_FINISHED_AT} ${endDate.toLocaleString()}`,
+        `${UI_STRINGS.TOTAL_CONVERSION_TIME} ${finalTimeStr}`
       );
 
-      await scrollToTerminalBottom();
+      await scrollToTerminalBottom(0, true);
     }
   }
 
@@ -520,17 +518,17 @@
     if (pipeline.isAborting) return;
     pipeline.isAborting = true;
     try {
-      addToast('Halt instruction issued. Awaiting resource release.', 'warning');
-      emitLog('⚠️ Halt instruction issued. Terminating processes and waiting for release...');
-      await scrollToTerminalBottom();
+      addToast(UI_STRINGS.HALT_INSTRUCTION_ISSUED, 'warning');
+      emitLog(LOG_MESSAGES.HALT_TERMINATING);
+      await scrollToTerminalBottom(0, true);
 
       await invoke(TAURI_COMMANDS.ABORT_VIDEO_PIPELINE);
-      emitLog('🛑 Processing execution stopped.');
+      emitLog(LOG_MESSAGES.PROCESSING_STOPPED);
     } catch (err) {
-      emitLog(`Error safely terminating workers: ${err}`);
+      emitLog(`${LOG_MESSAGES.ERR_TERMINATING_WORKERS} ${err}`);
       pipeline.isAborting = false;
     } finally {
-      await scrollToTerminalBottom(40);
+      await scrollToTerminalBottom(40, true);
     }
   }
 
@@ -543,9 +541,10 @@
     try {
       await invoke(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
       pipeline.historyClearTimestamp = Date.now();
-      addToast('✅ Processing history cleared successfully.', 'success');
+      addToast(UI_STRINGS.CLEAR_HISTORY_SUCCESS, 'success');
     } catch (e) {
-      addToast(`❌ Failed to clear history: ${e}`, 'error');
+      const errMsg = e instanceof Error ? e.message : String(e);
+      addToast(`${UI_STRINGS.CLEAR_HISTORY_FAILED} ${errMsg}`, 'error');
     }
   }
 
@@ -729,16 +728,12 @@
         </div>
       </div>
 
-      <div class="column-divider second-divider" aria-hidden="true"></div>
-
       <div class="config-workspace-pane">
         <div class="form-workspace-card">
           <ConfigPanel onclearhistory={clearHistory} />
         </div>
       </div>
     </div>
-
-    <div class="column-divider main-divider" aria-hidden="true"></div>
 
     <div class="output-workspace-pane">
       <!-- MetricsPanel is always mounted — no conditional guard.
@@ -762,17 +757,17 @@
 </main>
 
 <style lang="scss">
-  /* .app-container, .content-scroll-area, .form-workspace-pane, .output-workspace-pane,
-     and .column-divider are defined in app.scss and shared across all routes. */
+  /* .app-container, .content-scroll-area, .form-workspace-pane, .output-workspace-pane
+     are defined in app.scss and shared across all routes. */
 
   .navbar-layer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border-color);
     padding: 0.1rem 0 0.25rem 0;
     margin-top: 0;
     flex-shrink: 0;
+    z-index: 10;
 
     h1 {
       font-size: 1.25rem;
