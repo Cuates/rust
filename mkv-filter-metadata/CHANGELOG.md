@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-07-14
+
+### Added
+- Implemented a fully automated GitHub Actions Release pipeline (`mkv-filter-metadata-release.yml`) that cross-compiles and bundles Tauri native desktop installers (`.AppImage`, `.deb`, `.dmg`, `.msi`, `.exe`) into GitHub Releases when pushing a `mkv-filter-metadata-v*` tag.
+- Added ADR 0012 to document the new release pipeline architecture.
+
+### Changed
+- Bumped application version to `2.4.0` across all Tauri, Rust, and SvelteKit configuration files to synchronize the stack for release.
+
 ## [2.3.0] - 2026-07-07
 
 ### Added

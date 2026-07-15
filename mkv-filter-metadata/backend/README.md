@@ -1,6 +1,6 @@
 ---
 title: "Backend Layer (Rust)"
-last_updated: 2026-07-07
+last_updated: 2026-07-14
 ---
 
 # Backend Layer (Rust)

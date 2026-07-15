@@ -1,6 +1,6 @@
 ---
 title: "Scaffolding & Setup"
-last_updated: 2026-07-07
+last_updated: 2026-07-14
 ---
 
 # Scaffolding & Setup

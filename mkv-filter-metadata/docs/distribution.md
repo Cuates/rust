@@ -1,6 +1,6 @@
 ---
 title: "Distribution & Deployment"
-last_updated: 2026-07-07
+last_updated: 2026-07-14
 ---
 
 # Distribution & Deployment
@@ -52,3 +52,37 @@ If you don't want to push your code to GitHub, you can run GitHub Actions locall
    act push
    ```
 4. `act` will pull down a Docker container that mimics the `ubuntu-latest` GitHub runner and execute the `mkv-filter-metadata-ci.yml` steps locally.
+
+---
+
+## GitHub Releases
+
+We use GitHub Actions to automatically build and bundle compiled binaries for Linux, macOS, and Windows. 
+
+To trigger a new release build for the `mkv-filter-metadata` application, you must commit your version bumps and push a specific Git tag. Follow this exact sequence in your terminal:
+
+**1. Stage and commit your changes:**
+```bash
+git add .
+git commit -m "chore: bump version to 2.4.0"
+```
+
+**2. Create the Git tag:**
+Use the `mkv-filter-metadata-v*` prefix convention to ensure the monorepo only builds the filter metadata project.
+```bash
+git tag mkv-filter-metadata-v2.4.0
+```
+
+**3. Push the commit to GitHub:**
+```bash
+git push origin main
+```
+*(This pushes the code changes and triggers the standard `mkv-filter-metadata-ci.yml` testing pipeline).*
+
+**4. Push the tag to GitHub:**
+```bash
+git push origin mkv-filter-metadata-v2.4.0
+```
+*(This pushes the tag, which instantly triggers the `mkv-filter-metadata-release.yml` pipeline).*
+
+The automated pipeline will compile the Tauri application in release mode, bundle native installers for each operating system (e.g., `.deb`, `.dmg`, `.msi`), and publish them as assets attached to a new GitHub Release.

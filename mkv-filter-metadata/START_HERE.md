@@ -1,6 +1,6 @@
 ---
 title: "Start Here"
-last_updated: 2026-07-07
+last_updated: 2026-07-14
 ---
 
 # 🎬 MKV Filter Metadata: Quick Start
@@ -18,6 +18,7 @@ This project is a highly decoupled **pnpm monorepo**:
 - **Encoder-Aware Concurrency**: Intelligently clamps software encoders (like `libx264`) to a maximum of 2 parallel files to prevent CPU starvation, while letting hardware encoders decouple and run at maximum capacity.
 - **Native File System Integration**: Utilizes `tauri-plugin-opener` for robust, cross-platform resolution of processed output directories directly in the user's OS file explorer.
 - **Persistent State**: Utilizes `tauri-plugin-window-state` to memorize the window dimensions, coordinates, and maximized state across sessions.
+- **Automated Releases**: Employs a GitHub Actions release pipeline to automatically cross-compile and bundle native desktop installers when a version tag is pushed.
 
 ## 🛠️ Prerequisites
 

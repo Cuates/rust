@@ -1,6 +1,6 @@
 ---
 title: "Project Plan & Sandbox"
-last_updated: 2026-07-07
+last_updated: 2026-07-14
 status: "active"
 ---
 
@@ -32,6 +32,7 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 - [x] Completely eliminate magic strings by migrating all DOM events, Tauri commands, and UI strings into a centralized `constants.ts` file.
 - [x] Resolve all strict `any` and `unknown` TypeScript errors across frontend payloads.
 - [x] Bump application to version 2.3.0 and sync all monorepo documentation.
+- [x] Bump application to version 2.4.0 and implement GitHub Actions Release Pipeline.
 
 ## 💡 Sandbox Notes
 *(Use this space to draft ideas, outline upcoming Epics, or sketch workflows before converting them into GitHub issues or ADRs)*

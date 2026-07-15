@@ -1,6 +1,6 @@
 ---
 title: "Architecture & Tree Structure"
-last_updated: 2026-07-05
+last_updated: 2026-07-14
 ---
 
 # Architecture
@@ -50,7 +50,8 @@ mkv-filter-metadata/
 │   ├── actions/
 │   │   └── mkv-filter-metadata-setup/ # Composite CI environment setup action
 │   └── workflows/
-│       └── mkv-filter-metadata-ci.yml # Main CI pipeline (multi-platform)
+│       ├── mkv-filter-metadata-ci.yml      # Main CI pipeline (multi-platform)
+│       └── mkv-filter-metadata-release.yml # GitHub Actions release pipeline
 ├── docs/                         # Project documentation and architecture records
 │   ├── KNOWLEDGE_GRAPH.md        # Mermaid diagrams of system data flow
 │   ├── architecture.md           # Architecture overview and tree structure
@@ -68,7 +69,8 @@ mkv-filter-metadata/
 │       ├── 0008-encoder-aware-concurrency.md
 │       ├── 0009-responsive-layout-and-ux-enhancements.md
 │       ├── 0010-ipc-magic-string-centralization.md
-│       └── 0011-strict-test-coverage-mandate.md
+│       ├── 0011-strict-test-coverage-mandate.md
+│       └── 0012-github-actions-release-pipeline.md
 ├── scripts/                      # Build helper scripts
 │   ├── README.md                 # Script documentation
 │   ├── download-sidecars.mjs     # Fetches sidecars and validates checksums
