@@ -44,7 +44,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.9.3"
+  "version": "1.10.0"
 }
 ```
 
@@ -54,7 +54,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.9.3"
+  "version": "1.10.0"
 }
 ```
 

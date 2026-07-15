@@ -1,0 +1,81 @@
+name: MKV Subtitle Converter Release
+
+on:
+  push:
+    tags:
+      - 'mkv-subtitle-converter-v*'
+
+jobs:
+  build-and-archive:
+    name: Build and Archive
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/mkv-subtitle-converter-setup
+
+      - name: Build Application
+        working-directory: mkv-subtitle-converter
+        run: pnpm exec tauri build
+
+      - name: Prepare Assets (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: mkv-subtitle-converter
+        run: |
+          mkdir -p release_assets
+          cp backend/target/release/bundle/appimage/*.AppImage release_assets/ || true
+          cp backend/target/release/bundle/deb/*.deb release_assets/ || true
+
+      - name: Prepare Assets (macOS)
+        if: matrix.os == 'macos-latest'
+        working-directory: mkv-subtitle-converter
+        run: |
+          mkdir -p release_assets
+          cp backend/target/release/bundle/dmg/*.dmg release_assets/ || true
+
+      - name: Prepare Assets (Windows)
+        if: matrix.os == 'windows-latest'
+        working-directory: mkv-subtitle-converter
+        run: |
+          New-Item -ItemType Directory -Force -Path release_assets
+          if (Test-Path backend\target\release\bundle\msi\*.msi) { Copy-Item backend\target\release\bundle\msi\*.msi -Destination release_assets\ }
+          if (Test-Path backend\target\release\bundle\nsis\*.exe) { Copy-Item backend\target\release\bundle\nsis\*.exe -Destination release_assets\ }
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkv-subtitle-converter-${{ matrix.os }}
+          path: mkv-subtitle-converter/release_assets/*
+
+  release:
+    name: Create GitHub Release
+    needs: build-and-archive
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: mkv-subtitle-converter-*
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: artifacts/*
+          generate_release_notes: true

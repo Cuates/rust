@@ -27,3 +27,35 @@ Developers can completely bypass the installer and package a raw, portable folde
 4. Create a new folder (e.g., `MKV-Converter-Portable`).
 5. Move the `.exe` and the sidecar binaries into this folder together.
 6. Zip the folder and distribute it. End users simply double-click the `.exe` to run.
+
+## GitHub Releases
+
+We use GitHub Actions to automatically build and bundle compiled binaries and installers for Linux, macOS, and Windows.
+
+To trigger a new release build for the `mkv-subtitle-converter` application, you must commit your version bumps and push a specific Git tag. Follow this exact sequence in your terminal:
+
+**1. Stage and commit your changes:**
+```bash
+git add .
+git commit -m "chore: bump version to 1.10.0"
+```
+
+**2. Create the Git tag:**
+Use the `mkv-subtitle-converter-v*` prefix convention to ensure the monorepo only builds the converter project.
+```bash
+git tag mkv-subtitle-converter-v1.10.0
+```
+
+**3. Push the commit to GitHub:**
+```bash
+git push origin main
+```
+*(This pushes the code changes and triggers the standard `mkv-subtitle-converter-ci.yml` testing pipeline).*
+
+**4. Push the tag to GitHub:**
+```bash
+git push origin mkv-subtitle-converter-v1.10.0
+```
+*(This pushes the tag, which instantly triggers the `mkv-subtitle-converter-release.yml` pipeline).*
+
+The automated pipeline will compile the binaries, gather the generated installers (such as `.msi`, `.exe`, `.dmg`, `.AppImage`, and `.deb`), and publish them directly as a GitHub Release.

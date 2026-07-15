@@ -32,3 +32,4 @@ When assisting with this project, adhere to the following rules:
 - **Environment Setup**: All CI environment setup (Node, pnpm, Rust, Caching) must be delegated to the local Composite Action `.github/actions/mkv-subtitle-converter-setup`.
 - **Working Directories**: When authoring steps inside the composite action, always explicitly define `working-directory: mkv-subtitle-converter` for pnpm/cargo commands to prevent monorepo pathing failures.
 - **Test Deduplication**: The Ubuntu runner (`Test Coverage`) executes strictly `pnpm run test:coverage` without a standard `pnpm test` step to prevent redundant double-execution of the test suites.
+- **Release Automation**: Releases are strictly isolated by tags (`mkv-subtitle-converter-v*`). The pipeline natively compiles and directly uploads the standalone OS installers to GitHub Releases.

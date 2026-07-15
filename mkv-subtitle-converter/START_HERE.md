@@ -13,7 +13,7 @@ This project is a highly decoupled **pnpm monorepo**:
 - **Frontend (`/frontend`)**: SvelteKit (SPA mode), Svelte 5 Runes, Vite.
 - **Backend (`/backend`)**: Tauri 2.0, Rust, and Tokio (utilizing robust `CancellationToken` state management).
 - **Sidecars (`/backend/sidecars`)**: Embedded FFmpeg and FFprobe binaries for native processing without global system dependencies.
-- **CI/CD (`/.github/actions`)**: Centralized environment bootstrapping is handled by our custom Composite Action (`mkv-subtitle-converter-setup`).
+- **CI/CD (`/.github`)**: Centralized environment bootstrapping uses our custom Composite Action (`mkv-subtitle-converter-setup`), alongside automated parallel test suites and a cross-platform GitHub Actions Release Pipeline.
 
 ## 🛠️ Prerequisites
 - **Node.js**: v20 LTS+

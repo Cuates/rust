@@ -1,7 +1,7 @@
 ---
 title: "Project Sandbox & Roadmap"
 status: "Active"
-version: "1.9.3"
+version: "1.10.0"
 ---
 
 # 🗺️ Project Plan & Sandbox
@@ -9,6 +9,7 @@ version: "1.9.3"
 This document tracks current milestones, active tasks, and known edge-cases.
 
 ## ✅ Recently Completed
+- **Automated Release Pipeline**: Added GitHub Actions workflow to natively build and publish cross-platform installers (`.msi`, `.exe`, `.dmg`, `.AppImage`, `.deb`) on GitHub Releases.
 - **Optimized CI Performance**: Removed double-execution of testing suites on the Ubuntu runner, dropping pipeline duration to ~6 minutes.
 - **Resolved Vitest Missing Config Warning**: Prefixed testing scripts with `svelte-kit sync` to generate the `.svelte-kit` folder required by TypeScript in isolated CI test runs.
 - Refactored GitHub Actions CI/CD pipeline and introduced a Composite Action for DRY environment setup.

@@ -64,3 +64,21 @@ graph TD
     Composite Action --> TestMac[Test macOS]
     Composite Action --> Build[Build Validation]
 ```
+
+## Release Pipeline
+
+```mermaid
+graph TD
+    TagPush[Push Tag 'mkv-subtitle-converter-v*'] --> Action(GitHub Actions)
+    
+    Action --> Setup[Composite Action: setup-environment]
+    Setup --> TauriBuild[Tauri Build OS Bundles]
+    
+    TauriBuild --> ArchiveUbuntu[Archive .AppImage, .deb]
+    TauriBuild --> ArchiveMac[Archive .dmg]
+    TauriBuild --> ArchiveWin[Archive .msi, .exe]
+    
+    ArchiveUbuntu --> ReleaseGH[GitHub Release]
+    ArchiveMac --> ReleaseGH
+    ArchiveWin --> ReleaseGH
+```

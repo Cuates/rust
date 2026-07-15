@@ -11,7 +11,8 @@ rust-monorepo-root/
 │   │   └── mkv-subtitle-converter-setup/
 │   │       └── action.yml
 │   └── workflows/
-│       └── mkv-subtitle-converter-ci.yml
+│       ├── mkv-subtitle-converter-ci.yml
+│       └── mkv-subtitle-converter-release.yml
 └── mkv-subtitle-converter/
     ├── .agents/                       # AI configuration and workspace rules
     │   ├── AGENTS.md                  # Project-scoped AI guidelines
@@ -30,7 +31,8 @@ rust-monorepo-root/
     │       ├── 0004-cancellation-state-management.md
     │       ├── 0005-composite-action-ci-cd.md
     │       ├── 0006-svelte-kit-sync-in-tests.md
-    │       └── 0007-ci-test-deduplication.md
+    │       ├── 0007-ci-test-deduplication.md
+    │       └── 0008-github-actions-release-pipeline.md
     ├── CHANGELOG.md                   # Version history and release notes
     ├── CONTRIBUTING.md                # Developer contribution guidelines
     ├── README.md                      # Architecture and setup documentation
@@ -111,7 +113,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.9.3",
+  "version": "1.10.0",
   "description": "",
   "main": "index.js",
   "scripts": {
