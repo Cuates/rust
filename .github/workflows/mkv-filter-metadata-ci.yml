@@ -75,8 +75,10 @@ jobs:
 
       - name: Build Application
         uses: GabrielBB/xvfb-action@v1
+        env:
+          CARGO_PROFILE_RELEASE_LTO: false
         with:
-          run: CARGO_PROFILE_RELEASE_LTO=false pnpm exec tauri build --no-bundle
+          run: pnpm exec tauri build --no-bundle
           working-directory: mkv-filter-metadata
 
   test-windows:
