@@ -15,6 +15,7 @@ For the frontend, we needed a reactive framework that could handle high-frequenc
 ## Decision
 
 We chose to build the application as a highly decoupled monorepo using:
+
 - **Tauri v2 (Rust)** for the backend.
 - **Svelte 5 (with Runes)** and **Vite** for the frontend.
 - **Zod** for strictly validating IPC payloads.

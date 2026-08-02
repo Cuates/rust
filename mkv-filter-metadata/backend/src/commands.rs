@@ -177,6 +177,58 @@ async fn run_mkvmerge_fallback<R: tauri::Runtime>(
     Ok(mkvmerge_success)
 }
 
+pub(crate) fn scan_directory(
+    path: &std::path::Path,
+    extensions: &[String],
+    recursive: bool,
+) -> DirectoryStats {
+    if !path.exists() || !path.is_dir() {
+        return DirectoryStats {
+            exists: false,
+            file_count: 0,
+            total_size_bytes: 0,
+            files: Vec::new(),
+            history_skipped_count: 0,
+            history_skipped_bytes: 0,
+        };
+    }
+
+    let mut file_count = 0;
+    let mut total_size_bytes = 0;
+    let mut files = Vec::new();
+
+    let mut walker = walkdir::WalkDir::new(path);
+    if !recursive {
+        walker = walker.max_depth(1);
+    }
+
+    for entry in walker.into_iter().flatten() {
+        let p = entry.path();
+        if p.is_file()
+            && let Some(ext) = p.extension().and_then(|e| e.to_str())
+            && extensions.contains(&ext.to_lowercase())
+        {
+            file_count += 1;
+            let mut size_bytes = 0;
+            if let Ok(meta) = entry.metadata() {
+                size_bytes = meta.len();
+                total_size_bytes += size_bytes;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            files.push(FileStat { name, size_bytes });
+        }
+    }
+
+    DirectoryStats {
+        exists: true,
+        file_count,
+        total_size_bytes,
+        files,
+        history_skipped_count: 0,
+        history_skipped_bytes: 0,
+    }
+}
+
 /// Executes the `get_directory_stats` operation.
 #[tauri::command]
 pub async fn get_directory_stats(
@@ -188,52 +240,8 @@ pub async fn get_directory_stats(
     let dir_path_cloned = dir_path.clone();
     let mut stats = tokio::task::spawn_blocking(move || {
         let path = Path::new(&dir_path_cloned);
-        if !path.exists() || !path.is_dir() {
-            return DirectoryStats {
-                exists: false,
-                file_count: 0,
-                total_size_bytes: 0,
-                files: Vec::new(),
-                history_skipped_count: 0,
-                history_skipped_bytes: 0,
-            };
-        }
-
         let extensions = parse_comma_list(&file_extensions);
-        let mut file_count = 0;
-        let mut total_size_bytes = 0;
-        let mut files = Vec::new();
-
-        let mut walker = walkdir::WalkDir::new(path);
-        if !recursive {
-            walker = walker.max_depth(1);
-        }
-
-        for entry in walker.into_iter().flatten() {
-            let p = entry.path();
-            if p.is_file()
-                && let Some(ext) = p.extension().and_then(|e| e.to_str())
-                && extensions.contains(&ext.to_lowercase())
-            {
-                file_count += 1;
-                let mut size_bytes = 0;
-                if let Ok(meta) = entry.metadata() {
-                    size_bytes = meta.len();
-                    total_size_bytes += size_bytes;
-                }
-                let name = entry.file_name().to_string_lossy().into_owned();
-                files.push(FileStat { name, size_bytes });
-            }
-        }
-
-        DirectoryStats {
-            exists: true,
-            file_count,
-            total_size_bytes,
-            files,
-            history_skipped_count: 0,
-            history_skipped_bytes: 0,
-        }
+        scan_directory(path, &extensions, recursive)
     })
     .await
     .map_err(|e| AppError::Process(format!("Task join error: {}", e)))?;
@@ -613,17 +621,11 @@ async fn process_one_file<R: tauri::Runtime>(
             if file_success {
                 res.reencode_subtitle_retry_successes += 1;
             } else {
-                append_log(
-                    &app,
-                    "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.",
-                );
+                append_log(&app, crate::constants::LOG_MSG_ASS_CONVERSION_FAILED);
             }
         }
     } else {
-        append_log(
-            &app,
-            "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...",
-        );
+        append_log(&app, crate::constants::LOG_MSG_INIT_STREAM_COPY);
 
         let ffmpeg_copy_args = build_ffmpeg_args(&FfmpegJobConfig {
             input: &file_path,
@@ -843,8 +845,7 @@ pub async fn process_video_pipeline<R: tauri::Runtime>(
         .swap(true, std::sync::atomic::Ordering::SeqCst)
     {
         return Err(AppError::Process(
-            "Pipeline is already actively processing. Please wait for operations to conclude."
-                .into(),
+            crate::constants::LOG_MSG_PIPELINE_ACTIVE.into(),
         ));
     }
     let _processing_guard = ProcessingGuard(&state.is_processing);
@@ -1171,10 +1172,10 @@ pub async fn get_encoder_capabilities<R: tauri::Runtime>(
     {
         let stdout = String::from_utf8_lossy(&output.stdout);
 
-        let has_nvenc = stdout.contains("_nvenc");
-        let has_amf = stdout.contains("_amf");
-        let has_qsv = stdout.contains("_qsv");
-        let has_videotoolbox = stdout.contains("_videotoolbox");
+        let has_nvenc = stdout.contains(crate::constants::CODEC_SUFFIX_NVENC);
+        let has_amf = stdout.contains(crate::constants::CODEC_SUFFIX_AMF);
+        let has_qsv = stdout.contains(crate::constants::CODEC_SUFFIX_QSV);
+        let has_videotoolbox = stdout.contains(crate::constants::CODEC_SUFFIX_VIDEOTOOLBOX);
 
         let test_codec = |app: AppHandle<R>, codec: &'static str| async move {
             if let Ok(test_cmd) = app.shell().sidecar(crate::constants::BINARY_FFMPEG)
@@ -1316,7 +1317,11 @@ pub fn save_log_file<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Resu
             .map_err(|e| AppError::Process(format!("Failed to create target file: {}", e)))?;
 
         let mut any_saved = false;
-        for file_name in ["session.2.log", "session.1.log", "session.log"] {
+        for file_name in [
+            crate::constants::SESSION_LOG_2_FILE,
+            crate::constants::SESSION_LOG_1_FILE,
+            crate::constants::SESSION_LOG_FILE,
+        ] {
             let log_file = log_dir.join(file_name);
             if log_file.exists()
                 && let Ok(mut src) = std::fs::File::open(&log_file)
@@ -1340,7 +1345,11 @@ pub fn read_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, 
     flush_log_writer(&app);
     let mut content = String::new();
     if let Ok(log_dir) = app.path().app_log_dir() {
-        for file_name in ["session.2.log", "session.1.log", "session.log"] {
+        for file_name in [
+            crate::constants::SESSION_LOG_2_FILE,
+            crate::constants::SESSION_LOG_1_FILE,
+            crate::constants::SESSION_LOG_FILE,
+        ] {
             let log_file = log_dir.join(file_name);
             if log_file.exists()
                 && let Ok(text) = std::fs::read_to_string(&log_file)
@@ -1359,7 +1368,7 @@ pub fn initialize_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<()
         if !log_dir.exists() {
             let _ = std::fs::create_dir_all(&log_dir);
         }
-        let log_file = log_dir.join("session.log");
+        let log_file = log_dir.join(crate::constants::SESSION_LOG_FILE);
 
         // Release the file lock from the previous session before truncating
         let state = app.state::<AppState>();
@@ -1396,7 +1405,7 @@ pub fn log_message<R: tauri::Runtime>(app: AppHandle<R>, message: String) {
 pub fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<bool, AppError> {
     flush_log_writer(&app);
     if let Ok(log_dir) = app.path().app_log_dir() {
-        let log_file = log_dir.join("session.log");
+        let log_file = log_dir.join(crate::constants::SESSION_LOG_FILE);
         if let Ok(metadata) = std::fs::metadata(&log_file) {
             return Ok(metadata.is_file() && metadata.len() > 0);
         }
@@ -1611,5 +1620,54 @@ mod tests {
         // Hyphen allowed
         assert!(super::validate_character_list("zh-CN,eng", "Subtitle", true).is_ok());
         assert!(super::validate_character_list("zh-CN", "Subtitle", false).is_err());
+    }
+
+    #[test]
+    fn test_scan_directory() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "mkv_test_scan_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+
+        let file1 = temp_dir.join("test1.mkv");
+        let file2 = temp_dir.join("test2.mp4");
+        let sub_dir = temp_dir.join("sub");
+        std::fs::create_dir_all(&sub_dir).unwrap();
+        let file3 = sub_dir.join("test3.mkv");
+
+        std::fs::write(&file1, "dummy").unwrap();
+        std::fs::write(&file2, "dummy").unwrap();
+        std::fs::write(&file3, "dummy").unwrap();
+
+        // Test non-recursive
+        let stats = super::scan_directory(&temp_dir, &["mkv".to_string()], false);
+        assert!(stats.exists);
+        assert_eq!(stats.file_count, 1);
+        assert_eq!(stats.files.len(), 1);
+        assert_eq!(stats.files[0].name, "test1.mkv");
+
+        // Test recursive
+        let stats_rec = super::scan_directory(&temp_dir, &["mkv".to_string()], true);
+        assert_eq!(stats_rec.file_count, 2);
+
+        // Test multiple extensions
+        let stats_multi =
+            super::scan_directory(&temp_dir, &["mkv".to_string(), "mp4".to_string()], false);
+        assert_eq!(stats_multi.file_count, 2);
+
+        // Test non-existent path
+        let stats_none = super::scan_directory(
+            &temp_dir.join("does_not_exist"),
+            &["mkv".to_string()],
+            false,
+        );
+        assert!(!stats_none.exists);
+        assert_eq!(stats_none.file_count, 0);
+
+        std::fs::remove_dir_all(temp_dir).unwrap();
     }
 }

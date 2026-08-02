@@ -127,7 +127,7 @@ import { TAURI_COMMANDS, LOG_MESSAGES } from '../constants';
 
 export async function emitLog(...logs: string[]) {
   for (const log of logs) {
-    await invoke(TAURI_COMMANDS.LOG_MESSAGE, { message: log });
+    await invoke<void>(TAURI_COMMANDS.LOG_MESSAGE, { message: log });
   }
 }
 

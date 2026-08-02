@@ -9,9 +9,11 @@ last_updated: 2026-07-02
 Date: 2026-07-02
 
 ## Status
+
 Accepted
 
 ## Context
+
 When performing video re-encoding, processing requirements scale heavily based on the chosen video encoder. Hardware-accelerated encoders (`hevc_nvenc`, `h264_amf`, `hevc_qsv`, `hevc_videotoolbox`) offload the vast majority of processing to dedicated silicon on the GPU. Because they are highly efficient, running these tasks in parallel across all system logical cores scales extremely well and rarely causes the entire operating system to lock up.
 
 Conversely, software encoders (`libx264`, `libx265`) rely entirely on the CPU. Furthermore, these encoders are already internally optimized to massively multi-thread their operations—a single `libx265` encode will natively attempt to consume all available cores on the host machine to process frames as quickly as possible.
@@ -21,6 +23,7 @@ If the application attempts to spawn multiple parallel `libx265` encoding subpro
 While our **Adaptive System Throttling** (`sysinfo` polling) acts as a safety net to pause the pipeline when CPU > 90%, allowing the user to select high concurrency limits for software encoders means they will constantly trigger this throttle, leading to a frustrating stop-and-go processing experience.
 
 ## Decision
+
 We have introduced **Encoder-Aware Concurrency Limits** to automatically protect users from CPU starvation:
 
 1. **Hardware Encoders**: Are permitted to scale up to the total number of system logical cores. They are bottlenecked by GPU capabilities rather than CPU scheduler lockups.
@@ -29,6 +32,7 @@ We have introduced **Encoder-Aware Concurrency Limits** to automatically protect
 When the user selects a software encoder in the UI, the slider dynamically snaps to a maximum of 2.
 
 ## Consequences
+
 - **Positive**: Eliminates the risk of catastrophic OS freezes when users naively push the concurrency slider to maximum while using software encoding.
 - **Positive**: Provides a smoother user experience, as the pipeline relies less heavily on the emergency 90% CPU `sysinfo` throttle.
 - **Negative**: Advanced users with ultra-high core-count workstations (e.g., 64+ core Threadrippers) might find a hardcoded limit of 2 for `libx265` too restrictive for their specific hardware. However, given the target audience of this desktop app, protecting standard consumer desktops from freezing takes priority.

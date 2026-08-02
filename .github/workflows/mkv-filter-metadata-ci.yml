@@ -55,7 +55,10 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Enforce test coverage
-        run: pnpm run test:coverage
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: pnpm run test:coverage
+          working-directory: mkv-filter-metadata
 
   build:
     name: Build Validation
@@ -71,7 +74,10 @@ jobs:
         uses: ./.github/actions/mkv-filter-metadata-setup
 
       - name: Build Application
-        run: CARGO_PROFILE_RELEASE_LTO=false pnpm exec tauri build --no-bundle
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: CARGO_PROFILE_RELEASE_LTO=false pnpm exec tauri build --no-bundle
+          working-directory: mkv-filter-metadata
 
   test-windows:
     name: Test on Windows
@@ -86,8 +92,11 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/mkv-filter-metadata-setup
 
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Run tests
-        run: pnpm test
+        run: pnpm run test:coverage
 
   test-macos:
     name: Test on macOS
@@ -108,7 +117,8 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/mkv-filter-metadata-setup
 
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
       - name: Run tests
-        run: |
-          pnpm -F frontend test:unit --run
-          cargo test --manifest-path backend/Cargo.toml -- --nocapture
+        run: pnpm run test:coverage

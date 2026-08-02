@@ -70,12 +70,14 @@ mkv-filter-metadata/
 │       ├── 0009-responsive-layout-and-ux-enhancements.md
 │       ├── 0010-ipc-magic-string-centralization.md
 │       ├── 0011-strict-test-coverage-mandate.md
-│       └── 0012-github-actions-release-pipeline.md
+│       ├── 0012-github-actions-release-pipeline.md
+│       └── 0013-strict-ipc-type-generation.md
 ├── scripts/                      # Build helper scripts
 │   ├── README.md                 # Script documentation
 │   ├── download-sidecars.mjs     # Fetches sidecars and validates checksums
 │   └── generate-hashes.mjs       # Generates SHA-256 checksums for new binary releases
 ├── .gitignore                    # Git ignore rules
+├── .markdownlintignore           # Markdown lint ignore rules
 ├── CHANGELOG.md                  # Version history
 ├── CONTRIBUTING.md               # Contribution guidelines
 ├── LICENSE                       # MIT License

@@ -8,9 +8,10 @@ author: "AI Assistant"
 
 ## Context
 
-The core functionality of `mkv-filter-metadata` requires deep inspection and manipulation of MKV containers (filtering metadata, stripping tracks, and hardware-accelerated re-encoding). 
+The core functionality of `mkv-filter-metadata` requires deep inspection and manipulation of MKV containers (filtering metadata, stripping tracks, and hardware-accelerated re-encoding).
 
 We could interact with video files by:
+
 1. Dynamically linking against FFmpeg libraries (e.g., `libavcodec` via Rust bindings).
 2. Requiring the user to have FFmpeg/MKVToolNix installed globally on their system path.
 3. Bundling the pre-compiled command-line binaries within the application installer.

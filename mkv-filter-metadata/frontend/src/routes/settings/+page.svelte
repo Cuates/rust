@@ -41,7 +41,7 @@
     /* v8 ignore next */
     logicalCores = window.navigator.hardwareConcurrency || UI_CONSTANTS.DEFAULT_LOGICAL_CORES;
     try {
-      historyCount = await invoke(TAURI_COMMANDS.GET_HISTORY_COUNT);
+      historyCount = await invoke<number>(TAURI_COMMANDS.GET_HISTORY_COUNT);
     } catch (e) {
       /* v8 ignore next */
       console.error('Failed to get history count:', e);
@@ -107,8 +107,8 @@
 
   async function executeClearHistory() {
     try {
-      await invoke(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
-      historyCount = await invoke(TAURI_COMMANDS.GET_HISTORY_COUNT);
+      await invoke<void>(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
+      historyCount = await invoke<number>(TAURI_COMMANDS.GET_HISTORY_COUNT);
       showClearHistoryModal = false;
       addToast('✅ Database history cleared successfully.', 'success');
     } catch (e) {

@@ -21,12 +21,22 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/mkv-filter-metadata-setup
 
-      - name: Build Application
+      - name: Build Application (macOS & Windows)
+        if: matrix.os != 'ubuntu-22.04'
         working-directory: mkv-filter-metadata
+        env:
+          NO_STRIP: true
+        run: pnpm exec tauri build
+
+      - name: Build Application (Ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        uses: GabrielBB/xvfb-action@v1
         env:
           APPIMAGE_EXTRACT_AND_RUN: 1
           NO_STRIP: true
-        run: pnpm exec tauri build
+        with:
+          run: pnpm exec tauri build
+          working-directory: mkv-filter-metadata
 
       - name: Prepare Assets (Ubuntu)
         if: matrix.os == 'ubuntu-22.04'

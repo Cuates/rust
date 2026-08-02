@@ -1,0 +1,5 @@
+node_modules
+target
+.svelte-kit
+coverage
+build

@@ -16,7 +16,7 @@
   } from '../lib/stores/pipeline.svelte';
   import { addToast } from '../lib/stores/toast.svelte';
   import { registerCommand, unregisterCommand, paletteState } from '../lib/stores/commands.svelte';
-  import type { DirectoryStats } from '$lib/types';
+  import type { DirectoryStats, EncoderCapabilities, PipelineSummary } from '$lib/types';
   import {
     DirectoryStatsSchema,
     EncoderCapabilitiesSchema,
@@ -88,7 +88,7 @@
         const validDirs = [];
         for (const dir of config.input_directories) {
           try {
-            const rawStats = await invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
+            const rawStats = await invoke<DirectoryStats>(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
               dirPath: dir,
               fileExtensions: config.file_extensions,
               recursive: config.recursive
@@ -154,7 +154,9 @@
 
     const init = async () => {
       try {
-        const rawEncoders = await invoke(TAURI_COMMANDS.GET_ENCODER_CAPABILITIES);
+        const rawEncoders = await invoke<EncoderCapabilities>(
+          TAURI_COMMANDS.GET_ENCODER_CAPABILITIES
+        );
         appState.hardwareEncoders = EncoderCapabilitiesSchema.parse(rawEncoders);
       } catch (e) {
         emitLog(`[ERROR] Failed querying hardware encoder API integrations: ${e}`);
@@ -163,7 +165,9 @@
       const tools = ['ffmpeg', 'ffprobe', 'mkvmerge'];
       for (const tool of tools) {
         try {
-          const rawVer = await invoke(TAURI_COMMANDS.GET_SIDECAR_VERSION, { binaryName: tool });
+          const rawVer = await invoke<string>(TAURI_COMMANDS.GET_SIDECAR_VERSION, {
+            binaryName: tool
+          });
           const ver = z.string().parse(rawVer).trim();
           if (tool === 'ffmpeg') appState.ffmpegVersion = ver;
           if (tool === 'ffprobe') appState.ffprobeVersion = ver;
@@ -339,7 +343,9 @@
     const tools = ['ffmpeg', 'ffprobe', 'mkvmerge'];
     for (const tool of tools) {
       try {
-        const rawVer = await invoke(TAURI_COMMANDS.GET_SIDECAR_VERSION, { binaryName: tool });
+        const rawVer = await invoke<string>(TAURI_COMMANDS.GET_SIDECAR_VERSION, {
+          binaryName: tool
+        });
         const ver = z.string().parse(rawVer);
         emitLog(`${LOG_MESSAGES.SIDECAR_ASSET} ${tool.toUpperCase()}: ${ver.trim()}`);
       } catch {
@@ -370,7 +376,7 @@
 
     const startDate = new Date();
     pipeline.consoleLogs = []; // Clear for new run
-    await invoke(TAURI_COMMANDS.INITIALIZE_SESSION_LOG);
+    await invoke<void>(TAURI_COMMANDS.INITIALIZE_SESSION_LOG);
     emitLog(
       UI_STRINGS.PIPELINE_INITIALIZATION_AUTH,
       `${UI_STRINGS.SESSION_STARTED_AT} ${startDate.toLocaleString()}`
@@ -393,7 +399,7 @@
       const tempDirectoryStats: Record<string, DirectoryStats> = {};
       for (const dir of config.input_directories) {
         try {
-          const rawStats = await invoke(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
+          const rawStats = await invoke<DirectoryStats>(TAURI_COMMANDS.GET_DIRECTORY_STATS, {
             dirPath: dir,
             fileExtensions: config.file_extensions,
             recursive: config.recursive
@@ -426,7 +432,9 @@
         crf: String(config.crf)
       };
 
-      const rawSummary = await invoke(TAURI_COMMANDS.PROCESS_VIDEO_PIPELINE, { payload });
+      const rawSummary = await invoke<PipelineSummary>(TAURI_COMMANDS.PROCESS_VIDEO_PIPELINE, {
+        payload
+      });
       const summary = PipelineSummarySchema.parse(rawSummary);
 
       pipeline.storageOriginalBytes = summary.original_size_bytes;
@@ -522,7 +530,7 @@
       emitLog(LOG_MESSAGES.HALT_TERMINATING);
       await scrollToTerminalBottom(0, true);
 
-      await invoke(TAURI_COMMANDS.ABORT_VIDEO_PIPELINE);
+      await invoke<void>(TAURI_COMMANDS.ABORT_VIDEO_PIPELINE);
       emitLog(LOG_MESSAGES.PROCESSING_STOPPED);
     } catch (err) {
       emitLog(`${LOG_MESSAGES.ERR_TERMINATING_WORKERS} ${err}`);
@@ -539,7 +547,7 @@
   async function executeClearHistory() {
     showClearHistoryModal = false;
     try {
-      await invoke(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
+      await invoke<void>(TAURI_COMMANDS.CLEAR_PROCESSING_HISTORY);
       pipeline.historyClearTimestamp = Date.now();
       addToast(UI_STRINGS.CLEAR_HISTORY_SUCCESS, 'success');
     } catch (e) {

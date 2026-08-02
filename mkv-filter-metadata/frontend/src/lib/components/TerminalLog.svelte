@@ -93,7 +93,7 @@
       });
 
       if (filePath) {
-        await invoke(TAURI_COMMANDS.SAVE_LOG_FILE, { path: filePath });
+        await invoke<void>(TAURI_COMMANDS.SAVE_LOG_FILE, { path: filePath });
 
         savedStatus = true;
         setTimeout(() => {

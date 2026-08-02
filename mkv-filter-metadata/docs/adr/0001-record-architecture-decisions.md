@@ -12,9 +12,10 @@ We need to record the architectural decisions made on this project. Without a st
 
 ## Decision
 
-We will use Architecture Decision Records (ADRs). We will place them in this directory (`docs/adr/`), using a sequential numbering scheme and a markdown template. 
+We will use Architecture Decision Records (ADRs). We will place them in this directory (`docs/adr/`), using a sequential numbering scheme and a markdown template.
 
 Each ADR will include:
+
 - A YAML frontmatter section (`date`, `status`, `author`).
 - The **Context** explaining the problem.
 - The **Decision** made.

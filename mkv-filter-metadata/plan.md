@@ -9,6 +9,7 @@ status: "active"
 This document serves as a high-level roadmap and sandbox for human and AI collaboration on the **MKV Filter Metadata** project.
 
 ## 🎯 Current Objectives
+
 - [x] Decentralize monolithic README for improved AI agent ingestion.
 - [x] Establish standard documentation (START_HERE, KNOWLEDGE_GRAPH, ADRs).
 - [x] Refactor GitHub Actions CI/CD to use centralized setup and cross-platform jobs.
@@ -33,8 +34,10 @@ This document serves as a high-level roadmap and sandbox for human and AI collab
 - [x] Resolve all strict `any` and `unknown` TypeScript errors across frontend payloads.
 - [x] Bump application to version 2.3.0 and sync all monorepo documentation.
 - [x] Bump application to version 2.4.0 and implement GitHub Actions Release Pipeline.
+- [x] Bump application to version 2.5.0 and implement automated Specta/Zod IPC types, headless CI testing, and full backend coverage.
 
 ## 💡 Sandbox Notes
+
 *(Use this space to draft ideas, outline upcoming Epics, or sketch workflows before converting them into GitHub issues or ADRs)*
 
 - **Idea**: Add an option to skip processing if the file size won't be meaningfully reduced.

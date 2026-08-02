@@ -3,7 +3,7 @@
 [![Maintained? yes](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://GitHub.com/Cuates/rust/graphs/commit-activity)
 [![MKV Filter Metadata CI](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-ci.yml)
 [![MKV Filter Metadata Release](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-release.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-filter-metadata-release.yml)
-[![Version](https://img.shields.io/badge/version-2.4.0-blue.svg)](https://github.com/Cuates/rust)
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/Cuates/rust)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-FF3E00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8D8.svg)](https://tauri.app/)
@@ -35,11 +35,15 @@ For in-depth documentation, please refer to the specific files below:
 All commands are run from the workspace root:
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `pnpm dev` | Launch Vite dev server + Tauri window in parallel |
 | `pnpm build` | Production build (frontend bundle + Rust release binary) |
+| `pnpm generate:types` | Generate strict TS types from Rust backend structs via Specta |
 | `pnpm check` | Type-check both Svelte (svelte-check) and Rust (cargo check) |
-| `pnpm fix` | Auto-fix lint + format issues across both frontend and backend |
+| `pnpm check:deadcode` | Scan for unused code/exports via Knip and cargo clippy |
+| `pnpm fix` | Auto-fix lint + format issues across frontend, backend, and markdown |
+| `pnpm lint:md` | Scan all markdown files for formatting violations |
+| `pnpm lint:md:fix` | Automatically resolve markdown formatting errors |
 | `pnpm test` | Run Vitest (frontend) and cargo test (backend) |
 | `pnpm test:coverage` | Generate coverage reports for both layers |
 | `pnpm audit` | Security audit for npm and Cargo dependencies |

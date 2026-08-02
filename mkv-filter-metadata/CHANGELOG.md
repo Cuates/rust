@@ -5,18 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-08-02
+
+### Added
+
+- Added `export_zod.rs` leveraging `specta` to automatically generate strict TypeScript definitions from Rust structs, guaranteeing perfectly synchronized IPC payloads.
+- Added headless Tauri UI testing in GitHub Actions using `xvfb-action` and `libwebkit2gtk-4.1-dev`.
+- Added aggressive backend unit tests across `process.rs`, `commands.rs`, and `history.rs` leveraging `cargo-llvm-cov`.
+- Added automated `markdownlint` enforcement across the workspace via `pnpm run lint:md:fix` and a `.markdownlintignore` configuration.
+
+### Changed
+
+- Bumped application version to `2.5.0` across all Tauri, Rust, and SvelteKit configuration files.
+
 ## [2.4.0] - 2026-07-14
 
 ### Added
+
 - Implemented a fully automated GitHub Actions Release pipeline (`mkv-filter-metadata-release.yml`) that cross-compiles and bundles Tauri native desktop installers (`.AppImage`, `.deb`, `.dmg`, `.msi`, `.exe`) into GitHub Releases when pushing a `mkv-filter-metadata-v*` tag.
 - Added ADR 0012 to document the new release pipeline architecture.
 
 ### Changed
+
 - Bumped application version to `2.4.0` across all Tauri, Rust, and SvelteKit configuration files to synchronize the stack for release.
 
 ## [2.3.0] - 2026-07-07
 
 ### Added
+
 - Redesigned Target Processing Queue UI with modern pill-shaped layout and full-path mouse hover tooltips (`mouseenter`/`mouseleave`).
 - Added live "total size" metrics directly under the total scanned files in the global metrics panel.
 - Added color-coded final storage delta (green for space saved, red for space lost) for instant visual feedback.
@@ -25,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added explicit "Scroll to Top" and "Scroll to Bottom" buttons to easily navigate large terminal histories.
 
 ### Changed
+
 - Bumped application version to `2.3.0` across all Tauri and SvelteKit configuration files.
 - Refactored frontend to completely eliminate magic strings by migrating all DOM events, Tauri commands, and UI strings into a centralized `constants.ts` file.
 - Resolved all remaining strict `any` and `unknown` TypeScript errors across frontend mock payloads.
@@ -32,146 +49,178 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.2.0] - 2026-07-05
 
 ### Added
+
 - Added per-row "Open Output Folder" button to directly open the processed files folder.
 - **System Guard:** Implemented a 1.5s grace period in the processing pipeline to prevent false-positive resource congestion toasts at startup.
 - **Testing:** Enforced strict 99%+ test coverage thresholds across the SvelteKit frontend, achieving near-perfect branch coverage on `+page.svelte`.
 
 ### Changed
+
 - Bumped application version to `2.2.0` across all Tauri and SvelteKit configuration files.
 - Refined test suite to aggressively capture and silence intentional error outputs (`stderr`) during Vitest fallback execution paths.
 
 ## [2.1.0] - 2026-07-03
 
 ### Added
+
 - Completely redesigned Target Processing Queue UI with pill-based rows, file counts, aggregate sizes, and custom tooltips for full directory paths.
 - Reached 100% test coverage (Lines/Statements) for the SvelteKit frontend via Vitest and `@testing-library/svelte`.
 - Expanded backend Rust test coverage with comprehensive unit tests for configuration mapping, video codec parameters, and string validation routines.
 - Implemented robust `v8 ignore` markers to accurately represent branch coverage on hardware-dependent or OS-specific focus states.
 
 ### Changed
+
 - Promoted application to minor version 2.1.0.
 - Centralized magic strings across the Tauri backend into a shared constants module for safe, typo-resistant IPC command mapping and file path resolution.
 - Hardened Rust sidecar architecture with strict error handling and database history isolation.
 
 ## [2.0.0] - 2026-07-03
+
 ### Added
+
 - Added a global Command Palette (Ctrl+K) for rapid navigation and action execution.
 - Added persistent window state memory across sessions, ensuring the application re-opens with the same dimensions, coordinates, and maximized state.
 - Implemented a Three-Tier Responsive Grid design that dynamically adapts from a massive three-column power-user view down to a focused single-column view based on window width.
 - Introduced a clean, real-time pipeline output log that parses processing data into concise status updates (Success, Warning, Error) instead of raw terminal output.
 
 ### Changed
+
 - Promoted application to major version 2.0.0.
 - Completely redesigned the frontend user interface and aesthetics for a premium, modern experience.
 
 ## [1.4.0] - 2026-07-02
 
 ### Added
+
 - Added an "Open Processed Files Folder" button to the Target Processing Queue UI, allowing users to instantly open their newly generated files in their native OS file explorer.
 
 ### Changed
+
 - Promoted application to version 1.4.0.
 - Updated user documentation to explicitly explain the new post-processing file access workflow.
 
 ### Fixed
+
 - Fixed a cross-platform path resolution bug in the Rust backend where opening a processed output folder would fail if the files were generated deeply inside nested subfolders during a recursive directory scan.
 
 ## [1.3.1] - 2026-07-02
 
 ### Changed
+
 - Promoted application to version 1.3.1.
 - Synchronized all workspace markdown documentation and Architecture Decision Records (ADRs) to perfectly reflect the 1.3.1 application state and current git repository tree structure.
 
 ### Fixed
+
 - Fixed strict `@typescript-eslint/no-explicit-any` linting errors in frontend test suites by enforcing standard `unknown` casting on Tauri plugin store mocks.
 - Restored missing YAML frontmatter across all documentation files for AI agent compatibility.
 
 ## [1.3.0] - 2026-07-02
 
 ### Added
+
 - Added a segmented Target Drive Type (SSD / NVMe vs HDD) UI control to configure physical storage constraints.
 - Added intelligent Encoder-Aware Concurrency limits that automatically clamp software encoders (`libx264`/`libx265`) to a maximum of 2 parallel files to prevent OS CPU starvation, while allowing hardware encoders to scale freely with logical cores.
 
 ### Changed
+
 - Promoted application to version 1.3.0.
 - Decoupled `reencode_concurrency` from the mechanical HDD drive restriction (which now only clamps `remux_concurrency` to 1).
 - Updated "How To Use" Guide documentation to explain the new encoder-aware slider clamping.
 
 ### Fixed
+
 - Fixed an unstable Vitest DOM drag-and-drop boundary mock in `DirectoryQueue.test.ts`, restoring frontend branch coverage to 83.5%.
 - Fixed a redundant zero-value check in `MetricsPanel.svelte` that was masking full statement coverage.
 
 ## [1.2.2] - 2026-07-01
 
 ### Added
+
 - Implemented Adaptive System Throttling utilizing the `sysinfo` crate to actively monitor global CPU and RAM usage, automatically pausing pipeline generation when CPU > 90% or RAM < 15% to prevent system lockups.
 
 ### Changed
+
 - Promoted application to version 1.2.2.
 - Decoupled `reencode_concurrency` from mechanical drive restrictions. GPU-accelerated re-encodes will now run at max concurrency even when targeting an HDD, while purely IO-bound `remux_concurrency` tasks are heavily clamped to 1 to prevent read/write head thrashing.
 
 ### Fixed
+
 - Fixed an unstable Vitest DOM drag-and-drop boundary mock in `DirectoryQueue.svelte`, restoring branch coverage back over 80%.
 
 ## [1.2.1] - 2026-06-27
 
 ### Added
+
 - Overhauled GitHub Actions CI pipeline (`mkv-filter-metadata-ci.yml`) to use a centralized composite setup action.
 - Added macOS (Apple Silicon) and Windows test jobs to the CI pipeline to ensure cross-platform compatibility.
 
 ### Changed
+
 - Promoted application to version 1.2.1.
 - Updated sidecar cache keys in CI to securely isolate OS and Architecture binaries.
 - Migrated Rust backend test coverage tool from `cargo-tarpaulin` to `cargo-llvm-cov` for standardized reporting.
 - Prefixed `vitest` test commands with `svelte-kit sync` to prevent frontend TypeScript config resolution warnings in isolated CI environments.
 
 ## [1.2.0] - 2026-06-27
+
 - Split monolithic README into a decentralized `docs/` structure, alongside `frontend/README.md` and `backend/README.md` for proper AI context ingestion.
 
 ### Changed
+
 - Promoted application to version 1.2.0.
 
 ## [1.1.12] - 2026-06-26
 
 ### Added
+
 - Created comprehensive architecture and planning documentation (`START_HERE.md`, `plan.md`, `docs/KNOWLEDGE_GRAPH.md`).
 - Implemented Architecture Decision Records (ADRs) to track historical and future tech stack choices.
 - Established AI agent guidelines (`.agents/AGENTS.md`) and basic skill templates.
 
 ### Changed
+
 - Promoted application to version 1.1.12.
 
 ## [1.1.11] - 2026-06-21
 
 ### Added
-- Implemented a 3-way System/Light/Dark UI theme configuration option in the Settings page, allowing users to forcefully override the OS default theme. 
+
+- Implemented a 3-way System/Light/Dark UI theme configuration option in the Settings page, allowing users to forcefully override the OS default theme.
 
 ### Changed
+
 - Promoted application to version 1.1.11.
 
 ## [1.1.10] - 2026-06-20
 
 ### Added
+
 - Added a taskbar progress indicator to allow users to monitor the overall processing status without needing to maximize the application window.
 
 ### Changed
+
 - Promoted application to version 1.1.10.
 
 ## [1.1.9] - 2026-06-20
 
 ### Fixed
+
 - Fixed an issue where the Total Conversion Time and ETA timers stopped updating when navigating away from the main processing page by lifting timer state into the global pipeline store.
 
 ### Changed
+
 - Promoted application to version 1.1.9.
 
 ## [1.1.8] - 2026-06-20
 
 ### Added
+
 - Added a "System Notifications" toggle in Settings to allow opting out of desktop notifications.
 - Added a "Database History" record count badge and enforced a red confirmation modal before clearing the database history in the Settings page.
 
 ### Changed
+
 - Promoted application to version 1.1.8.
 - Hardened sidecar downloading (`download-sidecars.mjs`) by implementing exact SHA-256 hash calculation and verification before skipping existing files, automatically re-downloading corrupted binaries.
 - Transitioned to offline, CSP-compliant, self-hosted web fonts using Svelte bundled `@fontsource-variable` packages instead of relying on `fonts.googleapis.com`.
@@ -179,6 +228,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.7] - 2026-06-19
 
 ### Changed
+
 - Updated `tauri` to version `2.11.3` and `tauri-build` to version `2.6.3` in the Rust backend.
 - Updated `@tauri-apps/api` to `2.11.1` and `@tauri-apps/cli` to `2.11.3`.
 - Added pnpm override to force `undici` to `^7.28.0` to resolve multiple high-severity vulnerabilities in development dependencies.
@@ -186,9 +236,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.6] - 2026-06-15
 
 ### Changed
+
 - Converted `vite.config.js` to TypeScript (`vite.config.ts`) to provide 100% type safety and eliminate `// @ts-nocheck` suppressions.
 
 ### Fixed
+
 - Fixed an event bubbling bug where `onkeydown={(e) => e.stopPropagation()}` was incorrectly intercepting keyboard events in the modal card, breaking focus traps and keyboard dismissal.
 - Implemented full WAI-ARIA compliance and keyboard accessibility (Tab focus trapping, Escape dismissal) for the Confirmation Modal, matching the About Modal.
 - Added comprehensive unit tests for `ConfirmationModal.svelte` covering all keyboard navigation behaviors, restoring branch test coverage.
@@ -196,26 +248,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.5] - 2026-06-15
 
 ### Changed
+
 - Removed unused ESLint inline suppressions across Svelte components in favor of a single global rule.
 - Cleaned up unused TypeScript suppressions (`@ts-expect-error`) in frontend test files.
 
 ## [1.1.4] - 2026-06-14
 
 ### Changed
+
 - Resolved `clippy::too_many_arguments` warnings in backend `commands.rs` by refactoring function arguments into `ProcessFileContext` and `RetryAssContext` structs.
 
 ## [1.1.3] - 2026-06-14
 
 ### Added
+
 - Added a production panic hook to the Rust backend that synchronously flushes fatal crash errors to `session.log` before the application aborts.
 
 ### Changed
+
 - Disabled Link-Time Optimization (LTO) in the GitHub Actions CI pipeline via `CARGO_PROFILE_RELEASE_LTO=false` to significantly speed up remote builds.
 - Refactored the CI workflow to chain the `test` and `build` jobs behind the `lint` job using `needs: [lint]`, preventing redundant job failures and saving runner minutes.
 
 ## [1.1.2] - 2026-06-14
 
 ### Changed
+
 - Added comprehensive backend Rust optimizations including `opt-level = 3`, `lto = true`, and stripped release binaries for maximum execution speed and reduced bundle size.
 - Configured Vite production builds to automatically drop all `console` and `debugger` outputs to keep frontend bundles lean.
 - Completely restructured the GitHub Actions CI pipeline to run Lint, Test, and Build jobs in parallel, and added `Swatinem/rust-cache@v2` for drastically reduced compilation times.
@@ -223,10 +280,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.1] - 2026-06-14
 
 ### Added
+
 - Added a dedicated "How To Use" Guide page providing explicit instructions on queue management, conversion modes, and interpreting output logs.
 - Added a Guide navigation help icon to the dashboard header.
 
 ### Changed
+
 - Clarified UI descriptions in the Settings page regarding concurrency parameters and their impact on the dashboard.
 - Refined Guide documentation to accurately reflect UI button verbiage and integrated matching SVG icons into the text for better user comprehension.
 - Suppressed strict SvelteKit navigation linting rules and added comprehensive test cases to restore 100% component branch coverage.
@@ -234,22 +293,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.1.0] - 2026-06-14
 
 ### Added
+
 - Added an opt-in "Save Queue List Between Sessions" global application setting to persist target directories across reboots.
 
 ### Changed
+
 - Relocated "Recursive Directory Scanning" and the new "Save Queue List Between Sessions" toggles out of the active conversion panel and into the dedicated Settings page for better UX organization.
 
 ## [1.0.2] - 2026-06-14
 
 ### Added
+
 - Implemented CI caching for Sidecar binaries and PNPM dependencies to significantly improve build speeds.
 
 ### Changed
+
 - Centralized `toggleTheme` functionality in the Svelte frontend to reduce redundancy.
 - Improved frontend accessibility with focus trapping in the About Modal.
 - Simplified backend codebase by removing the redundant `is_aborted` state flag in favor of relying entirely on `CancellationToken`.
 
 ### Fixed
+
 - Fixed an issue where the About Modal would inaccurately display "(today)" for previous day builds. It now displays the exact build date.
 - Fixed About Modal displaying "Loading..." instead of the exact version numbers for sidecar dependencies.
 - Resolved Svelte strict compiler warnings for tabindex and click-events-have-key-events.
@@ -257,6 +321,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.1] - 2026-06-13
 
 ### Fixed
+
 - Fixed TerminalLog scrollbar visibility issue by constraining the terminal container height.
 - Restored main window vertical scrollability.
 - Fixed Storage Saved metric color coding to visually indicate positive/negative space savings dynamically.
@@ -265,6 +330,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2026-06-13
 
 ### Changed
+
 - Promoted application to version 1.0.0.
 - Updated main dashboard and settings page layouts to ensure fixed headers with scrollable content areas.
 - Added About modal with version, dependency information, and dynamically configured GitHub links.
@@ -273,17 +339,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.5] - 2026-06-13
 
 ### Refactored
+
 - DRY refactoring across backend and frontend code to abstract `process_one_file` logic (validation, DB history, ASS retries, mkvmerge fallbacks) into independent, specialized helper functions.
 - Centralized repetitive terminal auto-scrolling boilerplate in the Svelte components.
 
 ## [0.2.4] - 2026-06-13
 
 ### Changed
+
 - Extracted magic strings (Tauri IPC commands and custom event names) into shared constants to improve maintainability and typo-resistance.
 
 ## [0.2.3] - 2026-06-13
 
 ### Removed
+
 - Dead code cleanup: removed unused Tauri dependencies (`@tauri-apps/plugin-fs`, `@tauri-apps/plugin-opener`, `@tauri-apps/plugin-shell`) and `@eslint/compat` from frontend `package.json`.
 - Dead code cleanup: removed unused exports and types in `types.ts`, `config.svelte.ts`, and `shortcuts.svelte.ts`.
 - Added CI step and root script `check:deadcode` to automatically verify against frontend and backend dead code in future commits.
@@ -291,21 +360,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.2] - 2026-06-13
 
 ### Documentation
+
 - Updated `scripts/download-sidecars.mjs` to add explanatory comments for the `mkvmerge` universal binaries.
 - Fortified `scripts/generate-hashes.mjs` to preserve the explanatory comments seamlessly during hash generation.
 
 ## [0.2.1] - 2026-06-13
 
 ### Fixed
+
 - Enforced maximum concurrency limit of 2 in the UI when using software encoders (`libx264`, `libx265`).
 - Resolved an `optimizeDeps` Vite development bug that caused `pnpm dev` to fail due to Svelte 5 syntax incompatible with old targets.
 
 ### Documentation
+
 - Updated `download-sidecars.mjs` and added a `README.md` to `scripts/` detailing exactly how and when to update the checksum hashes.
 
 ## [0.2.0] - 2026-06-12
 
 ### Added
+
 - **Parallel file processing** (JoinSet + Semaphore, configurable concurrency).
 - **SQLite-backed processing history** with WAL mode + schema versioning.
 - **Settings page** for shortcuts, performance/concurrency tuning, and reset-to-defaults.
@@ -340,6 +413,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CHANGELOG.md**, **CONTRIBUTING.md**, and **LICENSE** (MIT).
 
 ### Changed
+
 - Migrated Rust backend to **Edition 2024**.
 - Migrated state management to **Svelte 5 runes** (`$state`, `$derived`, `$effect`) — no legacy stores.
 - Refactored backend into modular files: `commands.rs`, `process.rs`, `models.rs`, `error.rs`.
@@ -349,6 +423,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Time values use monospace `tabular-nums` font to prevent layout jitter.
 
 ### Fixed
+
 - Backend `Preset`, `ConversionMode`, and `VideoCodec` converted from fragile strings to type-safe Rust enums.
 - Prevented identical filenames in input directories from overwriting a single output file.
 - Prevented XSS vector in toast component `{@html}` tags.

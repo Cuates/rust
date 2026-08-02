@@ -12,11 +12,11 @@ As the monorepo matured with complex UI interactions (drag-and-drop, theme toggl
 
 ## Decision
 
-We have mandated a **100% Code Coverage** requirement (Lines and Statements) for the `frontend` workspace via `vitest` and `@testing-library/svelte`. 
+We have mandated a **100% Code Coverage** requirement (Lines and Statements) for the `frontend` workspace via `vitest` and `@testing-library/svelte`.
 
-For the Rust `backend`, unit test coverage is aggressively expanded using `cargo-llvm-cov` to test core logic (configuration mapping, FFmpeg argument generation, string validation).
+For the Rust `backend`, unit test coverage is aggressively expanded using `cargo-llvm-cov` to test core logic (configuration mapping, FFmpeg argument generation in `process.rs`, strict IPC string validation in `commands.rs`, and SQLite interactions in `history.rs`).
 
-To realistically achieve 100% coverage on the frontend without writing redundant or impossible tests (e.g., catching errors from a mocked OS capability that can't fail in the wild), we established the standard of using explicit `/* v8 ignore next */` markers to intentionally exclude hardware-dependent or OS-specific branch states, ensuring the coverage reports accurately reflect meaningful code paths.
+To realistically achieve 100% coverage on the frontend without writing redundant or impossible tests (e.g., catching errors from a mocked OS capability that can't fail in the wild), we established the standard of using explicit `/* v8 ignore next */` markers to intentionally exclude hardware-dependent or OS-specific branch states, ensuring the coverage reports accurately reflect meaningful code paths. We also enforce the use of `svelte-kit sync` in isolated pipelines to prevent false-negative type resolution errors.
 
 ## Consequences
 

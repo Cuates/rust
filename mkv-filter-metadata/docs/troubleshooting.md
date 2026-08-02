@@ -6,7 +6,7 @@ last_updated: 2026-07-14
 # Troubleshooting & Common Pitfalls
 
 | Problem | Solution |
-|---------|----------|
+| --------- | ---------- |
 | **"Cannot find project matching filter 'backend'"** | The backend is a Cargo crate, not a Node package. Use `--manifest-path backend/Cargo.toml` instead of `pnpm -F backend`. |
 | **Vite port collision** | `strictPort: true` is set in `vite.config.ts` to prevent silent port changes. Free port 1420 or update both Vite and `tauri.conf.json`. |
 | **High Memory Usage During Development (IDE)** | Massive RAM consumption during processing batches is often caused by the IDE's background language servers indexing the rapid output files and intercepting the massive real-time terminal output stream. This is not a memory leak in the desktop application itself and does not occur in the compiled production binary. |

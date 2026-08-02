@@ -64,3 +64,18 @@ sequenceDiagram
     Backend->>Backend: Resolve cross-platform output path
     Backend-->>User: Launch native OS file explorer
 ```
+
+## Type Generation & Validation Flow
+
+```mermaid
+sequenceDiagram
+    participant Rust as Rust Backend
+    participant Specta as export_zod.rs
+    participant TS as types.ts
+    participant Frontend as SvelteKit
+
+    Rust->>Specta: Define structs with #[derive(Type)]
+    Specta->>TS: cargo run --bin export_zod
+    TS-->>Frontend: Frontend imports strict Zod schemas
+    Frontend->>Frontend: Validate all Tauri IPC payloads against schemas
+```

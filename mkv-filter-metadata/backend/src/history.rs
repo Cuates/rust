@@ -9,8 +9,12 @@ pub fn init_db<R: tauri::Runtime>(
         .path()
         .app_data_dir()
         .map_err(|e| AppError::Process(format!("Failed to get app data dir: {}", e)))?;
+    init_db_at_path(&app_dir)
+}
+
+pub fn init_db_at_path(app_dir: &std::path::Path) -> std::result::Result<Connection, AppError> {
     if !app_dir.exists() {
-        std::fs::create_dir_all(&app_dir).map_err(AppError::Io)?;
+        std::fs::create_dir_all(app_dir).map_err(AppError::Io)?;
     }
     let db_path = app_dir.join("history.db");
 
@@ -134,6 +138,10 @@ mod tests {
         // Verify processed
         let processed = is_file_processed(&db, path, size, modified).unwrap();
         assert!(processed);
+
+        // Verify different size or modified time returns false
+        assert!(!is_file_processed(&db, path, size + 1, modified).unwrap());
+        assert!(!is_file_processed(&db, path, size, modified + 1).unwrap());
     }
 
     #[test]
@@ -166,5 +174,25 @@ mod tests {
 
         clear_history(&db).unwrap();
         assert_eq!(get_history_count(&db).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_init_db_at_path() {
+        let temp_dir = std::env::temp_dir().join(format!(
+            "mkv_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let conn = init_db_at_path(&temp_dir).expect("Failed to initialize db at temp path");
+
+        let version: u32 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap_or(0);
+        assert_eq!(version, 1);
+
+        // Clean up
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 }

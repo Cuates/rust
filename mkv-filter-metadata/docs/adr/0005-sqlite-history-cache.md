@@ -12,8 +12,8 @@ Users often run batch processing on massive directories containing hundreds of g
 
 ## Decision
 
-We introduced a local SQLite database (using `rusqlite` bundled) to track the processing history. 
-Upon successful processing, the backend records the file's absolute path, original size, and last modified time. 
+We introduced a local SQLite database (using `rusqlite` bundled) to track the processing history.
+Upon successful processing, the backend records the file's absolute path, original size, and last modified time.
 When a directory is queued, the backend queries this database and automatically skips any file that matches an existing record and has not been modified since the record was created.
 
 ## Consequences

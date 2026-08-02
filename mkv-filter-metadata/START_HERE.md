@@ -10,8 +10,9 @@ Welcome to the **MKV Filter Metadata** project! This is a high-performance deskt
 ## 🏗️ Architecture at a Glance
 
 This project is a highly decoupled **pnpm monorepo**:
-- **Frontend (`/frontend`)**: SvelteKit (SPA mode), Svelte 5 Runes, Vite, and **Zod** for IPC payload validation. Features **strict >89% Unit Test Coverage** via Vitest.
-- **Backend (`/backend`)**: Tauri 2.0 and Rust, using `tauri-plugin-store` for configuration state persistence and `sysinfo` for adaptive system throttling (System Guard with startup grace period).
+
+- **Frontend (`/frontend`)**: SvelteKit (SPA mode), Svelte 5 Runes, Vite, and auto-generated **Specta/Zod** schemas for 100% strict IPC payload validation. Features **strict 100% Unit Test Coverage** via Vitest.
+- **Backend (`/backend`)**: Tauri 2.0 and Rust, using `tauri-plugin-store` for configuration state persistence and `sysinfo` for adaptive system throttling (System Guard with startup grace period). Features comprehensive code coverage via `cargo-llvm-cov`.
 - **Sidecars (`/backend/sidecars`)**: Embedded FFmpeg, FFprobe, and MKVMerge binaries for native processing without global system dependencies.
 - **Database**: SQLite (via `rusqlite`) for caching processed files and maintaining history.
 - **Storage-Aware Concurrency**: Dynamically clamps Remux stream-copying on mechanical drives (HDDs) to prevent physical head thrashing.

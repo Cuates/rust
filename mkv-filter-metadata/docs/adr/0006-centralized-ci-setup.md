@@ -19,17 +19,21 @@ Our GitHub Actions CI pipeline (`mkv-filter-metadata-ci.yml`) originally duplica
 ## Decision
 
 We decided to mimic the CI optimization pattern established in the `mkv-subtitle-converter` project:
+
 1. Extract all environment setup steps into a single GitHub Composite Action located at `.github/actions/mkv-filter-metadata-setup/action.yml`.
 2. Refactor all existing and future CI jobs to use this composite action, significantly reducing boilerplate.
 3. Update the sidecar cache key to dynamically include `${{ runner.os }}` and `${{ runner.arch }}` to securely isolate cached binaries per platform.
 4. Expand the CI test matrix to include `test-windows` and `test-macos` jobs, ensuring cross-platform stability for the Tauri backend.
+5. Provide headless Tauri UI test support for the Linux `ubuntu-latest` runner by automatically provisioning `libwebkit2gtk-4.1-dev` and wrapping tests inside `xvfb-action`.
 
 ## Consequences
 
 ### Positive
+
 * **Maintainability:** The main CI workflow file is drastically simplified. Updates to the environment setup only need to be made in one location.
 * **Cache Integrity:** Sidecar binaries are correctly cached per OS and architecture, preventing corrupted or mismatched binaries from breaking jobs on different runners.
 * **Coverage:** We now have automated testing on Windows and macOS in addition to Linux.
 
 ### Negative
+
 * **Complexity:** The CI pipeline is now split across multiple files, requiring contributors to understand how composite actions work when debugging setup failures.

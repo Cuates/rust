@@ -24,6 +24,21 @@ pub const FFMPEG_ARG_100M: &str = "100M";
 pub const FFMPEG_ARG_MAX_MUXING_QUEUE_SIZE: &str = "-max_muxing_queue_size";
 pub const FFMPEG_ARG_4096: &str = "4096";
 
+pub const SESSION_LOG_FILE: &str = "session.log";
+pub const SESSION_LOG_1_FILE: &str = "session.1.log";
+pub const SESSION_LOG_2_FILE: &str = "session.2.log";
+
+pub const CODEC_SUFFIX_NVENC: &str = "_nvenc";
+pub const CODEC_SUFFIX_AMF: &str = "_amf";
+pub const CODEC_SUFFIX_QSV: &str = "_qsv";
+pub const CODEC_SUFFIX_VIDEOTOOLBOX: &str = "_videotoolbox";
+
+pub const LOG_MSG_INIT_STREAM_COPY: &str =
+    "  | [INFO] Initializing primary stream copy protocol (FFmpeg)...";
+pub const LOG_MSG_ASS_CONVERSION_FAILED: &str = "  | [ERROR] ⚠️ ASS conversion retry also failed. Subtitle codec may be undecodable (e.g. WebVTT/none). File marked as failed.";
+pub const LOG_MSG_PIPELINE_ACTIVE: &str =
+    "Pipeline is already actively processing. Please wait for operations to conclude.";
+
 #[cfg(test)]
 mod tests {
     use super::*;

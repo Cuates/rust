@@ -19,10 +19,10 @@ When operating within the `MKV-Filter-Metadata` workspace, adhere to the followi
    - Use `tauri-plugin-store` for persistent configuration state; do not write custom JSON files for settings.
 
 3. **Type Safety & IPC:**
-   - Ensure all IPC payloads are validated with **Zod** schemas on the frontend and match corresponding Rust structs on the backend.
+   - Ensure all IPC payloads are validated with **Zod** schemas on the frontend. The schemas must be auto-generated from Rust structs using `cargo run --bin export_zod` (which utilizes `specta-zod`).
    - Rust enums (e.g., VideoCodec, ConversionMode) must serialize consistently to the frontend.
    - **No Magic Strings**: All Tauri command names, DOM events, and application constants must be imported from the centralized `frontend/src/lib/constants.ts` or `backend/src/constants.rs`. Do not hardcode strings.
-   - **Strict Typing**: Do not use `any` or `unknown` types in frontend mock payloads or event handlers. Always define and use proper TypeScript types.
+   - **Strict Typing**: Do not use `any` or `unknown` types in frontend mock payloads or event handlers. Always define and use proper TypeScript types imported from `frontend/src/lib/types.ts`.
 
 4. **Dependency Management:**
    - This is a `pnpm` workspace. Always use `pnpm` commands from the root directory when adding or managing dependencies (e.g., `pnpm add -D <package> --filter frontend`).

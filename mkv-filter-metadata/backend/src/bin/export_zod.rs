@@ -23,5 +23,7 @@ fn main() {
         "z.array(z.lazy(() => FileStatSchema))",
     );
 
-    std::fs::write("../frontend/src/lib/types.ts", zod_str).unwrap();
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let out_path = std::path::PathBuf::from(manifest_dir).join("../frontend/src/lib/types.ts");
+    std::fs::write(out_path, zod_str).unwrap();
 }

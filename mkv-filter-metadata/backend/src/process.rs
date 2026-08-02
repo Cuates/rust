@@ -804,4 +804,40 @@ mod tests {
         assert!(args2.contains(&"-crf".to_string()));
         assert!(args2.contains(&"20".to_string()));
     }
+
+    #[test]
+    fn test_video_codec_methods() {
+        use crate::models::{Preset, VideoCodec};
+
+        // is_software
+        assert!(VideoCodec::Libx264.is_software());
+        assert!(!VideoCodec::HevcNvenc.is_software());
+
+        // get_hwaccel_api
+        assert_eq!(VideoCodec::HevcNvenc.get_hwaccel_api(), "cuda");
+        assert_eq!(VideoCodec::H264Amf.get_hwaccel_api(), "d3d11va");
+        assert_eq!(VideoCodec::Av1Qsv.get_hwaccel_api(), "qsv");
+        assert_eq!(
+            VideoCodec::HevcVideotoolbox.get_hwaccel_api(),
+            "videotoolbox"
+        );
+        assert_eq!(VideoCodec::Libx265.get_hwaccel_api(), "auto");
+
+        // get_hardware_args
+        let nvenc_args = VideoCodec::HevcNvenc.get_hardware_args(&Preset::P4, "23");
+        assert!(nvenc_args.contains(&"-cq".to_string()));
+        assert!(nvenc_args.contains(&"23".to_string()));
+
+        let amf_args = VideoCodec::H264Amf.get_hardware_args(&Preset::Quality, "22");
+        assert!(amf_args.contains(&"-rc".to_string()));
+        assert!(amf_args.contains(&"cqp".to_string()));
+
+        let qsv_args = VideoCodec::Av1Qsv.get_hardware_args(&Preset::Default, "24");
+        assert!(qsv_args.contains(&"-q".to_string()));
+        assert!(qsv_args.contains(&"24".to_string()));
+
+        let vt_args = VideoCodec::HevcVideotoolbox.get_hardware_args(&Preset::Default, "25");
+        assert!(vt_args.contains(&"-q:v".to_string()));
+        assert!(vt_args.contains(&"25".to_string()));
+    }
 }

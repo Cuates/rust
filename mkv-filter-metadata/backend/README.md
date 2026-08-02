@@ -11,7 +11,7 @@ This directory contains the Tauri v2 / Rust native system execution backend laye
 
 ### Processing Flow
 
-```
+```text
 Input Directory
   → Walk directory tree (recursive)
   → Filter by file extension
@@ -32,6 +32,7 @@ Input Directory
 ### Abort & Cleanup Protocol
 
 When the user clicks "Stop Execution" or closes the window mid-pipeline:
+
 1. The `tokio_util::sync::CancellationToken` is signaled to broadcast abort across all asynchronous tasks.
 2. The active FFmpeg child process is forcefully killed.
 3. The partially written output file is deleted from disk.
@@ -40,7 +41,7 @@ When the user clicks "Stop Execution" or closes the window mid-pipeline:
 ### Supported Video Encoders
 
 | Encoder | Hardware | Presets |
-|---------|----------|---------|
+| --------- | ---------- | --------- |
 | `libx264` | CPU (Software) | ultrafast → veryslow |
 | `libx265` | CPU (Software) | ultrafast → veryslow |
 | `hevc_nvenc` | NVIDIA GPU | p1 → p7 |
@@ -58,6 +59,16 @@ When the user clicks "Stop Execution" or closes the window mid-pipeline:
 
 ---
 
+## Type Safety & IPC
+
+To ensure the frontend SvelteKit application and the native Rust backend remain perfectly synchronized, the `src/bin/export_zod.rs` binary leverages `specta` and `specta-zod` to automatically export Rust structs (e.g., `ProcessFileContext`, `VideoCodec`, `ConversionMode`) into perfectly matched Zod schemas and TypeScript interfaces located at `frontend/src/lib/types.ts`.
+
+## Backend Testing
+
+Comprehensive backend unit testing is implemented across core logic modules (`commands.rs`, `process.rs`, `history.rs`) using `cargo test`. Code coverage is tracked aggressively using `cargo-llvm-cov` to ensure edge cases in string validation, argument building, and configuration mapping are robustly verified.
+
+---
+
 ## Configuration & Capabilities
 
 ### `tauri.conf.json`
@@ -67,6 +78,7 @@ Defines the application window, CSP security policy, sidecar binaries, bundle ta
 ### `capabilities/default.json`
 
 Tauri v2's capability-based security model. The application requests only the permissions it needs:
+
 - `core:default` — Basic Tauri runtime
 - `dialog:allow-open`, `dialog:allow-save` — File/folder picker dialogs
 - `shell:allow-execute` — Sidecar binary execution (FFmpeg, FFprobe, MKVMerge)

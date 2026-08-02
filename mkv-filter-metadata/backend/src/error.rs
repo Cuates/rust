@@ -1,10 +1,10 @@
 use serde::{Serialize, Serializer};
 use thiserror::Error;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Serialize)]
 pub enum AppError {
     #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
+    Io(#[serde(serialize_with = "serialize_io_error")] std::io::Error),
     #[error("Sidecar error: {0}")]
     Sidecar(String),
     #[error("Pipeline aborted by user")]
@@ -15,14 +15,11 @@ pub enum AppError {
     Process(String),
 }
 
-// Serialize the error as a standard string for the Tauri frontend
-impl Serialize for AppError {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
+fn serialize_io_error<S>(error: &std::io::Error, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&error.to_string())
 }
 
 #[cfg(test)]
@@ -32,27 +29,24 @@ mod tests {
     #[test]
     fn test_error_serialization() {
         let err = AppError::Aborted;
-        assert_eq!(
-            serde_json::to_string(&err).unwrap(),
-            "\"Pipeline aborted by user\""
-        );
+        assert_eq!(serde_json::to_string(&err).unwrap(), "\"Aborted\"");
 
         let err2 = AppError::Sidecar("failed".to_string());
         assert_eq!(
             serde_json::to_string(&err2).unwrap(),
-            "\"Sidecar error: failed\""
+            "{\"Sidecar\":\"failed\"}"
         );
 
         let err3 = AppError::FfprobeFailed("broken".to_string());
         assert_eq!(
             serde_json::to_string(&err3).unwrap(),
-            "\"FFprobe failure: broken\""
+            "{\"FfprobeFailed\":\"broken\"}"
         );
 
         let err4 = AppError::Process("err".to_string());
         assert_eq!(
             serde_json::to_string(&err4).unwrap(),
-            "\"Process error: err\""
+            "{\"Process\":\"err\"}"
         );
 
         let err5 = AppError::Io(std::io::Error::new(
@@ -61,7 +55,7 @@ mod tests {
         ));
         assert_eq!(
             serde_json::to_string(&err5).unwrap(),
-            "\"IO error: not found\""
+            "{\"Io\":\"not found\"}"
         );
     }
 }

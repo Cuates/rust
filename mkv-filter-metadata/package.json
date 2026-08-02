@@ -1,23 +1,26 @@
 {
   "name": "mkv-filter-metadata",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "type": "module",
   "scripts": {
     "generate:types": "cargo run --manifest-path backend/Cargo.toml --bin export_zod",
     "prebuild": "node scripts/download-sidecars.mjs",
     "build": "tauri build",
-    "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml",
+    "check": "pnpm -F frontend check && cargo check --manifest-path backend/Cargo.toml && pnpm lint:md",
     "check:deadcode": "pnpm -F frontend exec knip && cargo clippy --manifest-path backend/Cargo.toml -- -D dead_code",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm dlx rimraf node_modules frontend/node_modules && pnpm install",
     "dev": "tauri dev",
-    "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
+    "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings && pnpm lint:md:fix",
+    "lint:md": "markdownlint \"**/*.md\" --ignore node_modules --ignore target",
+    "lint:md:fix": "markdownlint \"**/*.md\" --ignore node_modules --ignore target --fix",
     "app-info": "tauri info",
-    "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
+    "audit": "pnpm audit && cargo audit --file backend/Cargo.lock",
     "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
     "test:coverage": "pnpm -F frontend coverage && cargo llvm-cov --manifest-path backend/Cargo.toml --all-features --workspace --lcov --output-path lcov.info"
   },
   "license": "MIT",
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.4"
+    "@tauri-apps/cli": "^2.11.4",
+    "markdownlint-cli": "^0.49.1"
   }
 }

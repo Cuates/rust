@@ -22,7 +22,7 @@ We will adopt a decentralized documentation structure, mirroring the architectur
 
 1. **Root `README.md`**: Condenses into an executive summary and serves as a directory hub linking to specific domain documentation.
 2. **`docs/` Directory**: Contains overarching architectural documentation broken into logical chunks (`architecture.md`, `scaffolding.md`, `distribution.md`, `troubleshooting.md`).
-3. **Workspace Specific READMEs**: 
+3. **Workspace Specific READMEs**:
    - `frontend/README.md`: Contains Svelte, Vite, and UI-specific documentation.
    - `backend/README.md`: Contains Tauri, Rust, and pipeline execution documentation.
 

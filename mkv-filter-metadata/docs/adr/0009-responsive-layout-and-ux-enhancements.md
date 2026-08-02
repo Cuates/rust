@@ -8,15 +8,18 @@ author: "Antigravity (AI Assistant)"
 # ADR 0009: Responsive Layout and UX Enhancements
 
 ## Context
-The previous user interface design functioned perfectly but lacked modern UI paradigms, dynamic responsive behaviour at intermediate window widths, and persistent component mounting. As the application handles heavy video transcoding workloads, the UI needs to reflect a robust, desktop-class experience. 
+
+The previous user interface design functioned perfectly but lacked modern UI paradigms, dynamic responsive behaviour at intermediate window widths, and persistent component mounting. As the application handles heavy video transcoding workloads, the UI needs to reflect a robust, desktop-class experience.
 
 Specifically:
+
 - The main window layout shifted abruptly at a single hardcoded media query.
 - The `MetricsPanel` conditionally mounted/unmounted via Svelte `{#if}` blocks, causing jarring layout shifts when a transcoding pipeline started.
 - Adding custom pipeline presets involved modifying the underlying JSON files or dealing with rigid configuration states.
 - Power users requested a way to quickly execute application commands without relying solely on click navigation.
 
 ## Decision
+
 We have overhauled the frontend architecture to utilize CSS Container Queries, persistent component states, and a command-palette pattern.
 
 1. **Three-Tier Container Breakpoints:**
@@ -40,6 +43,7 @@ We have overhauled the frontend architecture to utilize CSS Container Queries, p
    - The primary mitigation for the severe memory leaks and CPU stuttering was shifting the log filtering to the backend. Instead of emitting every raw stdout/stderr line from FFmpeg and MKVMerge across the IPC bridge, the backend now silently parses those streams and only emits structured progress events, status updates, and errors. This drastically reduces IPC overhead and DOM thrashing. The frontend maintains a 1,000-line buffer for these cleaned events, with full raw logs saved strictly to disk (`session.log`).
 
 ## Consequences
+
 - **Positive:** The UI is significantly more stable. Layout shifting during start/stop pipeline events is eliminated. The app feels like a premium, native desktop utility. Keyboard-centric power users have a path for future expansion (Command Palette).
 - **Negative:** Increased CSS complexity due to heavy reliance on `container-type: inline-size`. Component internal state logic (like `MetricsPanel`) is slightly more intricate since it handles 3 phases instead of just a binary active/inactive state.
 - **Testing Constraints:** Frontend tests had to be heavily rewritten to accommodate Svelte 5 `$derived` state updates (which cannot be mutated directly) and the new DOM accessibility structures.
