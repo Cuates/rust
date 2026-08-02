@@ -32,7 +32,6 @@
     "@testing-library/svelte": "^5.4.2",
     "@types/node": "^25.9.5",
     "@vitest/coverage-v8": "^4.1.10",
-    "cookie": "0.6.0",
     "eslint": "^10.8.0",
     "eslint-plugin-svelte": "^3.22.0",
     "globals": "^17.8.0",

@@ -19,7 +19,7 @@ minimumReleaseAgeExclude:
   - '@tauri-apps/cli-win32-x64-msvc@2.11.3'
   - '@tauri-apps/cli@2.11.3'
 overrides:
-  cookie: ">=0.7.0"
+  cookie: "0.6.0"
   esbuild: "^0.28.1"
   serialize-javascript: "^7.0.5"
   undici: "^7.28.0"
