@@ -67,15 +67,14 @@ git commit --amend --no-edit
 ## ❌ Issue: `pnpm run audit` or `cargo audit` fails in CI
 
 - **Cause:** A dependency (direct or transitive) has a known published vulnerability. The CI `Dependency Audit` gate blocks PRs with unresolved advisories.
-- **Resolution (frontend):** Run `pnpm update -r` to apply latest minor/patch bumps, or add an override in `frontend/package.json`:
+- **Resolution (frontend):** Run `pnpm update -r` to apply latest minor/patch bumps, or add a strict override at the root in `pnpm-workspace.yaml`:
 
-```json
-"pnpm": {
-  "overrides": {
-    "vulnerable-package": ">=safe-version"
-  }
-}
+```yaml
+overrides:
+  "vulnerable-package": "~safe-version"
 ```
+
+*Note: As of pnpm v9+, overrides should be placed in `pnpm-workspace.yaml`, not `package.json`, to ensure they apply uniformly across the workspace and prevent nested dependency conflicts.*
 
 - **Resolution (backend):** Run `cargo update` from `backend/` to pull the latest compatible patch versions. If a transitive dependency has no fix yet, add it to `backend/.cargo/audit.toml` as an ignored advisory with justification.
 

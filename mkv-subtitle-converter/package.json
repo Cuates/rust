@@ -10,7 +10,7 @@
     "check:deadcode": "pnpm -F frontend exec knip && cargo clippy --manifest-path backend/Cargo.toml -- -D dead_code",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm dlx rimraf node_modules frontend/node_modules && pnpm install",
     "dev": "tauri dev",
-    "generate:types": "cargo run --manifest-path backend/Cargo.toml --bin export_zod",
+    "generate:types": "cargo run --manifest-path backend/Cargo.toml --bin export_zod && pnpm -F frontend exec prettier --write src/lib/types/ipc.ts",
     "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
     "lint:md": "markdownlint \"**/*.md\" --ignore \"**/node_modules/**\" --ignore \"**/target/**\"",
     "lint:md:fix": "markdownlint \"**/*.md\" --ignore \"**/node_modules/**\" --ignore \"**/target/**\" --fix",
@@ -29,6 +29,7 @@
       "onFail": "download"
     }
   },
+
   "type": "module",
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",

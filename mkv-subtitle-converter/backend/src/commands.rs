@@ -1129,7 +1129,15 @@ mod tests {
 
         let (tx, mut rx) = tokio::sync::mpsc::channel(1);
         let on_progress = tauri::ipc::Channel::new(move |payload| {
-            let data = serde_json::from_str::<crate::models::IpcPayloadData>(&payload).unwrap();
+            let data = match &payload {
+                tauri::ipc::InvokeResponseBody::Json(s) => {
+                    serde_json::from_str::<crate::models::IpcPayloadData>(s).unwrap()
+                }
+                tauri::ipc::InvokeResponseBody::Raw(b) => {
+                    serde_json::from_slice::<crate::models::IpcPayloadData>(b).unwrap()
+                }
+                _ => panic!("Unknown payload variant"),
+            };
             let _ = tx.blocking_send(data);
             Ok(())
         });

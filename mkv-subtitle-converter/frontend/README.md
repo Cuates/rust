@@ -62,10 +62,10 @@ Frontend tests use **Vitest** with **@testing-library/svelte** in a `jsdom` envi
 
 ### Scripts
 
-| Command                      | Description                                                       |
-| ---------------------------- | ----------------------------------------------------------------- |
+| Command                      | Description                                                     |
+| ---------------------------- | --------------------------------------------------------------- |
 | `pnpm -F frontend test:unit` | Run all unit tests once (with `svelte-kit sync` prefix for CI). |
-| `pnpm -F frontend coverage`  | Run tests with V8 coverage report generation.                    |
+| `pnpm -F frontend coverage`  | Run tests with V8 coverage report generation.                   |
 
 ### Coverage Thresholds
 

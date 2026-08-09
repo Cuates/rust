@@ -17,7 +17,7 @@ We are implementing an automated type generation pipeline using `specta` and `sp
 - **Source of Truth**: Rust structs in `models.rs` annotated with `#[derive(specta::Type)]` act as the single source of truth for IPC schemas.
 - **Generator**: A new CLI binary at `backend/src/bin/export_zod.rs` is responsible for building a Specta type registry and outputting TypeScript Zod schemas.
 - **Output**: The generated file is placed at `frontend/src/lib/types/ipc.ts`. This file is marked as read-only for developers.
-- **Command Integration**: We mapped a unified root command `pnpm run generate:types` to execute the generator.
+- **Command Integration**: We mapped a unified root command `pnpm run generate:types` to execute the generator and subsequently run `prettier` to format the typescript file and prevent unformatted drift.
 - **CI Enforcement**: The GitHub Actions CI pipeline now includes a step in the `Lint & Check` job that runs `generate:types` and strictly checks for uncommitted changes using `git diff --exit-code`. This blocks any pull request where a developer changed a Rust model but forgot to sync the IPC types.
 
 ## Consequences

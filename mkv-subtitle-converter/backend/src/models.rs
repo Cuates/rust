@@ -5,7 +5,7 @@ use std::path::PathBuf;
 // IPC Payload Types
 // -----------------------------------------------------------------------------
 
-#[derive(Clone, Serialize, specta::Type)]
+#[derive(Clone, Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "type", content = "payload", rename_all = "camelCase")]
 pub enum IpcPayloadData {
     StartedScanned {
