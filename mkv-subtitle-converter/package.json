@@ -1,6 +1,6 @@
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -10,9 +10,12 @@
     "check:deadcode": "pnpm -F frontend exec knip && cargo clippy --manifest-path backend/Cargo.toml -- -D dead_code",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm dlx rimraf node_modules frontend/node_modules && pnpm install",
     "dev": "tauri dev",
+    "generate:types": "cargo run --manifest-path backend/Cargo.toml --bin export_zod",
     "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
+    "lint:md": "markdownlint \"**/*.md\" --ignore \"**/node_modules/**\" --ignore \"**/target/**\"",
+    "lint:md:fix": "markdownlint \"**/*.md\" --ignore \"**/node_modules/**\" --ignore \"**/target/**\" --fix",
     "app-info": "tauri info",
-    "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
+    "audit": "pnpm audit && cd backend && cargo audit",
     "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
     "test:coverage": "pnpm -F frontend coverage && cargo llvm-cov --manifest-path backend/Cargo.toml --all-features --workspace --lcov --output-path lcov.info"
   },
@@ -28,6 +31,7 @@
   },
   "type": "module",
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.3"
+    "@tauri-apps/cli": "^2.11.4",
+    "markdownlint-cli": "^0.49.1"
   }
 }

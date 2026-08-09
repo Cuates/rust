@@ -32,7 +32,10 @@ rust-monorepo-root/
     │       ├── 0005-composite-action-ci-cd.md
     │       ├── 0006-svelte-kit-sync-in-tests.md
     │       ├── 0007-ci-test-deduplication.md
-    │       └── 0008-github-actions-release-pipeline.md
+    │       ├── 0008-github-actions-release-pipeline.md
+    │       ├── 0009-specta-ipc-type-generation.md
+    │       └── 0010-vitest-coverage-thresholds.md
+    ├── .markdownlint.json             # Markdown lint rule config
     ├── CHANGELOG.md                   # Version history and release notes
     ├── CONTRIBUTING.md                # Developer contribution guidelines
     ├── README.md                      # Architecture and setup documentation
@@ -46,6 +49,7 @@ rust-monorepo-root/
     │   └── generate-hashes.mjs
     ├── frontend/                      # Decoupled Webview Client (SvelteKit / Svelte 5)
     │   ├── README.md                  # Frontend layer documentation
+    │   ├── knip.json                  # Dead-code analysis configuration
     │   ├── package.json
     │   ├── .prettierignore            # Formatter exclusion rules
     │   ├── .prettierrc                # Prettier formatting config
@@ -61,9 +65,11 @@ rust-monorepo-root/
     │   │   └── vite.svg
     │   └── src/
     │       ├── lib/                   # Reusable UI components, stores, and utilities
-    │       │   ├── components/
-    │       │   ├── stores/
-    │       │   ├── utils/
+    │       │   ├── components/        # Svelte UI components and their test files
+    │       │   ├── stores/            # Svelte 5 Rune-based global state stores
+    │       │   ├── utils/             # Pure utility functions
+    │       │   ├── types/
+    │       │   │   └── ipc.ts         # Auto-generated Zod schemas (from specta; DO NOT EDIT)
     │       │   ├── constants.ts       # Frontend constants
     │       │   └── types.ts           # Shared TypeScript interfaces
     │       ├── styles/                # Global SCSS styling architecture
@@ -90,10 +96,11 @@ rust-monorepo-root/
             ├── lib.rs                 # Application lib and main tauri builder
             ├── commands.rs            # IPC definitions and backend actions
             ├── process.rs             # Transcoding and streaming thread logic
-            ├── models.rs              # Data models, structs, and payloads
+            ├── models.rs              # Data models, structs, and Specta-typed payloads
             ├── history.rs             # Processing history report generator
-            ├── constants.rs           # Static constants and configurations
-            └── error.rs               # Application error structures
+            ├── error.rs               # Application error structures
+            └── bin/
+                └── export_zod.rs      # CLI binary: generates frontend/src/lib/types/ipc.ts from Rust structs
 ```
 
 ## Monorepo Root Configurations
@@ -113,7 +120,7 @@ packages:
 ```json
 {
   "name": "mkv-subtitle-extractor-converter-rust",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -123,9 +130,12 @@ packages:
     "check:deadcode": "pnpm -F frontend exec knip && cargo clippy --manifest-path backend/Cargo.toml -- -D dead_code",
     "clean": "cargo clean --manifest-path backend/Cargo.toml && pnpm dlx rimraf node_modules frontend/node_modules && pnpm install",
     "dev": "tauri dev",
+    "generate:types": "cargo run --manifest-path backend/Cargo.toml --bin export_zod",
     "fix": "pnpm -F frontend format && pnpm -F frontend lint --fix && cargo fmt --manifest-path backend/Cargo.toml && cargo clippy --manifest-path backend/Cargo.toml --fix --allow-dirty --allow-staged -- -D warnings",
+    "lint:md": "markdownlint \"**/*.md\" --ignore \"**/node_modules/**\" --ignore \"**/target/**\"",
+    "lint:md:fix": "markdownlint \"**/*.md\" --ignore \"**/node_modules/**\" --ignore \"**/target/**\" --fix",
     "app-info": "tauri info",
-    "audit": "pnpm audit && cargo audit --manifest-path backend/Cargo.toml",
+    "audit": "pnpm audit && cd backend && cargo audit",
     "test": "pnpm -F frontend test:unit --run && cargo test --manifest-path backend/Cargo.toml",
     "test:coverage": "pnpm -F frontend coverage && cargo llvm-cov --manifest-path backend/Cargo.toml --all-features --workspace --lcov --output-path lcov.info"
   },
@@ -141,7 +151,8 @@ packages:
   },
   "type": "module",
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.3"
+    "@tauri-apps/cli": "^2.11.4",
+    "markdownlint-cli": "^0.49.1"
   }
 }
 ```

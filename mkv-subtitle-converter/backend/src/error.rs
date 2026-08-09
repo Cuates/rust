@@ -5,14 +5,14 @@ use thiserror::Error;
 pub enum AppError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-    #[error("Sidecar error: {0}")]
-    Sidecar(String),
+    #[error("Sidecar '{binary}' error: {message}")]
+    Sidecar { binary: String, message: String },
     #[error("Pipeline aborted by user")]
     Aborted,
-    #[error("FFprobe failure: {0}")]
-    FfprobeFailed(String),
-    #[error("Process error: {0}")]
-    Process(String),
+    #[error("FFprobe failure for '{file}': {message}")]
+    FfprobeFailed { file: String, message: String },
+    #[error("Process error: {message}")]
+    Process { message: String },
 }
 
 /// Serialize the error as a plain string for the Tauri frontend IPC layer.
@@ -37,19 +37,27 @@ mod tests {
             "\"Pipeline aborted by user\""
         );
 
-        let err2 = AppError::Sidecar("failed".to_string());
+        let err2 = AppError::Sidecar {
+            binary: "ffmpeg".into(),
+            message: "failed".into(),
+        };
         assert_eq!(
             serde_json::to_string(&err2).unwrap(),
-            "\"Sidecar error: failed\""
+            "\"Sidecar 'ffmpeg' error: failed\""
         );
 
-        let err3 = AppError::FfprobeFailed("broken".to_string());
+        let err3 = AppError::FfprobeFailed {
+            file: "test.mkv".into(),
+            message: "broken".into(),
+        };
         assert_eq!(
             serde_json::to_string(&err3).unwrap(),
-            "\"FFprobe failure: broken\""
+            "\"FFprobe failure for 'test.mkv': broken\""
         );
 
-        let err4 = AppError::Process("err".to_string());
+        let err4 = AppError::Process {
+            message: "err".into(),
+        };
         assert_eq!(
             serde_json::to_string(&err4).unwrap(),
             "\"Process error: err\""

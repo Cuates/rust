@@ -1,5 +1,4 @@
 pub mod commands;
-pub mod constants;
 pub mod error;
 pub mod history;
 pub mod models;
@@ -7,6 +6,9 @@ pub mod process;
 
 use crate::models::AppState;
 use tauri::{Emitter, Manager};
+
+/// Tauri event emitted when the SQLite history database fails to initialize.
+pub const EVENT_DB_INIT_FAILED: &str = "db-init-failed";
 
 pub fn app_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Builder<R> {
     builder
@@ -37,7 +39,7 @@ pub fn app_builder<R: tauri::Runtime>(builder: tauri::Builder<R>) -> tauri::Buil
                 }
                 Err(e) => {
                     tracing::error!("Failed to initialize history database: {:?}", e);
-                    let _ = handle.emit(crate::constants::EVENT_DB_INIT_FAILED, e.to_string());
+                    let _ = handle.emit(EVENT_DB_INIT_FAILED, e.to_string());
                 }
             }
 

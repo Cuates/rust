@@ -27,7 +27,8 @@
   } from '$lib/stores/pipeline.svelte';
   import { registerShortcut } from '$lib/stores/shortcuts.svelte';
 
-  import { FileProcessedDataSchema, FinishedDataSchema } from '$lib/types';
+  import { FinishedDataSchema } from '$lib/types';
+  import type { IpcPayloadData } from '$lib/types/ipc';
   import {
     CMD_PROCESS_MKV_DIRECTORY,
     CMD_ABORT_PROCESSING,
@@ -222,36 +223,20 @@
 
     startPipelineTimer();
 
-    const channel = new Channel<{ event: string; data: unknown }>();
+    const channel = new Channel<IpcPayloadData>();
 
     channel.onmessage = (payload) => {
-      const { event, data } = payload;
-
-      if (event === 'StartedScanned') {
-        const payloadData = data as {
-          total_count?: number;
-          folder_counts?: Record<string, number>;
-        };
-        if (typeof data === 'number') {
-          handleStartedScanned(data);
-        } else if (payloadData && typeof payloadData.total_count === 'number') {
-          handleStartedScanned(payloadData.total_count, payloadData.folder_counts);
-        }
-      } else if (event === 'FileProcessed') {
-        const parsed = FileProcessedDataSchema.safeParse(data);
-        if (parsed.success) {
-          handleFileProcessed(
-            parsed.data.processed,
-            parsed.data.converted,
-            parsed.data.root_directory
-          );
-        }
-      } else if (event === 'FolderStatusUpdate') {
-        const payloadData = data as { folder?: string; status?: string };
-        if (payloadData && payloadData.folder && payloadData.status) {
-          handleFolderStatusUpdate(payloadData.folder, payloadData.status);
-        }
-      } else if (event === 'Cancelled') {
+      if (payload.type === 'startedScanned') {
+        handleStartedScanned(payload.payload.totalCount, payload.payload.folderCounts);
+      } else if (payload.type === 'fileProcessed') {
+        handleFileProcessed(
+          payload.payload.processed,
+          payload.payload.converted,
+          payload.payload.rootDirectory
+        );
+      } else if (payload.type === 'folderStatusUpdate') {
+        handleFolderStatusUpdate(payload.payload.folder, payload.payload.status);
+      } else if (payload.type === 'cancelled') {
         handleCancelled();
         toast.info('Processing was cancelled.');
       }

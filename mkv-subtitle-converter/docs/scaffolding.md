@@ -44,7 +44,7 @@ Modify **`frontend/package.json`**:
 {
   "name": "frontend",
   "private": true,
-  "version": "1.10.0"
+  "version": "1.11.0"
 }
 ```
 
@@ -54,7 +54,7 @@ Modify **`backend/package.json`**:
 {
   "name": "backend",
   "private": true,
-  "version": "1.10.0"
+  "version": "1.11.0"
 }
 ```
 
@@ -73,6 +73,12 @@ The main administrative orchestration runtime of Tauri v2 must exist at the work
 
 ```bash
 pnpm add -D @tauri-apps/cli -w
+```
+
+Also install `markdownlint-cli` at the root for project-wide markdown linting:
+
+```bash
+pnpm add -D markdownlint-cli -w
 ```
 
 This enables running commands like `pnpm dev` at the global root level, allowing the CLI to find individual configurations located deeper within the workspace structure.
@@ -94,12 +100,23 @@ The desktop application utilizes modular plugin crates to implement system sandb
 
 ```bash
 cd backend
-cargo add tauri-plugin-fs
 cargo add tauri-plugin-dialog
 cargo add tauri-plugin-opener
 cargo add tauri-plugin-shell
 cargo add indexmap serde serde_json chrono tokio regex rusqlite
+cargo add specta --features derive
+cargo add specta-zod specta-serde
 ```
+
+## Generating IPC Types
+
+This project uses `specta` + `specta-zod` to auto-generate TypeScript Zod schemas directly from Rust structs. After adding or modifying any structs in `backend/src/models.rs`, regenerate the frontend type file:
+
+```bash
+pnpm run generate:types
+```
+
+This runs `backend/src/bin/export_zod.rs` and writes the output to `frontend/src/lib/types/ipc.ts`. **Never edit `ipc.ts` manually** — it is overwritten on every run.
 
 ## Update Project Build Paths
 

@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0] - 2026-08-09
+
+### Added
+
+- **IPC Type Generation**: Added `specta` + `specta-zod` pipeline (`backend/src/bin/export_zod.rs`) to auto-generate Zod schemas from Rust structs, ensuring strict runtime type-safety across the Tauri IPC boundary.
+- **CI Sync Verification**: Added `Verify IPC Types are in Sync` step to the GitHub Actions CI pipeline to enforce that `frontend/src/lib/types/ipc.ts` is always regenerated and committed alongside any backend model changes.
+- **Dependency Audit CI Gate**: Added a `Dependency Audit` step (`pnpm run audit` + `cargo audit`) to the CI pipeline to block merges containing known vulnerabilities.
+
+### Changed
+
+- **Frontend Test Coverage**: Expanded unit test suites to cover `ReportModal.svelte`, `ConfirmationModal.svelte`, `AboutModal.svelte`, and `+page.svelte`. Achieved >90% statement, line, and function coverage. Branch coverage threshold set to 70% to accommodate Svelte 5 Rune compilation artifacts.
+- **Dead Code Analysis**: Integrated `knip` for frontend dead-code detection and `cargo clippy -D dead_code` for the Rust backend, both gated in the CI `Lint & Check` job.
+- **TypeScript Strict Typing**: Replaced all `any` type usages in test files with strongly-typed `Channel<IpcPayloadData>` from `@tauri-apps/api/core`, eliminating `eslint-disable` suppressions.
+- **Markdown Linting**: Introduced `.markdownlint.json` project-wide config (disabling `MD013`, `MD024`, `MD033`, `MD041`) and added `pnpm run lint:md` / `lint:md:fix` scripts.
+
+### Fixed
+
+- **Security**: Resolved frontend dependency vulnerabilities via `pnpm update -r` and forced `markdownlint-cli` upgrade. Resolved Rust `quick-xml` transitive vulnerability via `cargo update`.
+- **IPC Payload Typing**: Corrected `fileProcessed` payload shape in test mocks to include the required `fileCompleted` field, matching the Rust-generated Zod schema exactly.
+
 ## [1.10.0] - 2026-07-14
 
 ### Added

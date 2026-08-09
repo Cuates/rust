@@ -32,11 +32,22 @@ jobs:
       - name: Check for dead code
         run: pnpm run check:deadcode
 
+      - name: Verify IPC Types are in Sync
+        run: |
+          pnpm run generate:types
+          git diff --exit-code frontend/src/lib/types/ipc.ts || (echo "Types are out of sync! Please run 'pnpm run generate:types' and commit the changes." && exit 1)
+
       - name: Rust format check
         run: cargo fmt --manifest-path backend/Cargo.toml -- --check
 
       - name: Rust clippy
         run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
+
+      - name: Markdown lint
+        run: pnpm run lint:md
+
+      - name: Dependency Audit
+        run: pnpm run audit
 
   test:
     name: Test Coverage
@@ -55,7 +66,7 @@ jobs:
         uses: taiki-e/install-action@cargo-llvm-cov
 
       - name: Enforce test coverage
-        run: pnpm run test:coverage
+        run: xvfb-run pnpm run test:coverage
 
   build:
     name: Build Validation

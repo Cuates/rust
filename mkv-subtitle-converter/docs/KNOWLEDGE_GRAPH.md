@@ -35,8 +35,17 @@ sequenceDiagram
     
     %% Completion
     Backend->>SQLite: Log successful conversions
-    Backend-->>Frontend: emit("LogMessage", ProgressPayload)
+    Backend-->>Frontend: emit("LogMessage", IpcPayloadData)
     Frontend-->>User: Display Progress UI
+```
+
+## IPC Type Generation Pipeline
+
+```mermaid
+graph LR
+    Models[backend/src/models.rs<br/>Rust Structs] -->|export_zod.rs| Specta(Specta + Specta-Zod)
+    Specta -->|pnpm run generate:types| Types[frontend/src/lib/types/ipc.ts<br/>Zod Schemas]
+    Types --> Frontend[SvelteKit Frontend]
 ```
 
 ## CI/CD Pipeline
@@ -58,7 +67,7 @@ graph TD
     
     Dispatch --> Composite Action
     
-    Composite Action --> Lint[Lint & Check]
+    Composite Action --> Lint[Lint & Check <br/> + IPC Sync Verification <br/> + Dependency Audit]
     Composite Action --> TestUbuntu[Coverage Ubuntu <br/> Single Execution]
     Composite Action --> TestWin[Test Windows]
     Composite Action --> TestMac[Test macOS]

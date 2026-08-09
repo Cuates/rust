@@ -1,0 +1,3 @@
+{
+  "ignore": ["src/lib/types/ipc.ts"]
+}

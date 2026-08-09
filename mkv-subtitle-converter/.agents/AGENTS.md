@@ -11,6 +11,9 @@ When assisting with this project, adhere to the following rules:
 - **Frontend**: SvelteKit, Svelte 5 (Runes), SCSS, Vite. Located entirely in `frontend/`.
 - **Backend**: Tauri 2.0, Rust, Tokio. Located entirely in `backend/`.
 
+## IPC Type Synchronization
+- **Auto-Generation**: Never manually edit `frontend/src/lib/types/ipc.ts`. If you modify or add any structs in `backend/src/models.rs`, you must run `pnpm run generate:types` to regenerate the Zod schemas and commit the updated `ipc.ts` file. All backend payload models must derive `specta::Type`.
+
 ## Command Execution
 - Always use pnpm workspace filters when running commands from the root:
   - Example: `pnpm --filter frontend add <package>`

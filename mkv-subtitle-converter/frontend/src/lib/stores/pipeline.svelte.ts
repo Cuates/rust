@@ -97,7 +97,11 @@ export function handleStartedScanned(total: number, folderCounts?: Record<string
   }
 }
 
-export function handleFileProcessed(processed: number, converted: number, rootDir?: string): void {
+export function handleFileProcessed(
+  processed: number,
+  converted: number,
+  rootDir?: string | null
+): void {
   pipeline.filesProcessed = processed;
   pipeline.tracksConverted = converted;
   if (rootDir) {

@@ -1,4 +1,3 @@
-use serde_json::json;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -7,9 +6,11 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_shell::process::CommandEvent;
 
-use crate::constants::EVENT_PROCESS_LOG;
+/// Tauri event emitted for each log line sent to the frontend terminal.
+pub const EVENT_PROCESS_LOG: &str = "process-log";
+
 use crate::error::AppError;
-use crate::models::{AppState, ProgressPayload, SubtitleMetadata};
+use crate::models::{AppState, IpcPayloadData, SubtitleMetadata};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileOutcome {
@@ -261,7 +262,10 @@ pub struct SubtitleStream {
 
 pub fn parse_ffprobe_output(stdout: &[u8]) -> Result<Vec<SubtitleStream>, AppError> {
     let parsed: serde_json::Value =
-        serde_json::from_slice(stdout).map_err(|e| AppError::FfprobeFailed(e.to_string()))?;
+        serde_json::from_slice(stdout).map_err(|e| AppError::FfprobeFailed {
+            file: "unknown".into(),
+            message: e.to_string(),
+        })?;
 
     let mut streams = Vec::new();
     if let Some(arr) = parsed["streams"].as_array() {
@@ -326,7 +330,10 @@ pub async fn run_ffprobe_subtitle_streams<R: tauri::Runtime>(
     let sidecar = app
         .shell()
         .sidecar("ffprobe")
-        .map_err(|e| AppError::Sidecar(e.to_string()))?;
+        .map_err(|e| AppError::Sidecar {
+            binary: "ffprobe".into(),
+            message: e.to_string(),
+        })?;
 
     let output = sidecar
         .args([
@@ -342,7 +349,10 @@ pub async fn run_ffprobe_subtitle_streams<R: tauri::Runtime>(
         ])
         .output()
         .await
-        .map_err(|e| AppError::FfprobeFailed(e.to_string()))?;
+        .map_err(|e| AppError::FfprobeFailed {
+            file: file_path.to_string_lossy().into_owned(),
+            message: e.to_string(),
+        })?;
 
     parse_ffprobe_output(&output.stdout)
 }
@@ -362,7 +372,10 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
     let sidecar = app
         .shell()
         .sidecar("ffmpeg")
-        .map_err(|e| AppError::Sidecar(e.to_string()))?;
+        .map_err(|e| AppError::Sidecar {
+            binary: "ffmpeg".into(),
+            message: e.to_string(),
+        })?;
 
     let map_arg = format!("0:{}", stream_index);
     let mut args = vec![
@@ -376,10 +389,10 @@ pub async fn run_ffmpeg_extract_subtitle<R: tauri::Runtime>(
     args.push(output_srt.to_string_lossy().into_owned());
     let tracking_path = output_srt.to_path_buf();
 
-    let (mut rx, child) = sidecar
-        .args(args)
-        .spawn()
-        .map_err(|e| AppError::Sidecar(e.to_string()))?;
+    let (mut rx, child) = sidecar.args(args).spawn().map_err(|e| AppError::Sidecar {
+        binary: "ffmpeg".into(),
+        message: e.to_string(),
+    })?;
 
     {
         let state = app.state::<AppState>();
@@ -423,7 +436,7 @@ pub struct ProcessContext<'a, R: tauri::Runtime> {
     pub file_path: &'a Path,
     pub root_dir: &'a str,
     pub cancel_token: &'a tokio_util::sync::CancellationToken,
-    pub on_progress: &'a tauri::ipc::Channel<ProgressPayload>,
+    pub on_progress: &'a tauri::ipc::Channel<IpcPayloadData>,
     pub files_processed: &'a Arc<AtomicUsize>,
     pub tracks_converted: &'a Arc<AtomicUsize>,
     pub history_cache: &'a Arc<HistorySet>,
@@ -490,9 +503,11 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
         );
         let processed = files_processed.fetch_add(1, Ordering::Relaxed) + 1;
         let converted = tracks_converted.load(Ordering::Relaxed);
-        let _ = on_progress.send(ProgressPayload {
-            event: "FileProcessed".into(),
-            data: json!({ "processed": processed, "converted": converted }),
+        let _ = on_progress.send(IpcPayloadData::FileProcessed {
+            processed,
+            converted,
+            file_completed: None,
+            root_directory: None,
         });
         return Ok((Vec::new(), Vec::new(), FileOutcome::HistorySkipped));
     }
@@ -508,9 +523,11 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
             );
             let processed = files_processed.fetch_add(1, Ordering::Relaxed) + 1;
             let converted = tracks_converted.load(Ordering::Relaxed);
-            let _ = on_progress.send(ProgressPayload {
-                event: "FileProcessed".into(),
-                data: json!({ "processed": processed, "converted": converted }),
+            let _ = on_progress.send(IpcPayloadData::FileProcessed {
+                processed,
+                converted,
+                file_completed: None,
+                root_directory: None,
             });
             return Ok((
                 Vec::new(),
@@ -548,9 +565,11 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
         );
         let processed = files_processed.fetch_add(1, Ordering::Relaxed) + 1;
         let converted = tracks_converted.load(Ordering::Relaxed);
-        let _ = on_progress.send(ProgressPayload {
-            event: "FileProcessed".into(),
-            data: json!({ "processed": processed, "converted": converted }),
+        let _ = on_progress.send(IpcPayloadData::FileProcessed {
+            processed,
+            converted,
+            file_completed: None,
+            root_directory: None,
         });
         return Ok((Vec::new(), Vec::new(), FileOutcome::NoTracks));
     }
@@ -673,14 +692,11 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
                 );
 
                 let processed = files_processed.load(Ordering::Relaxed);
-                let _ = on_progress.send(ProgressPayload {
-                    event: "FileProcessed".into(),
-                    data: json!({
-                        "processed": processed,
-                        "converted": count,
-                        "file_completed": file_name.clone(),
-                        "root_directory": root_dir
-                    }),
+                let _ = on_progress.send(IpcPayloadData::FileProcessed {
+                    processed,
+                    converted: count,
+                    file_completed: Some(file_name.clone()),
+                    root_directory: Some(root_dir.to_string()),
                 });
 
                 conv_list.push(SubtitleMetadata {
@@ -727,14 +743,11 @@ pub async fn process_one_mkv_file<R: tauri::Runtime>(
 
     let processed = files_processed.fetch_add(1, Ordering::Relaxed) + 1;
     let converted = tracks_converted.load(Ordering::Relaxed);
-    let _ = on_progress.send(ProgressPayload {
-        event: "FileProcessed".into(),
-        data: json!({
-            "processed": processed,
-            "converted": converted,
-            "file_completed": file_name,
-            "root_directory": root_dir
-        }),
+    let _ = on_progress.send(IpcPayloadData::FileProcessed {
+        processed,
+        converted,
+        file_completed: Some(file_name),
+        root_directory: Some(root_dir.to_string()),
     });
 
     if !conv_list.is_empty() {

@@ -7,22 +7,24 @@ use tauri::Manager;
 pub fn init_db<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> std::result::Result<Connection, AppError> {
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| AppError::Process(format!("Failed to resolve app data directory: {}", e)))?;
+    let app_dir = app.path().app_data_dir().map_err(|e| AppError::Process {
+        message: format!("Failed to resolve app data directory: {}", e),
+    })?;
 
     if !app_dir.exists() {
         std::fs::create_dir_all(&app_dir).map_err(AppError::Io)?;
     }
 
     let db_path = app_dir.join("history.db");
-    let conn = Connection::open(&db_path)
-        .map_err(|e| AppError::Process(format!("Failed to open history database: {}", e)))?;
+    let conn = Connection::open(&db_path).map_err(|e| AppError::Process {
+        message: format!("Failed to open history database: {}", e),
+    })?;
 
     // Enable WAL mode for better concurrent read performance.
     conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;")
-        .map_err(|e| AppError::Process(format!("Failed to configure WAL mode: {}", e)))?;
+        .map_err(|e| AppError::Process {
+            message: format!("Failed to configure WAL mode: {}", e),
+        })?;
 
     // Schema migration: version 0 → 1.
     let version: u32 = conn
@@ -38,10 +40,14 @@ pub fn init_db<R: tauri::Runtime>(
             )",
             [],
         )
-        .map_err(|e| AppError::Process(format!("Failed to create history table: {}", e)))?;
+        .map_err(|e| AppError::Process {
+            message: format!("Failed to create history table: {}", e),
+        })?;
 
         conn.execute_batch("PRAGMA user_version = 1;")
-            .map_err(|e| AppError::Process(format!("Failed to set schema version: {}", e)))?;
+            .map_err(|e| AppError::Process {
+                message: format!("Failed to set schema version: {}", e),
+            })?;
     }
 
     Ok(conn)
@@ -59,16 +65,17 @@ pub fn is_file_processed(
         .prepare(
             "SELECT original_size, modified_timestamp FROM processed_files WHERE file_path = ?1",
         )
-        .map_err(|e| AppError::Process(format!("DB prepare error: {}", e)))?;
+        .map_err(|e| AppError::Process {
+            message: format!("DB prepare error: {}", e),
+        })?;
 
-    let mut rows = stmt
-        .query([path])
-        .map_err(|e| AppError::Process(format!("DB query error: {}", e)))?;
+    let mut rows = stmt.query([path]).map_err(|e| AppError::Process {
+        message: format!("DB query error: {}", e),
+    })?;
 
-    if let Some(row) = rows
-        .next()
-        .map_err(|e| AppError::Process(format!("DB row error: {}", e)))?
-    {
+    if let Some(row) = rows.next().map_err(|e| AppError::Process {
+        message: format!("DB row error: {}", e),
+    })? {
         let saved_size: u64 = row.get(0).unwrap_or(0);
         let saved_modified: u64 = row.get(1).unwrap_or(0);
         if saved_size == size && saved_modified == modified {
@@ -91,7 +98,9 @@ pub fn mark_file_processed(
          (file_path, original_size, modified_timestamp) VALUES (?1, ?2, ?3)",
         rusqlite::params![path, size, modified],
     )
-    .map_err(|e| AppError::Process(format!("DB insert error: {}", e)))?;
+    .map_err(|e| AppError::Process {
+        message: format!("DB insert error: {}", e),
+    })?;
     Ok(())
 }
 
@@ -101,17 +110,18 @@ pub fn load_cache(
 ) -> std::result::Result<std::collections::HashSet<(String, u64, u64)>, AppError> {
     let mut stmt = db
         .prepare("SELECT file_path, original_size, modified_timestamp FROM processed_files")
-        .map_err(|e| AppError::Process(format!("DB prepare error: {}", e)))?;
+        .map_err(|e| AppError::Process {
+            message: format!("DB prepare error: {}", e),
+        })?;
 
-    let mut rows = stmt
-        .query([])
-        .map_err(|e| AppError::Process(format!("DB query error: {}", e)))?;
+    let mut rows = stmt.query([]).map_err(|e| AppError::Process {
+        message: format!("DB query error: {}", e),
+    })?;
 
     let mut cache = std::collections::HashSet::new();
-    while let Some(row) = rows
-        .next()
-        .map_err(|e| AppError::Process(format!("DB row error: {}", e)))?
-    {
+    while let Some(row) = rows.next().map_err(|e| AppError::Process {
+        message: format!("DB row error: {}", e),
+    })? {
         let path: String = row.get(0).unwrap_or_default();
         let size: u64 = row.get(1).unwrap_or(0);
         let modified: u64 = row.get(2).unwrap_or(0);
@@ -126,20 +136,23 @@ pub fn flush_cache(
     db: &mut Connection,
     new_records: &std::collections::HashSet<(String, u64, u64)>,
 ) -> std::result::Result<(), AppError> {
-    let tx = db
-        .transaction()
-        .map_err(|e| AppError::Process(format!("DB transaction error: {}", e)))?;
+    let tx = db.transaction().map_err(|e| AppError::Process {
+        message: format!("DB transaction error: {}", e),
+    })?;
     {
         let mut stmt = tx
             .prepare("INSERT OR REPLACE INTO processed_files (file_path, original_size, modified_timestamp) VALUES (?1, ?2, ?3)")
-            .map_err(|e| AppError::Process(format!("DB prepare error: {}", e)))?;
+            .map_err(|e| AppError::Process { message: format!("DB prepare error: {}", e) })?;
         for (path, size, modified) in new_records {
             stmt.execute(rusqlite::params![path, size, modified])
-                .map_err(|e| AppError::Process(format!("DB insert error: {}", e)))?;
+                .map_err(|e| AppError::Process {
+                    message: format!("DB insert error: {}", e),
+                })?;
         }
     }
-    tx.commit()
-        .map_err(|e| AppError::Process(format!("DB commit error: {}", e)))?;
+    tx.commit().map_err(|e| AppError::Process {
+        message: format!("DB commit error: {}", e),
+    })?;
     Ok(())
 }
 
@@ -154,7 +167,9 @@ pub fn get_history_count(db: &Connection) -> std::result::Result<usize, AppError
 /// Removes all history entries, forcing every file to be re-processed on the next run.
 pub fn clear_history(db: &Connection) -> std::result::Result<(), AppError> {
     db.execute("DELETE FROM processed_files", [])
-        .map_err(|e| AppError::Process(format!("DB clear error: {}", e)))?;
+        .map_err(|e| AppError::Process {
+            message: format!("DB clear error: {}", e),
+        })?;
     Ok(())
 }
 

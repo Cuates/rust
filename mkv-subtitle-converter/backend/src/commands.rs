@@ -9,10 +9,12 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
 
-use crate::constants::*;
+/// Tauri event emitted when a large batch (>300 files) is detected.
+pub const EVENT_LARGE_BATCH_WARNING: &str = "large-batch-warning";
+
 use crate::error::AppError;
 use crate::models::{
-    AppState, DirectoryStats, FileStat, FolderReportStatus, ProgressPayload, SubtitleMetadata,
+    AppState, DirectoryStats, FileStat, FolderReportStatus, IpcPayloadData, SubtitleMetadata,
 };
 use crate::process::{
     FileOutcome, append_log, discover_mkv_files, flush_log_writer, process_one_mkv_file,
@@ -31,7 +33,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
     paths: Vec<String>,
     recursive: bool,
     concurrency: usize,
-    on_progress: Channel<ProgressPayload>,
+    on_progress: Channel<IpcPayloadData>,
 ) -> Result<serde_json::Value, AppError> {
     // --- Reset session state ---
     let cancel_token = {
@@ -80,12 +82,9 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         *folder_counts.entry(folder_path.clone()).or_insert(0) += 1;
     }
 
-    let _ = on_progress.send(ProgressPayload {
-        event: "StartedScanned".into(),
-        data: json!({
-            "total_count": total_count,
-            "folder_counts": folder_counts
-        }),
+    let _ = on_progress.send(IpcPayloadData::StartedScanned {
+        total_count,
+        folder_counts: folder_counts.clone(),
     });
     append_log(
         &app,
@@ -172,12 +171,9 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
             // H-4: Only announce folder processing once
             if !announced_folders.contains(folder_path) {
                 announced_folders.insert(folder_path.clone());
-                let _ = on_progress.send(ProgressPayload {
-                    event: "FolderStatusUpdate".into(),
-                    data: json!({
-                        "folder": folder_path,
-                        "status": "processing"
-                    }),
+                let _ = on_progress.send(IpcPayloadData::FolderStatusUpdate {
+                    folder: folder_path.clone(),
+                    status: "processing".into(),
                 });
             }
 
@@ -264,12 +260,9 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
     for path_str in &paths {
         if folder_counts.get(path_str).unwrap_or(&0) == &0 {
             folder_statuses.insert(path_str.clone(), "skipped");
-            let _ = on_progress.send(ProgressPayload {
-                event: "FolderStatusUpdate".into(),
-                data: json!({
-                    "folder": path_str,
-                    "status": "skipped"
-                }),
+            let _ = on_progress.send(IpcPayloadData::FolderStatusUpdate {
+                folder: path_str.clone(),
+                status: "skipped".into(),
             });
         }
     }
@@ -354,12 +347,9 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
 
                 folder_statuses.insert(folder_path.clone(), status);
 
-                let _ = on_progress.send(ProgressPayload {
-                    event: "FolderStatusUpdate".into(),
-                    data: json!({
-                        "folder": folder_path,
-                        "status": status
-                    }),
+                let _ = on_progress.send(IpcPayloadData::FolderStatusUpdate {
+                    folder: folder_path.clone(),
+                    status: status.into(),
                 });
             }
         }
@@ -407,10 +397,7 @@ pub async fn process_mkv_directory<R: tauri::Runtime>(
         );
         flush_log_writer(&app);
 
-        let _ = on_progress.send(ProgressPayload {
-            event: "Cancelled".into(),
-            data: json!("Interrupted."),
-        });
+        let _ = on_progress.send(IpcPayloadData::Cancelled("Interrupted.".into()));
     } else {
         let delta = start_instant.elapsed();
         let results_map = results.lock().await;
@@ -504,10 +491,9 @@ pub async fn abort_mkv_directory_processing(state: tauri::State<'_, AppState>) -
 pub fn show_item_in_folder(path: String) -> Result<(), AppError> {
     let path_buf = std::path::PathBuf::from(&path);
     if !path_buf.exists() {
-        return Err(AppError::Process(format!(
-            "The target path does not exist: {}",
-            path
-        )));
+        return Err(AppError::Process {
+            message: format!("The target path does not exist: {}", path),
+        });
     }
 
     #[cfg(target_os = "windows")]
@@ -517,7 +503,9 @@ pub fn show_item_in_folder(path: String) -> Result<(), AppError> {
         std::process::Command::new("explorer.exe")
             .raw_arg(format!("/select,\"{}\"", win_path))
             .spawn()
-            .map_err(|e| AppError::Process(format!("Windows Explorer failed: {}", e)))?;
+            .map_err(|e| AppError::Process {
+                message: format!("Windows Explorer failed: {}", e),
+            })?;
     }
 
     #[cfg(target_os = "macos")]
@@ -525,7 +513,9 @@ pub fn show_item_in_folder(path: String) -> Result<(), AppError> {
         std::process::Command::new("open")
             .args(["-R", &path_buf.to_string_lossy()])
             .spawn()
-            .map_err(|e| AppError::Process(e.to_string()))?;
+            .map_err(|e| AppError::Process {
+                message: e.to_string(),
+            })?;
     }
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -534,7 +524,9 @@ pub fn show_item_in_folder(path: String) -> Result<(), AppError> {
             std::process::Command::new("xdg-open")
                 .arg(parent.to_string_lossy().as_ref())
                 .spawn()
-                .map_err(|e| AppError::Process(e.to_string()))?;
+                .map_err(|e| AppError::Process {
+                    message: e.to_string(),
+                })?;
         }
     }
 
@@ -630,7 +622,9 @@ pub async fn get_directory_stats(
         }
     })
     .await
-    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))
+    .map_err(|e| AppError::Process {
+        message: format!("Task join error: {}", e),
+    })
 }
 
 // =============================================================================
@@ -655,13 +649,19 @@ pub async fn get_sidecar_version<R: tauri::Runtime>(
     let sidecar = app
         .shell()
         .sidecar(&binary_name)
-        .map_err(|e| AppError::Sidecar(format!("Sidecar '{}' not found: {}", binary_name, e)))?;
+        .map_err(|e| AppError::Sidecar {
+            binary: binary_name.clone(),
+            message: format!("Sidecar not found: {}", e),
+        })?;
 
     let output = sidecar
         .arg("-version")
         .output()
         .await
-        .map_err(|e| AppError::Sidecar(e.to_string()))?;
+        .map_err(|e| AppError::Sidecar {
+            binary: binary_name.clone(),
+            message: e.to_string(),
+        })?;
 
     Ok(parse_sidecar_version(&output.stdout))
 }
@@ -672,10 +672,9 @@ pub async fn get_sidecar_version<R: tauri::Runtime>(
 
 #[tauri::command]
 pub fn initialize_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
-    let log_dir = app
-        .path()
-        .app_log_dir()
-        .map_err(|e| AppError::Process(format!("Failed to resolve log directory: {}", e)))?;
+    let log_dir = app.path().app_log_dir().map_err(|e| AppError::Process {
+        message: format!("Failed to resolve log directory: {}", e),
+    })?;
 
     if !log_dir.exists() {
         std::fs::create_dir_all(&log_dir).map_err(AppError::Io)?;
@@ -690,10 +689,9 @@ pub fn initialize_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<()
         .map_err(AppError::Io)?;
 
     let state = app.state::<AppState>();
-    let mut guard = state
-        .log_writer
-        .lock()
-        .map_err(|e| AppError::Process(e.to_string()))?;
+    let mut guard = state.log_writer.lock().map_err(|e| AppError::Process {
+        message: e.to_string(),
+    })?;
     *guard = Some(crate::models::SessionLog {
         writer: std::io::BufWriter::new(file),
         bytes_written: 0,
@@ -716,10 +714,9 @@ pub async fn check_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<b
 #[tauri::command]
 pub async fn read_session_log<R: tauri::Runtime>(app: AppHandle<R>) -> Result<String, AppError> {
     flush_log_writer(&app);
-    let log_dir = app
-        .path()
-        .app_log_dir()
-        .map_err(|e| AppError::Process(format!("Failed to resolve log directory: {}", e)))?;
+    let log_dir = app.path().app_log_dir().map_err(|e| AppError::Process {
+        message: format!("Failed to resolve log directory: {}", e),
+    })?;
     let log_path = log_dir.join("session.log");
     tokio::fs::read_to_string(&log_path)
         .await
@@ -733,10 +730,9 @@ pub async fn save_log_file<R: tauri::Runtime>(
 ) -> Result<(), AppError> {
     flush_log_writer(&app);
 
-    let log_dir = app
-        .path()
-        .app_log_dir()
-        .map_err(|e| AppError::Process(format!("Failed to resolve log directory: {}", e)))?;
+    let log_dir = app.path().app_log_dir().map_err(|e| AppError::Process {
+        message: format!("Failed to resolve log directory: {}", e),
+    })?;
 
     let mut final_content = String::new();
 
@@ -744,7 +740,7 @@ pub async fn save_log_file<R: tauri::Runtime>(
     let rotations = ["session.2.log", "session.1.log", "session.log"];
     for rot in rotations {
         let rot_path = log_dir.join(rot);
-        if let Ok(content) = tokio::fs::read_to_string(&rot_path).await {
+        if let Ok(content) = std::fs::read_to_string(&rot_path) {
             final_content.push_str(&content);
             if !final_content.ends_with('\n') {
                 final_content.push('\n');
@@ -780,7 +776,9 @@ pub async fn get_history_count<R: tauri::Runtime>(app: AppHandle<R>) -> Result<u
         }
     })
     .await
-    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))?
+    .map_err(|e| AppError::Process {
+        message: format!("Task join error: {}", e),
+    })?
 }
 
 #[tauri::command]
@@ -797,7 +795,9 @@ pub async fn clear_processing_history<R: tauri::Runtime>(
         }
     })
     .await
-    .map_err(|e| AppError::Process(format!("Task join error: {}", e)))?
+    .map_err(|e| AppError::Process {
+        message: format!("Task join error: {}", e),
+    })?
 }
 
 // =============================================================================
@@ -809,7 +809,9 @@ pub fn open_folder<R: tauri::Runtime>(app: AppHandle<R>, path: String) -> Result
     use tauri_plugin_opener::OpenerExt;
     app.opener()
         .open_path(&path, None::<&str>)
-        .map_err(|e| AppError::Process(e.to_string()))
+        .map_err(|e| AppError::Process {
+            message: e.to_string(),
+        })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -1113,5 +1115,45 @@ mod tests {
 
         let saved_content = tokio::fs::read_to_string(&save_path).await.unwrap();
         assert!(saved_content.contains("test log message"));
+    }
+    #[tokio::test]
+    #[cfg(not(target_os = "windows"))]
+    async fn test_process_mkv_directory_empty() {
+        let builder = tauri::test::mock_builder();
+        let app = crate::app_builder(builder)
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+
+        let handle = app.app_handle();
+        let state = handle.state::<crate::models::AppState>();
+
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let on_progress = tauri::ipc::Channel::new(move |payload| {
+            let data = serde_json::from_str::<crate::models::IpcPayloadData>(&payload).unwrap();
+            let _ = tx.blocking_send(data);
+            Ok(())
+        });
+
+        // Test with empty path
+        let temp_dir = tempfile::tempdir().unwrap();
+        let paths = vec![temp_dir.path().to_string_lossy().into_owned()];
+
+        let result =
+            process_mkv_directory(handle.clone(), state.clone(), paths, false, 1, on_progress)
+                .await
+                .unwrap();
+
+        // With 0 files, it returns an empty payload
+        assert_eq!(result.get("success_file").unwrap().as_str().unwrap(), "");
+        assert_eq!(result.get("seconds").unwrap().as_u64().unwrap(), 0);
+
+        // Verify the initial scan event was sent
+        let msg = rx.recv().await.unwrap();
+        match msg {
+            crate::models::IpcPayloadData::StartedScanned { total_count, .. } => {
+                assert_eq!(total_count, 0);
+            }
+            _ => panic!("Expected StartedScanned event"),
+        }
     }
 }

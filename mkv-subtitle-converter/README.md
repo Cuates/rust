@@ -2,7 +2,7 @@
 
 [![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg)](https://github.com/Cuates/rust/graphs/commit-activity)
 [![CI Pipeline](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml/badge.svg)](https://github.com/Cuates/rust/actions/workflows/mkv-subtitle-converter-ci.yml)
-[![Version](https://img.shields.io/badge/version-1.10.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
+[![Version](https://img.shields.io/badge/version-1.11.0-blue.svg)](https://github.com/Cuates/rust/tree/main/mkv-subtitle-converter)
 [![Made with Rust](https://img.shields.io/badge/Made%20with-Rust-1f425f.svg)](https://www.rust-lang.org/)
 [![Made with Svelte](https://img.shields.io/badge/Made%20with-Svelte-ff3e00.svg)](https://svelte.dev/)
 [![Tauri](https://img.shields.io/badge/Tauri-2.0-24c8db.svg)](https://tauri.app/)
@@ -19,11 +19,12 @@ Built on top of a highly optimized **pnpm monorepo workspace architecture**, the
 For in-depth documentation, please refer to the specific files below:
 
 - [**Architecture & Tree Structure**](docs/architecture.md): Overview of the monorepo layout and workspace configurations.
-- [**Frontend Layer (SvelteKit)**](frontend/README.md): Details on the reactive Svelte 5 frontend and IPC communication.
-- [**Backend Layer (Rust)**](backend/README.md): Details on the Tauri backend and native operations.
-- [**Building for Distribution**](docs/distribution.md): Instructions for compiling production releases.
-- [**Troubleshooting**](docs/troubleshooting.md): Solutions to common errors and how to run the clean suite.
+- [**Frontend Layer (SvelteKit)**](frontend/README.md): Details on the reactive Svelte 5 frontend, IPC communication, and test coverage.
+- [**Backend Layer (Rust)**](backend/README.md): Details on the Tauri backend, native operations, and IPC type generation.
+- [**Building for Distribution**](docs/distribution.md): Instructions for compiling production releases and CI pre-flight checks.
+- [**Troubleshooting**](docs/troubleshooting.md): Solutions to common errors, audit failures, and how to run the clean suite.
 - [**Scaffolding Guide**](docs/scaffolding.md): A historical guide on how this workspace was initially configured from scratch.
+- [**Testing Guide**](TESTING.md): Frontend and backend testing strategies, coverage thresholds, and CI integration.
 
 ---
 
@@ -53,9 +54,19 @@ Before attempting to compile or run the application locally, ensure your develop
 
 All administrative, runtime development, and pipeline compilation configurations must be invoked exclusively from the **root terminal directory**.
 
-| Execution Command | Scope Strategy | Pipeline Processing Action                                                                                                       |
-| ----------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`    | Workspace Root | Parses multi-package configuration trees and securely symlinks workspace dependencies.                                           |
-| `pnpm dev`        | Workspace Root | Orchestrates the Svelte web views via Vite, handles Hot Module Reloading, and mounts the native Rust shell.                      |
-| `pnpm build`      | Workspace Root | Enforces strict generation rules on frontend distributions, builds static structures, and compiles standalone platform binaries. |
-| `pnpm clean`      | Workspace Root | Invokes atomic filesystem purges across all workspace scopes, wiping artifacts, caches, and modules cleanly.                     |
+| Execution Command         | Scope Strategy | Pipeline Processing Action                                                                                                       |
+| ------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`            | Workspace Root | Parses multi-package configuration trees and securely symlinks workspace dependencies.                                           |
+| `pnpm dev`                | Workspace Root | Orchestrates the Svelte web views via Vite, handles Hot Module Reloading, and mounts the native Rust shell.                     |
+| `pnpm build`              | Workspace Root | Enforces strict generation rules on frontend distributions, builds static structures, and compiles standalone platform binaries. |
+| `pnpm clean`              | Workspace Root | Invokes atomic filesystem purges across all workspace scopes, wiping artifacts, caches, and modules cleanly.                    |
+| `pnpm test`               | Workspace Root | Runs frontend Vitest unit tests and Rust `cargo test` integration tests.                                                        |
+| `pnpm run test:coverage`  | Workspace Root | Generates full coverage reports: Vitest (V8) for frontend and `cargo-llvm-cov` for backend. Enforces thresholds.               |
+| `pnpm run generate:types` | Workspace Root | Runs `export_zod` binary to regenerate `frontend/src/lib/types/ipc.ts` from Rust structs via `specta`.                         |
+| `pnpm run check`          | Workspace Root | Runs `svelte-check` (TypeScript) and `cargo check` across both layers.                                                          |
+| `pnpm run check:deadcode` | Workspace Root | Runs `knip` (frontend dead-code) and `cargo clippy -D dead_code` (backend).                                                    |
+| `pnpm run fix`            | Workspace Root | Auto-formats and auto-fixes: Prettier, ESLint, `cargo fmt`, and `cargo clippy --fix`.                                           |
+| `pnpm run lint:md`        | Workspace Root | Lints all markdown files using `markdownlint-cli` against `.markdownlint.json` rules.                                           |
+| `pnpm run lint:md:fix`    | Workspace Root | Auto-fixes markdown lint violations where possible.                                                                              |
+| `pnpm run audit`          | Workspace Root | Runs `pnpm audit` (frontend) and `cargo audit` (backend) to detect known dependency vulnerabilities.                            |
+| `pnpm run app-info`       | Workspace Root | Prints `tauri info` environment summary (OS, Rust, Node, WebView2, plugin versions).                                            |

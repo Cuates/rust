@@ -52,3 +52,45 @@ Once completed, boot standard local execution safely:
 ```bash
 pnpm dev
 ```
+
+## ❌ Issue: CI fails with "Types are out of sync"
+
+- **Cause:** A Rust struct in `backend/src/models.rs` was modified (field added, renamed, or removed) but `frontend/src/lib/types/ipc.ts` was not regenerated before committing. The CI `Verify IPC Types are in Sync` step detects the drift via `git diff --exit-code`.
+- **Resolution:** Run the generator locally and commit the result:
+
+```bash
+pnpm run generate:types
+git add frontend/src/lib/types/ipc.ts
+git commit --amend --no-edit
+```
+
+## ❌ Issue: `pnpm run audit` or `cargo audit` fails in CI
+
+- **Cause:** A dependency (direct or transitive) has a known published vulnerability. The CI `Dependency Audit` gate blocks PRs with unresolved advisories.
+- **Resolution (frontend):** Run `pnpm update -r` to apply latest minor/patch bumps, or add an override in `frontend/package.json`:
+
+```json
+"pnpm": {
+  "overrides": {
+    "vulnerable-package": ">=safe-version"
+  }
+}
+```
+
+- **Resolution (backend):** Run `cargo update` from `backend/` to pull the latest compatible patch versions. If a transitive dependency has no fix yet, add it to `backend/.cargo/audit.toml` as an ignored advisory with justification.
+
+## ❌ Issue: `pnpm run check:deadcode` (knip) reports unexpected unused exports
+
+- **Cause:** `knip` performs static analysis and may flag Svelte component props, store exports, or auto-generated files as "unused" if they are only consumed at runtime or via dynamic imports.
+- **Resolution:** Add the false-positive path to `frontend/knip.json` under `ignore` or `ignoreDependencies`. For auto-generated files like `ipc.ts`, they are already covered by the existing `knip.json` ignore rules. Never suppress a real dead-code finding without investigation.
+
+## ❌ Issue: `pnpm run lint:md` reports markdown errors
+
+- **Cause:** A markdown file violates one of the active `markdownlint` rules not already disabled in `.markdownlint.json`.
+- **Resolution:** Run `pnpm run lint:md:fix` to auto-fix most rule violations (line length, trailing spaces, blank lines). For complex tables or ASCII art trees that cannot be reformatted, wrap the block:
+
+```markdown
+<!-- markdownlint-disable -->
+... complex content ...
+<!-- markdownlint-enable -->
+```

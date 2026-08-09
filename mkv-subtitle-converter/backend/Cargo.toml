@@ -1,6 +1,6 @@
 [package]
 name = "mkv-subtitle-extractor-converter-rust"
-version = "1.10.0"
+version = "1.11.0"
 description = "A desktop app for batch-extracting and converting MKV embedded subtitles to ASS format"
 authors = ["Cuates"]
 edition = "2024"
@@ -42,6 +42,10 @@ indexmap = { version = "2.0", features = ["serde"] }
 # rusqlite bundled: compiles SQLite from source for cross-platform consistency.
 # Expected impact: +30-60s on a clean compile, +~500 KB binary. This is intentional.
 rusqlite = { version = "0.31", features = ["bundled"] }
+
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-zod = "0.0.3"
+specta-serde = "0.0.12"
 
 [dev-dependencies]
 tempfile = "3.10"
