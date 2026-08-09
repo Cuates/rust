@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { invoke, Channel } from '@tauri-apps/api/core';
   import { listen } from '@tauri-apps/api/event';
-  import { getCurrentWindow, ProgressBarStatus } from '@tauri-apps/api/window';
+  import { getCurrentWindow, type ProgressBarStatus } from '@tauri-apps/api/window';
   import { open } from '@tauri-apps/plugin-dialog';
   import { sendNotification } from '@tauri-apps/plugin-notification';
 
@@ -151,12 +151,12 @@
       const appWindow = getCurrentWindow();
       if (isProcessing) {
         appWindow.setProgressBar({
-          status: ProgressBarStatus.Normal,
+          status: 'normal' as ProgressBarStatus,
           progress: Math.floor(pipelineProgress)
         });
       } else {
         appWindow.setProgressBar({
-          status: ProgressBarStatus.None
+          status: 'none' as ProgressBarStatus
         });
       }
     } catch {

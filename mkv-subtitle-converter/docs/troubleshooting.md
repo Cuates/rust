@@ -104,3 +104,15 @@ overrides:
   channel (`tokio::sync::mpsc::unbounded_channel()`). This allows you to use
   the non-blocking `tx.send(data)` method safely from within the synchronous
   IPC closure.
+
+## ❌ Issue: Vite warning "imported but never used" for Tauri v2 Enums
+
+- **Cause:** In Tauri v2, types like `ProgressBarStatus` are declared as
+  ambient enums (`declare enum`). Vite (via esbuild) strips ambient enums since
+  they don't generate runtime JavaScript objects. If imported normally, Rollup
+  will issue an "imported but never used" warning, and referencing it as a value
+  will cause TypeScript errors.
+- **Resolution:** Import the enum explicitly as a type, and use string literals
+  cast to the type. For example:
+  `import { type ProgressBarStatus } from '@tauri-apps/api/window';`
+  and use it as `status: 'normal' as ProgressBarStatus`.
