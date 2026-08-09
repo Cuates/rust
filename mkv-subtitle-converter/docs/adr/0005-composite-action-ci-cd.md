@@ -13,6 +13,7 @@ Our GitHub Actions Continuous Integration (CI) pipeline requires specific enviro
 - Operating System specific system packages (Tauri OS dependencies like `libwebkit2gtk-4.1-dev` for Linux).
 - Node.js and the `pnpm` package manager (tied to a specific lockfile version).
 - Rust toolchain with specific formatting and linting components (`dtolnay/rust-toolchain`).
+- The `cargo-audit` binary (via `cargo install`) for enforcing dependency vulnerability gates.
 - Rust caching strategies (`Swatinem/rust-cache`).
 - Application-specific native sidecar binaries caching.
 

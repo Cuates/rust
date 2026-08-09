@@ -28,6 +28,10 @@ runs:
       with:
         components: clippy, rustfmt
 
+    - name: Install cargo-audit
+      shell: bash
+      run: cargo install cargo-audit --locked
+
     - name: Cache Rust dependencies
       uses: Swatinem/rust-cache@v2
       with:

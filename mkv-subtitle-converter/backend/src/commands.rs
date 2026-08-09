@@ -1127,7 +1127,7 @@ mod tests {
         let handle = app.app_handle();
         let state = handle.state::<crate::models::AppState>();
 
-        let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let on_progress = tauri::ipc::Channel::new(move |payload| {
             let data = match &payload {
                 tauri::ipc::InvokeResponseBody::Json(s) => {
@@ -1138,7 +1138,7 @@ mod tests {
                 }
                 _ => panic!("Unknown payload variant"),
             };
-            let _ = tx.blocking_send(data);
+            let _ = tx.send(data);
             Ok(())
         });
 
