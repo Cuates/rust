@@ -94,7 +94,13 @@ overrides:
 <!-- markdownlint-enable -->
 ```
 
-## ❌ Issue: Rust tests panic with "Cannot block the current thread from within a runtime"
+## ❌ Issue: Rust tests panic with "Cannot block the current thread..."
 
-- **Cause:** When mocking Tauri IPC payloads in backend Rust tests (e.g. `tauri::ipc::Channel::new`), using a blocking channel sender (`tx.blocking_send()`) inside an `async` Tokio runtime context causes a thread deadlock panic.
-- **Resolution:** Swap the standard bounded `mpsc::channel` for an unbounded channel (`tokio::sync::mpsc::unbounded_channel()`). This allows you to use the non-blocking `tx.send(data)` method safely from within the synchronous IPC closure.
+- **Cause:** When mocking Tauri IPC payloads in backend Rust tests (e.g.
+  `tauri::ipc::Channel::new`), using a blocking channel sender
+  (`tx.blocking_send()`) inside an `async` Tokio runtime context causes a
+  thread deadlock panic.
+- **Resolution:** Swap the standard bounded `mpsc::channel` for an unbounded
+  channel (`tokio::sync::mpsc::unbounded_channel()`). This allows you to use
+  the non-blocking `tx.send(data)` method safely from within the synchronous
+  IPC closure.
