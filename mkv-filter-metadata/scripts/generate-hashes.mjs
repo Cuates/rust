@@ -51,9 +51,9 @@ const entries = Object.entries(results);
 for (let i = 0; i < entries.length; i++) {
     const [key, value] = entries[i];
     let line = `    "${key}": "${value}"`;
-    
+
     if (key === "mkvmerge-aarch64-apple-darwin" && results["mkvmerge-aarch64-apple-darwin"] === results["mkvmerge-x86_64-apple-darwin"]) {
-        line += `, // universal binary (MKVToolNix-99.0-1-universal.dmg) — same file as x86_64 entry below, intentional`;
+        line += `, // universal binary (MKVToolNix-###.#-#-universal.dmg) — same file as x86_64 entry below, intentional`;
     } else if (key === "mkvmerge-x86_64-apple-darwin" && results["mkvmerge-aarch64-apple-darwin"] === results["mkvmerge-x86_64-apple-darwin"]) {
         line += i < entries.length - 1 ? `,  // same universal binary as above` : `   // same universal binary as above`;
     } else {
