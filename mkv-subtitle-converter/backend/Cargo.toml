@@ -4,6 +4,7 @@ version = "1.11.0"
 description = "A desktop app for batch-extracting and converting MKV embedded subtitles to ASS format"
 authors = ["Cuates"]
 edition = "2024"
+default-run = "mkv-subtitle-extractor-converter-rust"
 
 # The `_lib` suffix prevents a name collision between the lib and the bin on Windows.
 # See https://github.com/rust-lang/cargo/issues/8519
